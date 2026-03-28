@@ -22,6 +22,13 @@ env/
 !.env.example
 *.pem
 *.key
+*.crt
+*.p12
+
+# dotenv variants
+.env.local
+.env.development
+.env.production
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 *.db
@@ -66,3 +73,21 @@ exports/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+
+# ─── Secrets / AI / misc  ───────────────────────────────────────────
+*.env.json
+secrets.json
+credentials.json
+
+# Claude / OpenAI temp
+.claude/
+.anthropic/
+.openai/
+
+# mac temp
+*.tmp
+*.temp
+
+# ─── Build artifacts (backend/frontend) ───────────────────────────────────────
+coverage/
+.cache/
