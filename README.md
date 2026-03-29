@@ -159,8 +159,8 @@ No LangChain. No vector databases. No external queue. Runs entirely local except
 
 ## Roadmap
 
-- [ ] Core pipeline (planner → agents → critic)
-- [ ] Brand voice YAML
+- [x] Core pipeline (planner → agents → critic)
+- [x] Brand voice YAML
 - [ ] FastAPI + SSE streaming
 - [ ] Next.js frontend with streaming cards
 - [ ] Inline edit before publish

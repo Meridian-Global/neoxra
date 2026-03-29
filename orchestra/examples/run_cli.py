@@ -14,12 +14,7 @@ load_dotenv()
 # Add parent directory to path so we can import backend modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from backend.core.voice_store import load_voice_profile
-from backend.agents.planner import PlannerAgent
-from backend.agents.instagram import InstagramAgent
-from backend.agents.threads import ThreadsAgent
-from backend.agents.linkedin import LinkedInAgent
-from backend.agents.critic import CriticAgent
+from backend.core.orchestrator import run_full_pipeline
 
 
 def print_section(title: str, content: str):
@@ -40,51 +35,17 @@ def main():
     print("\n🎼 ORCHESTRA - Multi-Agent Content System")
     print(f"Idea: {idea}\n")
 
-    # Load voice profile
-    print("📖 Loading voice profile...")
-    voice_profile = load_voice_profile("default")
+    # Run full pipeline with two-pass refinement
+    result = run_full_pipeline(idea)
 
-    # Step 1: Planner creates Brief
-    print("🎯 Running Planner agent...")
-    planner = PlannerAgent()
-    brief = planner.run(idea=idea, voice_profile=voice_profile)
-    print_section("BRIEF", brief.to_string())
-
-    # Step 2: Platform agents generate content
-    print("\n📱 Running platform agents...")
-
-    print("  → Instagram agent...")
-    instagram = InstagramAgent()
-    instagram_output = instagram.run(brief=brief)
-
-    print("  → Threads agent...")
-    threads = ThreadsAgent()
-    threads_output = threads.run(brief=brief, instagram_output=instagram_output)
-
-    print("  → LinkedIn agent...")
-    linkedin = LinkedInAgent()
-    linkedin_output = linkedin.run(brief=brief, instagram_output=instagram_output, threads_output=threads_output)
-
-    # Print platform outputs
-    print_section("INSTAGRAM", instagram_output)
-    print_section("THREADS", threads_output)
-    print_section("LINKEDIN", linkedin_output)
-
-    # Step 3: Critic reviews and rewrites all outputs
-    print("\n🎭 Running Critic agent...")
-    critic = CriticAgent()
-    critic_review = critic.run(
-        brief=brief,
-        instagram_output=instagram_output,
-        threads_output=threads_output,
-        linkedin_output=linkedin_output,
-        voice_profile=voice_profile
-    )
-
-    # Display improved versions
-    print_section("INSTAGRAM (IMPROVED)", critic_review.instagram_improved)
-    print_section("THREADS (IMPROVED)", critic_review.threads_improved)
-    print_section("LINKEDIN (IMPROVED)", critic_review.linkedin_improved)
+    # Display results
+    print_section("BRIEF", result["brief"].to_string())
+    print_section("INSTAGRAM (after 2 passes)", result["instagram"])
+    print_section("THREADS (after 2 passes)", result["threads"])
+    print_section("LINKEDIN (after 2 passes)", result["linkedin"])
+    print_section("INSTAGRAM (CRITIC IMPROVED)", result["critic_review"].instagram_improved)
+    print_section("THREADS (CRITIC IMPROVED)", result["critic_review"].threads_improved)
+    print_section("LINKEDIN (CRITIC IMPROVED)", result["critic_review"].linkedin_improved)
 
     print(f"\n{'='*60}")
     print("✅ Pipeline complete!")
