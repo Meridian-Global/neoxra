@@ -101,7 +101,16 @@ RULES:
 
         # Parse JSON response
         try:
+            # Try parsing as-is first
             improved_data = json.loads(response)
+        except json.JSONDecodeError:
+            # If that fails, try with strict=False to handle edge cases
+            try:
+                improved_data = json.loads(response, strict=False)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Critic did not return valid JSON. Error: {e}. Response: {response[:500]}")
+
+        try:
             return CriticReview(
                 instagram_original=instagram_output,
                 instagram_improved=improved_data["instagram_improved"],
@@ -110,5 +119,5 @@ RULES:
                 linkedin_original=linkedin_output,
                 linkedin_improved=improved_data["linkedin_improved"]
             )
-        except (json.JSONDecodeError, KeyError) as e:
-            raise ValueError(f"Critic did not return valid JSON. Error: {e}. Response: {response}")
+        except KeyError as e:
+            raise ValueError(f"Critic JSON missing required key: {e}. Response keys: {improved_data.keys()}")
