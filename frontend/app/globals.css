@@ -1,0 +1,420 @@
+:root {
+  --bg: #0d0d0d;
+  --surface: #161616;
+  --border: #252525;
+  --text: #e2e2e2;
+  --text-muted: #666;
+  --text-dim: #3a3a3a;
+  --accent: #4ade80;
+  --mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 56px 24px 96px;
+}
+
+.container {
+  max-width: 660px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+header {
+  margin-bottom: 40px;
+}
+
+header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── Input ── */
+.input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 48px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 88px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+textarea:focus {
+  border-color: #404040;
+}
+
+textarea::placeholder {
+  color: var(--text-dim);
+}
+
+button.run-btn {
+  align-self: flex-start;
+  padding: 9px 20px;
+  background: #fff;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+button.run-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+button.run-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+/* ── Timeline ── */
+.timeline {
+  position: relative;
+  padding-left: 22px;
+}
+
+/* The vertical connecting rail */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 20px;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--border) 80%, transparent);
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+/* Small dot on the rail for each item */
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 22px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #202020;
+  border: 1px solid #363636;
+  z-index: 1;
+}
+
+/* Active item: green pulsing dot signals work in progress */
+.timeline-item.timeline-active::before {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.1);
+  animation: tl-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tl-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.1); }
+  50%       { box-shadow: 0 0 0 7px rgba(74, 222, 128, 0.03); }
+}
+
+/* Stage text — italic to signal "in progress" */
+.stage-indicator {
+  padding: 10px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Card ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  /* Left border takes the agent's accent color */
+  border-left: 2px solid var(--card-accent, var(--border));
+  border-radius: 10px;
+  padding: 18px 20px;
+  animation: slide-in 0.22s ease-out;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Two-row agent identity: symbol + role name (prominent) + platform/pass (sub) */
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.card-symbol {
+  font-size: 13px;
+  line-height: 1;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.card-role {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+
+.card-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Brief ── */
+.brief-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.brief-row {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+}
+
+.brief-key {
+  color: var(--text-muted);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.brief-val {
+  color: var(--text);
+}
+
+/* ── Thinking disclosure ── */
+details.thinking {
+  margin-bottom: 12px;
+}
+
+details.thinking summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+  color: #3a3a3a;
+  letter-spacing: 0.03em;
+  user-select: none;
+  transition: color 0.1s;
+}
+
+details.thinking summary:hover {
+  color: var(--text-muted);
+}
+
+.thinking-body {
+  margin-top: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.025);
+  border-left: 2px solid var(--border);
+  border-radius: 0 4px 4px 0;
+  line-height: 1.55;
+}
+
+/* ── Output text + reveal cursor ── */
+.output-text {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Blinking block cursor while text is revealing */
+.cursor {
+  display: inline;
+  color: var(--text-muted);
+  font-size: 11px;
+  animation: cursor-blink 0.7s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* ── Critic notes inline ── */
+.critic-notes-inline {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.65;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* ── Error ── */
+.error-box {
+  padding: 13px 16px;
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 13px;
+}
+
+/* ── Final section ── */
+.final {
+  margin-top: 52px;
+  padding-top: 36px;
+  border-top: 1px solid var(--border);
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Stats row: summarizes what the pipeline did */
+.completion-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  margin-bottom: 24px;
+  background: rgba(74, 222, 128, 0.04);
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stats-dot {
+  color: var(--text-dim);
+}
+
+.stats-highlight {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Critic review block */
+.critic-summary {
+  margin-bottom: 24px;
+  padding: 14px 16px;
+  background: rgba(251, 146, 60, 0.05);
+  border: 1px solid rgba(251, 146, 60, 0.12);
+  border-radius: 8px;
+}
+
+.critic-summary-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fb923c;
+  margin-bottom: 6px;
+}
+
+.critic-summary-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+/* Platform output cards */
+.final-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.final-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.final-card-label {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.final-card-body {
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
+/* Platform accent colors */
+.p-instagram { color: #e1306c; }
+.p-threads   { color: #c8c8c8; }
+.p-linkedin  { color: #4a9eff; }
+.p-planner   { color: #a78bfa; }
+.p-critic    { color: #fb923c; }
+
+/* Copy button */
+.copy-btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.copy-btn:hover {
+  border-color: #404040;
+  color: var(--text);
+}
