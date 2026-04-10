@@ -63,7 +63,7 @@ This makes the outputs genuinely different from each other, and the interaction 
 │   └── examples/
 │       ├── run_cli.py           # Run the full pipeline in terminal
 │       └── test_claude.py
-├── frontend/                    # Next.js 14 app router
+├── frontend/                    # Next.js 15 app router
 │   ├── app/
 │   │   ├── page.tsx             # Main page — input, timeline, final outputs
 │   │   ├── layout.tsx
@@ -112,6 +112,64 @@ The API and frontend can also run independently. The frontend connects to the ba
 
 ---
 
+## Local testing
+
+There isn't a full automated test suite in the repo yet, so the most useful checks right now are build checks plus a few API and UI smoke tests.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+npm run dev
+```
+
+What to verify:
+
+- `npm run build` completes successfully
+- the app loads at `http://localhost:3000`
+- entering an idea and clicking `Run Orchestra` does not produce client-side errors
+- the live timeline renders streaming cards and the final output cards appear
+
+### Backend
+
+```bash
+source .venv/bin/activate
+uvicorn orchestra.backend.main:app --reload
+```
+
+Useful smoke tests:
+
+```bash
+# Main pipeline route (streams SSE)
+curl -N -X POST http://localhost:8000/api/run \
+  -H "Content-Type: application/json" \
+  -d '{"idea":"A post about why small teams should document decisions","voice_profile":"default"}'
+
+# Gmail scanner route
+curl http://localhost:8000/api/ideas/scan
+```
+
+Expected behavior:
+
+- `/api/run` streams `event:` / `data:` messages in order
+- `/api/ideas/scan` returns Gmail ideas if authenticated
+- if Gmail is not set up yet, `/api/ideas/scan` should return:
+  `"Gmail not authenticated. Run: python orchestra/examples/gmail_auth.py"`
+
+### Full stack
+
+Run the backend on `:8000` and the frontend on `:3000`, then:
+
+1. Open `http://localhost:3000`
+2. Submit a test idea
+3. Confirm the pipeline streams from planner through critic
+4. Confirm the final Instagram, Threads, and LinkedIn outputs render
+5. Check both terminals for errors
+
+---
+
 ## Environment variables
 
 ```bash
@@ -126,6 +184,13 @@ ANTHROPIC_MODEL=claude-haiku-4-5
 # Get your person URN from https://api.linkedin.com/v2/userinfo
 LINKEDIN_ACCESS_TOKEN=your_linkedin_personal_access_token
 LINKEDIN_PERSON_URN=urn:li:person:your_person_id
+
+# Gmail idea scanner
+# 1. Enable the Gmail API in Google Cloud
+# 2. Download OAuth desktop credentials
+# 3. Run: python orchestra/examples/gmail_auth.py
+GOOGLE_CREDENTIALS_PATH=credentials.json
+GOOGLE_TOKEN_PATH=token.json
 ```
 
 ---
@@ -177,7 +242,7 @@ That's it. One file, no framework to learn.
 | LLM          | Claude (Anthropic)                  |
 | Backend      | Python + FastAPI                    |
 | Streaming    | Server-Sent Events                  |
-| Frontend     | Next.js 14 (app router, custom CSS) |
+| Frontend     | Next.js 15 (app router, custom CSS) |
 | Voice config | YAML                                |
 
 No LangChain. No vector databases. No Tailwind. No external queue. Runs entirely local except for the API call.
@@ -199,7 +264,7 @@ No LangChain. No vector databases. No Tailwind. No external queue. Runs entirely
 - [ ] Instagram publishing via Graph API
 
 **Input sources**
-- [ ] Gmail scanner — surface candidate ideas from inbox (`GET /api/ideas/scan`)
+- [x] Gmail scanner endpoint (`GET /api/ideas/scan`)
 - [ ] Input source toggle in frontend (manual ↔ Gmail scan mode)
 
 **Later**
