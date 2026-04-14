@@ -1,21 +1,10 @@
 from .base import BaseAgent
 from ..core.brief import Brief
 import json
-from dataclasses import dataclass
 
-
-@dataclass
-class CriticReview:
-    """
-    Critic's review with cross-platform analysis and improved versions.
-    """
-    notes: str  # cross-platform analysis: duplicates, off-brand, weak spots
-    instagram_original: str
-    instagram_improved: str
-    threads_original: str
-    threads_improved: str
-    linkedin_original: str
-    linkedin_improved: str
+# Re-export from orchestra-core. Local imports (e.g. from ..agents.critic import CriticReview)
+# continue to work unchanged during migration.
+from orchestra_core.models.outputs import CriticReview
 
 
 class CriticAgent(BaseAgent):

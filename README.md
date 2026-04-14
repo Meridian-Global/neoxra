@@ -6,6 +6,8 @@ Orchestra is a backend orchestration layer, not a finished product. It coordinat
 
 The frontend demo and current integrations (Gmail, LinkedIn publisher) are app-layer code that demonstrate one way to consume the engine. Future applications — a LinkedIn Chrome Extension, CLI tools, automation workflows — are separate surfaces that call the same core.
 
+The AI model layer is currently being extracted into a separate private repository, `orchestra-core`. This repo now depends on that package for shared models and voice-loading helpers while continuing to own the FastAPI app, route wiring, app-layer integrations, and demo surfaces.
+
 Built by [Meridian Global](https://github.com/MeridianGlobal).
 
 ---
@@ -52,7 +54,8 @@ Planner → Platform Agents → Critic
 
 | Layer                      | Location                                     | Stable               |
 | -------------------------- | -------------------------------------------- | -------------------- |
-| Core agents + orchestrator | `orchestra/backend/agents/`, `backend/core/` | Yes                  |
+| Core agents + orchestrator | `orchestra/backend/agents/`, `backend/core/` | Transitional         |
+| Shared AI model layer      | `orchestra-core` (private repo)              | Yes                  |
 | Core API contract          | `POST /api/run`                              | Yes                  |
 | Voice profiles             | `orchestra/voice_profiles/`                  | Yes                  |
 | App-layer routes           | `backend/api/integrations_routes.py`         | No — app concern     |
@@ -98,7 +101,7 @@ The integration routes (`POST /api/publish/linkedin`, `GET /api/ideas/scan`) liv
 
 ## Quickstart
 
-**Requirements:** Python 3.11+, an Anthropic API key
+**Requirements:** Python 3.10+ (3.11+ recommended), an Anthropic API key
 
 ```bash
 git clone https://github.com/MeridianGlobal/orchestra.git
@@ -106,6 +109,10 @@ cd orchestra
 
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+
+# Required during the current extraction phase:
+# install the private orchestra-core package into this env
+pip install -e ../orchestra-core
 
 cp env.example .env
 # add your ANTHROPIC_API_KEY to .env
@@ -134,6 +141,8 @@ curl -N -X POST http://localhost:8000/api/run \
 pip install -r requirements-integrations.txt
 ```
 
+If you keep `orchestra-core` in a different location, install it however your environment expects. The important part is that `import orchestra_core` succeeds before you run the API or tests.
+
 **Frontend demo** — see [`frontend/STANDALONE.md`](./frontend/STANDALONE.md) for full details:
 
 ```bash
@@ -157,10 +166,10 @@ cd frontend && npm install && npm run dev
 │   │   │   ├── linkedin.py
 │   │   │   └── critic.py
 │   │   ├── core/                      # Engine internals
-│   │   │   ├── brief.py               # Brief dataclass — shared agent contract
-│   │   │   ├── context.py             # AgentContext — pipeline state
+│   │   │   ├── brief.py               # Thin re-export / compatibility layer
+│   │   │   ├── context.py             # Thin re-export / compatibility layer
 │   │   │   ├── orchestrator.py        # Pipeline runner + SSE event emitter
-│   │   │   └── voice_store.py         # Voice profile loader
+│   │   │   └── voice_store.py         # Wrapper around orchestra-core voice loader
 │   │   ├── api/
 │   │   │   ├── routes.py              # Core: POST /api/run
 │   │   │   └── integrations_routes.py # App-layer: publish + scan routes
@@ -187,15 +196,21 @@ cd frontend && npm install && npm run dev
 └── requirements-integrations.txt      # App-layer dependencies (Gmail, LinkedIn)
 ```
 
+Related repo:
+
+- `orchestra-core` (private) — shared models, prompts, and AI-layer logic under extraction
+
 ---
 
 ## Testing
 
-Install both requirement files, then run the suite:
+Install the dependencies needed for the surface you want to test, then run the suite.
 
 ```bash
-pip install -r requirements.txt -r requirements-integrations.txt
-pytest tests/ -q
+pip install -r requirements.txt
+pip install -r requirements-integrations.txt
+pip install -e ../orchestra-core
+pytest tests/test_app_smoke.py tests/test_route_boundaries.py tests/test_import_paths.py -q
 ```
 
 The suite covers:
@@ -208,8 +223,11 @@ The suite covers:
 Manual route smoke check against a running server:
 
 ```bash
+uvicorn orchestra.backend.main:app --reload
 sh scripts/smoke_test_routes.sh
 ```
+
+If `pytest` fails with `ModuleNotFoundError: orchestra_core`, it means the current virtualenv does not yet have the private `orchestra-core` package installed.
 
 ---
 
@@ -277,12 +295,13 @@ GOOGLE_TOKEN_PATH=token.json
 
 | Layer                  | Choice                      |
 | ---------------------- | --------------------------- |
-| LLM                    | Claude (Anthropic)          |
-| Backend                | Python + FastAPI            |
-| Streaming              | Server-Sent Events          |
-| Voice config           | YAML                        |
-| Frontend demo          | Next.js 15                  |
-| App-layer integrations | Gmail API, LinkedIn UGC API |
+| LLM                    | Claude (Anthropic)                    |
+| Shared AI layer        | `orchestra-core` (private package)    |
+| Backend                | Python + FastAPI                      |
+| Streaming              | Server-Sent Events                    |
+| Voice config           | YAML                                  |
+| Frontend demo          | Next.js 15                            |
+| App-layer integrations | Gmail API, LinkedIn UGC API           |
 
 No LangChain. No vector databases. No external queue. The core engine runs entirely local except for the Claude API call.
 
