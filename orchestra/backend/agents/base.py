@@ -1,14 +1,11 @@
 from abc import ABC, abstractmethod
 from anthropic import Anthropic
-from dataclasses import dataclass
 import os
 import json
 
-
-@dataclass
-class AgentOutput:
-    thinking: str
-    output: str
+# Re-export from orchestra-core. Local imports (e.g. from .base import AgentOutput)
+# continue to work unchanged during migration.
+from orchestra_core.models.outputs import AgentOutput
 
 
 class BaseAgent(ABC):
