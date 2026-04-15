@@ -5,8 +5,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from orchestra_core.skills.base import SkillOutput
 
 from orchestra.backend.main import app
+from orchestra.backend.api.instagram_routes import (
+    ContentScoringSkill,
+    InstagramGenerationSkill,
+    StyleAnalysisSkill,
+)
 
 client = TestClient(app)
 
@@ -139,3 +145,110 @@ class TestInstagramSSERoute:
         content = final["data"]["content"]
         for field in ("caption", "hook_options", "hashtags", "carousel_outline", "reel_script"):
             assert field in content, f"missing content field: {field}"
+
+    def test_style_analysis_failure_emits_error_event(self):
+        with patch.object(
+            StyleAnalysisSkill,
+            "run",
+            side_effect=ValueError("style boom"),
+        ):
+            resp = client.post(
+                "/api/instagram/generate",
+                json={"topic": "test", "template_text": "template"},
+            )
+        events = _parse_sse_stream(resp.text)
+        assert [event["event"] for event in events] == [
+            "style_analysis_started",
+            "error",
+        ]
+        assert events[-1]["data"] == {
+            "stage": "style_analysis",
+            "message": "style boom",
+        }
+
+    def test_generation_failure_emits_error_event(self):
+        style_output = SkillOutput(
+            text="style ok",
+            metadata={
+                "style_analysis": {
+                    "tone_keywords": ["bold"],
+                    "structural_patterns": ["hook first"],
+                    "vocabulary_notes": "direct voice",
+                }
+            },
+        )
+        with (
+            patch.object(StyleAnalysisSkill, "run", return_value=style_output),
+            patch.object(
+                InstagramGenerationSkill,
+                "run",
+                side_effect=ValueError("generation boom"),
+            ),
+        ):
+            resp = client.post(
+                "/api/instagram/generate",
+                json={"topic": "test", "template_text": "template"},
+            )
+        events = _parse_sse_stream(resp.text)
+        assert [event["event"] for event in events] == [
+            "style_analysis_started",
+            "style_analysis_completed",
+            "generation_started",
+            "error",
+        ]
+        assert events[-1]["data"] == {
+            "stage": "generation",
+            "message": "generation boom",
+        }
+
+    def test_scoring_failure_emits_error_event(self):
+        style_output = SkillOutput(
+            text="style ok",
+            metadata={
+                "style_analysis": {
+                    "tone_keywords": ["bold"],
+                    "structural_patterns": ["hook first"],
+                    "vocabulary_notes": "direct voice",
+                }
+            },
+        )
+        generation_output = SkillOutput(
+            text="generation ok",
+            metadata={
+                "caption": "Caption",
+                "hook_options": ["Hook A"],
+                "hashtags": ["tag1"],
+                "carousel_outline": [{"title": "Slide 1", "body": "Body 1"}],
+                "reel_script": "Reel script",
+            },
+        )
+        with (
+            patch.object(StyleAnalysisSkill, "run", return_value=style_output),
+            patch.object(
+                InstagramGenerationSkill,
+                "run",
+                return_value=generation_output,
+            ),
+            patch.object(
+                ContentScoringSkill,
+                "run",
+                side_effect=ValueError("scoring boom"),
+            ),
+        ):
+            resp = client.post(
+                "/api/instagram/generate",
+                json={"topic": "test", "template_text": "template"},
+            )
+        events = _parse_sse_stream(resp.text)
+        assert [event["event"] for event in events] == [
+            "style_analysis_started",
+            "style_analysis_completed",
+            "generation_started",
+            "generation_completed",
+            "scoring_started",
+            "error",
+        ]
+        assert events[-1]["data"] == {
+            "stage": "scoring",
+            "message": "scoring boom",
+        }
