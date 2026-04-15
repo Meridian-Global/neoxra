@@ -85,8 +85,8 @@ describe('InstagramPage progressive rendering', () => {
 
     // Scorecard NOT visible yet
     expect(screen.queryByText('Hook Strength')).not.toBeInTheDocument()
-    // Carousel preview NOT visible yet
-    expect(screen.queryByText('Carousel Preview')).not.toBeInTheDocument()
+    // Carousel deck NOT visible yet (requires critique)
+    expect(screen.queryByText('Carousel Deck')).not.toBeInTheDocument()
   })
 
   it('shows scorecard bar chart after scoring_completed', async () => {
@@ -110,11 +110,11 @@ describe('InstagramPage progressive rendering', () => {
     // Average: (8+6+7+9+5+7)/6 = 7.0
     expect(screen.getByText('Average: 7.0')).toBeInTheDocument()
 
-    // Carousel preview still NOT visible
-    expect(screen.queryByText('Carousel Preview')).not.toBeInTheDocument()
+    // Carousel deck still NOT visible (requires critique)
+    expect(screen.queryByText('Carousel Deck')).not.toBeInTheDocument()
   })
 
-  it('shows all sections including carousel preview and critique after pipeline_completed', async () => {
+  it('shows all sections including carousel deck and critique after pipeline_completed', async () => {
     mockEvents([
       { event: 'style_analysis_completed', data: mockStyleAnalysis },
       { event: 'generation_completed', data: mockContent },
@@ -130,8 +130,8 @@ describe('InstagramPage progressive rendering', () => {
       expect(screen.getByText(mockPipelineResult.critique)).toBeInTheDocument()
     })
 
-    // Carousel preview visible (slide titles appear in both InstagramResult and CarouselPreview)
-    expect(screen.getByText('Carousel Preview')).toBeInTheDocument()
+    // Carousel deck visible (slide titles appear in both InstagramResult and CarouselPreview)
+    expect(screen.getByText('Carousel Deck')).toBeInTheDocument()
     expect(screen.getAllByText('Slide One')).toHaveLength(2)
     expect(screen.getAllByText('Slide Two')).toHaveLength(2)
 
@@ -161,5 +161,83 @@ describe('InstagramPage progressive rendering', () => {
     await waitFor(() => {
       expect(screen.getByText('bold')).toBeInTheDocument()
     })
+  })
+
+  it('renders error banner when backend emits an error event', async () => {
+    mockEvents([
+      { event: 'style_analysis_completed', data: mockStyleAnalysis },
+      { event: 'error', data: { message: 'Rate limit exceeded' } },
+    ])
+
+    render(<InstagramPage />)
+    await fillAndSubmit()
+
+    await waitFor(() => {
+      expect(screen.getByText('Generation stopped')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Rate limit exceeded')).toBeInTheDocument()
+
+    // Style analysis rendered before the error should still be visible
+    expect(screen.getByText('bold')).toBeInTheDocument()
+  })
+
+  it('renders error banner when stream throws a network error', async () => {
+    mockStreamSSE.mockImplementation(async function* () {
+      yield { event: 'style_analysis_completed', data: mockStyleAnalysis }
+      throw new Error('Network connection lost')
+    })
+
+    render(<InstagramPage />)
+    await fillAndSubmit()
+
+    await waitFor(() => {
+      expect(screen.getByText('Generation stopped')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Network connection lost')).toBeInTheDocument()
+  })
+
+  it('stops streaming when cancel is triggered', async () => {
+    let yieldResolve: () => void
+    const blockForever = new Promise<void>((r) => { yieldResolve = r })
+
+    mockStreamSSE.mockImplementation(async function* (_url, _body, signal) {
+      yield { event: 'style_analysis_started', data: {} }
+      // Hang here until the test aborts via the signal
+      await Promise.race([
+        blockForever,
+        new Promise<void>((resolve) => {
+          signal?.addEventListener('abort', () => resolve())
+        }),
+      ])
+      // If signal was aborted, this should not be consumed
+      if (!signal?.aborted) {
+        yield { event: 'generation_completed', data: mockContent }
+      }
+    })
+
+    const user = userEvent.setup()
+    render(<InstagramPage />)
+
+    await user.type(screen.getByLabelText(/topic/i), 'AI tools')
+    await user.type(screen.getByLabelText(/template/i), 'Some template')
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+
+    // Wait for the streaming state — cancel button appears
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }))
+
+    // After cancel, status should revert to idle — "Ready" pill visible
+    await waitFor(() => {
+      expect(screen.getByText('Ready')).toBeInTheDocument()
+    })
+
+    // generation_completed was never yielded, so caption should not appear
+    expect(screen.queryByText(mockContent.caption)).not.toBeInTheDocument()
+
+    // Unblock so the generator can clean up
+    yieldResolve!()
   })
 })
