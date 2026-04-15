@@ -30,7 +30,7 @@ describe('InstagramForm', () => {
     render(<InstagramForm onSubmit={noop} disabled={true} />)
     await user.type(screen.getByLabelText(/topic/i), 'AI tools')
     await user.type(screen.getByLabelText(/template/i), 'Some template')
-    expect(screen.getByRole('button', { name: /generate/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /generat/i })).toBeDisabled()
   })
 
   it('calls onSubmit with correct field names on click', async () => {
