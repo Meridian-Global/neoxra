@@ -7,8 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 from orchestra_core.skills.base import SkillOutput
 
-from orchestra.backend.main import app
-from orchestra.backend.api.instagram_routes import (
+from app.main import app
+from app.api.instagram_routes import (
     ContentScoringSkill,
     InstagramGenerationSkill,
     StyleAnalysisSkill,

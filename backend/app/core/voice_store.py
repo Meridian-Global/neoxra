@@ -8,7 +8,8 @@ from pathlib import Path
 
 from orchestra_core.voice import load_voice_profile as _core_load
 
-_VOICE_DIR = Path(__file__).parent.parent.parent / "voice_profiles"
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+_VOICE_DIR = BACKEND_ROOT / "voice_profiles"
 
 
 def load_voice_profile(profile_name: str = "default") -> dict:
