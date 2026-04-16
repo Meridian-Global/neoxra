@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from orchestra.backend.api.instagram_routes import InstagramGenerateRequest
+from app.api.instagram_routes import InstagramGenerateRequest
 
 
 class TestInstagramGenerateRequestValid:

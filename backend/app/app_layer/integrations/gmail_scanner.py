@@ -6,19 +6,21 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+BACKEND_ROOT = Path(__file__).resolve().parents[3]
+
 
 def scan_inbox(max_results: int = 20) -> list[dict]:
     credentials_path = Path(os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json"))
     token_path = Path(os.getenv("GOOGLE_TOKEN_PATH", "token.json"))
 
-    # Explicitly resolve relative paths from repo root (current working directory).
+    # Resolve relative credential paths from the backend root regardless of cwd.
     if not credentials_path.is_absolute():
-        credentials_path = Path.cwd() / credentials_path
+        credentials_path = BACKEND_ROOT / credentials_path
     if not token_path.is_absolute():
-        token_path = Path.cwd() / token_path
+        token_path = BACKEND_ROOT / token_path
 
     if not token_path.exists():
-        raise RuntimeError("Gmail not authenticated. Run: python orchestra/examples/gmail_auth.py")
+        raise RuntimeError("Gmail not authenticated. Run: python scripts/gmail_auth.py")
 
     creds = Credentials.from_authorized_user_file(
         str(token_path),

@@ -166,7 +166,7 @@ Next.js file-based routing. `/instagram` maps to `app/instagram/page.tsx`. No la
 Orchestra's backend (the product layer) is responsible for:
 
 1. **Request handling** — Validate the incoming HTTP request, build an `orchestra_core.models.instagram.GenerationRequest`, and return SSE.
-2. **Voice loading** — Call `orchestra_core.voice.load_voice_profile()` with the voice_dir pointing at `orchestra/voice_profiles/`.
+2. **Voice loading** — Call `orchestra_core.voice.load_voice_profile()` with the voice_dir pointing at `backend/voice_profiles/`.
 3. **Pipeline invocation** — Instantiate `orchestra_core.orchestration.instagram.InstagramPipeline` and call `pipeline.run(request)`.
 4. **SSE translation** — The pipeline today runs synchronously and returns an `InstagramResult`. Orchestra's route wraps this in a streaming generator that emits events after each stage completes (see section 6 for how to make this work without changing core).
 5. **Error mapping** — Catch exceptions from core, translate them into SSE `error` events or HTTP error responses.
@@ -193,7 +193,7 @@ from orchestra_core.voice import load_voice_profile
 ### Pipeline wiring
 
 ```python
-# In orchestra/backend/api/instagram_routes.py (new file)
+# In backend/app/api/instagram_routes.py
 
 pipeline = InstagramPipeline()          # uses default skills
 result: InstagramResult = pipeline.run(request)

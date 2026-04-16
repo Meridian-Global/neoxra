@@ -4,6 +4,7 @@ from pathlib import Path
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> int:
@@ -11,9 +12,9 @@ def main() -> int:
     token_path = Path(os.getenv("GOOGLE_TOKEN_PATH", "token.json"))
 
     if not credentials_path.is_absolute():
-        credentials_path = Path.cwd() / credentials_path
+        credentials_path = BACKEND_ROOT / credentials_path
     if not token_path.is_absolute():
-        token_path = Path.cwd() / token_path
+        token_path = BACKEND_ROOT / token_path
 
     if not credentials_path.exists():
         print(

@@ -1,8 +1,8 @@
-import orchestra.backend.api.integrations_routes as integrations_routes
-import orchestra.backend.api.routes as core_routes
+import app.api.integrations_routes as integrations_routes
+import app.api.routes as core_routes
 from fastapi.testclient import TestClient
 
-from orchestra.backend.main import app
+from app.main import app
 
 
 def test_app_starts():

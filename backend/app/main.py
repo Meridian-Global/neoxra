@@ -2,14 +2,16 @@
 Orchestra FastAPI app.
 
 Run with:
-  uvicorn orchestra.backend.main:app --reload
-from the repo root, or:
-  uvicorn backend.main:app --reload
-from the orchestra/ directory.
+  cd backend && uvicorn app.main:app --reload
 """
 
+from pathlib import Path
+
 from dotenv import load_dotenv
-load_dotenv()
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
+load_dotenv(BACKEND_ROOT / ".env")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

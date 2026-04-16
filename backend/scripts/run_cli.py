@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """
 CLI demo for Orchestra multi-agent content system.
-Usage: python examples/run_cli.py "your content idea here"
+Usage: cd backend && python scripts/run_cli.py "your content idea here"
 """
 
 import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
 # Load environment variables from .env
-load_dotenv()
+load_dotenv(BACKEND_ROOT / ".env")
 
-# Add parent directory to path so we can import backend modules
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add backend root to path so we can import the app package when run as a script.
+sys.path.insert(0, str(BACKEND_ROOT))
 
-from backend.core.orchestrator import run_full_pipeline
+from app.core.orchestrator import run_full_pipeline
 
 
 def print_section(title: str, content: str):
