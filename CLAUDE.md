@@ -39,29 +39,17 @@ Do not overengineer early versions.
 
 orchestra/
 ├── backend/
-│   ├── agents/
-│   │   ├── base.py
-│   │   ├── planner.py
-│   │   ├── instagram.py
-│   │   ├── threads.py
-│   │   ├── linkedin.py
-│   │   └── critic.py
-│   ├── core/
-│   │   ├── brief.py
-│   │   ├── orchestrator.py
-│   │   └── voice_store.py
-│   ├── api/
-│   │   └── routes.py
-│   ├── db/
-│   │   └── models.py
-│   └── voice/
-│       └── default.yaml
+│   ├── app/
+│   │   ├── agents/
+│   │   ├── api/
+│   │   ├── app_layer/
+│   │   └── core/
+│   ├── scripts/
+│   ├── tests/
+│   └── voice_profiles/
 ├── frontend/
-├── examples/
-│   └── run_cli.py
 ├── docs/
 ├── .env
-├── .env.example
 └── README.md
 
 ## Core Architecture
@@ -84,7 +72,7 @@ Critic → reviews outputs
 
 ## Brand Voice
 
-Defined in backend/voice/default.yaml
+Defined in backend/voice_profiles/default.yaml
 
 ## Tech Stack
 
@@ -106,7 +94,7 @@ Avoid heavy frameworks.
 
 ## Commands
 
-python examples/run_cli.py "your idea here"
+cd backend && python scripts/run_cli.py "your idea here"
 
 ## Notes
 

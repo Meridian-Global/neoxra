@@ -73,6 +73,14 @@ exports/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+backend/.venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/__pycache__/
+backend/*.egg-info/
+backend/.coverage
+backend/htmlcov/
 
 # ─── Secrets / AI / misc  ───────────────────────────────────────────
 *.env.json

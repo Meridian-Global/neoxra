@@ -42,6 +42,11 @@ It owns:
 
 It does not own the full AI engine. Shared models, skills, prompts, and LLM provider logic live in `orchestra-core`.
 
+## Repo layout
+
+- `frontend/` contains the Next.js demo app
+- `backend/` contains the FastAPI app, Python tests, scripts, and voice profiles
+
 ## Quickstart
 
 ### Requirements
@@ -56,11 +61,12 @@ It does not own the full AI engine. Shared models, skills, prompts, and LLM prov
 From the repo root:
 
 ```bash
+cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e ../orchestra-core
-cp env.example .env
+cp .env.example .env
 ```
 
 Set at least:
@@ -73,13 +79,15 @@ ANTHROPIC_MODEL=claude-haiku-4-5
 Then confirm the shared package is importable:
 
 ```bash
+cd backend
 python -c "import orchestra_core; print('orchestra_core import ok')"
 ```
 
 ### 2. Start the API
 
 ```bash
-uvicorn orchestra.backend.main:app --reload
+cd backend
+uvicorn app.main:app --reload
 ```
 
 ### 3. Start the frontend
@@ -196,18 +204,21 @@ Additional references:
 Main backend checks:
 
 ```bash
+cd backend
 pytest tests/test_app_smoke.py tests/test_route_boundaries.py tests/test_import_paths.py
 ```
 
 Instagram-specific backend tests:
 
 ```bash
+cd backend
 pytest tests/test_instagram_request.py tests/test_instagram_route.py tests/test_instagram_contract.py
 ```
 
 If you're using a sibling checkout rather than an installed package:
 
 ```bash
+cd backend
 PYTHONPATH=../orchestra-core pytest tests/test_instagram_request.py tests/test_instagram_route.py tests/test_instagram_contract.py
 ```
 
@@ -229,15 +240,16 @@ npm run build
 
 | Layer | Lives in | Owned here? |
 | --- | --- | --- |
-| FastAPI app and route wiring | `orchestra/backend/` | Yes |
+| FastAPI app and route wiring | `backend/app/` | Yes |
 | Standalone frontend demo | `frontend/` | Yes |
-| App-layer integrations | `orchestra/backend/app_layer/integrations/` | Yes |
-| Voice profiles | `orchestra/voice_profiles/` | Yes |
+| App-layer integrations | `backend/app/app_layer/integrations/` | Yes |
+| Voice profiles | `backend/voice_profiles/` | Yes |
 | Shared models, skills, LLM provider wrapper | `../orchestra-core` | No |
 
 Most important runtime check:
 
 ```bash
+cd backend
 python -c "import orchestra_core; print('ok')"
 ```
 
@@ -262,6 +274,7 @@ If that fails, this repo will not run correctly.
 Some integration workflows may also need:
 
 ```bash
+cd backend
 pip install -r requirements-integrations.txt
 ```
 
@@ -270,13 +283,13 @@ pip install -r requirements-integrations.txt
 Voice profiles live in:
 
 ```text
-orchestra/voice_profiles/
+backend/voice_profiles/
 ```
 
 Default:
 
 ```text
-orchestra/voice_profiles/default.yaml
+backend/voice_profiles/default.yaml
 ```
 
 The multi-platform pipeline uses these profiles directly. The Instagram standalone request model currently accepts `voice_profile` for forward compatibility, but the present route implementation does not yet actively apply it in the flow.
@@ -285,27 +298,23 @@ The multi-platform pipeline uses these profiles directly. The Instagram standalo
 
 ```text
 .
-├── orchestra/
-│   ├── backend/
+├── backend/
+│   ├── app/
 │   │   ├── api/
-│   │   │   ├── routes.py
-│   │   │   ├── instagram_routes.py
-│   │   │   └── integrations_routes.py
 │   │   ├── agents/
 │   │   ├── core/
 │   │   ├── app_layer/
 │   │   │   └── integrations/
 │   │   └── main.py
-│   ├── examples/
+│   ├── scripts/
+│   ├── tests/
 │   └── voice_profiles/
 ├── frontend/
 │   ├── app/
 │   ├── components/
 │   ├── lib/
 │   └── __tests__/
-├── tests/
 ├── docs/
-├── scripts/
 ├── CORE_API.md
 └── README.md
 ```

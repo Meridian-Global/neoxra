@@ -11,7 +11,7 @@
 **Objective:** Define the HTTP request schema for `POST /api/instagram/generate` as a Pydantic model with validation, separate from the route handler.
 
 **Files:**
-- `orchestra/backend/api/instagram_routes.py` (new)
+- `backend/app/api/instagram_routes.py`
 
 **Work:**
 - Create `InstagramGenerateRequest(BaseModel)` with fields: `topic: str`, `template_text: str`, `goal: str = "engagement"`, `style_examples: list[str] = []`, `voice_profile: str = "default"`.
@@ -34,8 +34,8 @@
 **Objective:** Create the `POST /api/instagram/generate` route that calls orchestra-core's three skills in sequence and streams SSE events.
 
 **Files:**
-- `orchestra/backend/api/instagram_routes.py` (extend from Task 1)
-- `orchestra/backend/main.py` (register router)
+- `backend/app/api/instagram_routes.py` (extend from Task 1)
+- `backend/app/main.py` (register router)
 
 **Work:**
 - Create an `APIRouter` and a `POST /api/instagram/generate` endpoint.
@@ -65,7 +65,7 @@
 **Objective:** Ensure that a failure at any pipeline stage emits a structured SSE `error` event and closes the stream, rather than crashing.
 
 **Files:**
-- `orchestra/backend/api/instagram_routes.py` (modify stream generator)
+- `backend/app/api/instagram_routes.py` (modify stream generator)
 
 **Work:**
 - Wrap each skill `.run()` call in `try/except Exception`.
@@ -287,7 +287,7 @@
 **Objective:** Log every Instagram generation run with per-stage durations for observability.
 
 **Files:**
-- `orchestra/backend/api/instagram_routes.py` (modify stream generator)
+- `backend/app/api/instagram_routes.py` (modify stream generator)
 
 **Work:**
 - At stream start, capture `t0 = time.monotonic()` and a request fingerprint: `hashlib.sha256(topic[:50].encode()).hexdigest()[:8]`.
@@ -309,11 +309,11 @@
 **Objective:** Load the requested voice profile and pass it into the generation skill's context so content tone reflects the creator's brand.
 
 **Files:**
-- `orchestra/backend/api/instagram_routes.py` (modify)
+- `backend/app/api/instagram_routes.py` (modify)
 
 **Work:**
 - Import `load_voice_profile` from `orchestra_core.voice`.
-- Define `VOICE_DIR` pointing to `Path(__file__).resolve().parents[2] / "voice_profiles"` (resolves to `orchestra/voice_profiles/`).
+- Define `VOICE_DIR` pointing to the backend root's `voice_profiles/` directory (resolves to `backend/voice_profiles/` after consolidation).
 - Before entering the stream generator, call `load_voice_profile(req.voice_profile, voice_dir=VOICE_DIR)`. If the file doesn't exist, `load_voice_profile` raises `FileNotFoundError` — catch it and raise `HTTPException(422, detail=f"Voice profile '{req.voice_profile}' not found")`.
 - Pass the loaded profile dict into the generation skill's `SkillInput.context` under a `"voice_profile"` key.
 
