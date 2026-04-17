@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
-load_dotenv(BACKEND_ROOT / ".env")
+load_dotenv(BACKEND_ROOT / ".env", override=False)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,3 +32,13 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(integrations_router)
 app.include_router(instagram_router)
+
+
+@app.get("/", tags=["health"])
+async def root_health() -> dict:
+    return {"status": "ok", "service": "orchestra-api"}
+
+
+@app.get("/healthz", tags=["health"])
+async def healthz() -> dict:
+    return {"status": "ok"}

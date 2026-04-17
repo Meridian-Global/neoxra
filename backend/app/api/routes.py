@@ -1,11 +1,11 @@
 import json
+import os
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..core.orchestrator import run_pipeline_stream
-
 router = APIRouter()
+run_pipeline_stream = None
 
 
 class RunRequest(BaseModel):
@@ -27,6 +27,36 @@ def sse(event: dict) -> str:
     return f"event: {name}\ndata: {payload}\n\n"
 
 
+def _get_pipeline_runner():
+    if run_pipeline_stream is not None:
+        return run_pipeline_stream
+
+    try:
+        from ..core.orchestrator import run_pipeline_stream as runner
+    except ModuleNotFoundError as exc:
+        if exc.name and exc.name.startswith("orchestra_core"):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Core AI package 'orchestra_core' is unavailable. "
+                    "Install it in the runtime environment before calling /api/run."
+                ),
+            ) from exc
+        raise
+
+    return runner
+
+
+def _require_anthropic_api_key() -> None:
+    if os.getenv("ANTHROPIC_API_KEY"):
+        return
+
+    raise HTTPException(
+        status_code=503,
+        detail="ANTHROPIC_API_KEY is not configured for this service.",
+    )
+
+
 @router.post("/api/run")
 async def run_pipeline(req: RunRequest):
     """
@@ -45,9 +75,12 @@ async def run_pipeline(req: RunRequest):
       critic_started / critic_completed
       pipeline_completed
     """
+    _require_anthropic_api_key()
+    pipeline_runner = _get_pipeline_runner()
+
     async def stream():
         # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
-        for event in run_pipeline_stream(req.idea, req.voice_profile):
+        for event in pipeline_runner(req.idea, req.voice_profile):
             yield sse(event)
 
     return StreamingResponse(stream(), media_type="text/event-stream")

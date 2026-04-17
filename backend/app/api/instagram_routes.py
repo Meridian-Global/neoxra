@@ -1,24 +1,43 @@
 import json
 import logging
+import os
 from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
-from orchestra_core.models.instagram import (
-    VALID_GOALS,
-    CarouselSlide,
-    GenerationRequest,
-    InstagramContent,
-    InstagramResult,
-    Scorecard,
-    StyleAnalysis,
-)
-from orchestra_core.skills.base import SkillInput
-from orchestra_core.skills.content_scoring import ContentScoringSkill
-from orchestra_core.skills.instagram_generation import InstagramGenerationSkill
-from orchestra_core.skills.style_analysis import StyleAnalysisSkill
+VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
+_INSTAGRAM_IMPORT_ERROR = None
+
+try:
+    from orchestra_core.models.instagram import (
+        VALID_GOALS as CORE_VALID_GOALS,
+        CarouselSlide,
+        GenerationRequest,
+        InstagramContent,
+        InstagramResult,
+        Scorecard,
+        StyleAnalysis,
+    )
+    from orchestra_core.skills.base import SkillInput
+    from orchestra_core.skills.content_scoring import ContentScoringSkill
+    from orchestra_core.skills.instagram_generation import InstagramGenerationSkill
+    from orchestra_core.skills.style_analysis import StyleAnalysisSkill
+
+    VALID_GOALS = CORE_VALID_GOALS
+except ModuleNotFoundError as exc:
+    CarouselSlide = None
+    GenerationRequest = None
+    InstagramContent = None
+    InstagramResult = None
+    Scorecard = None
+    StyleAnalysis = None
+    SkillInput = None
+    ContentScoringSkill = None
+    InstagramGenerationSkill = None
+    StyleAnalysisSkill = None
+    _INSTAGRAM_IMPORT_ERROR = exc
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -50,8 +69,34 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+def _require_instagram_dependencies() -> None:
+    if GenerationRequest is not None:
+        return
+
+    detail = (
+        "Instagram generation is unavailable because the core AI package "
+        "'orchestra_core' is not installed in the runtime environment."
+    )
+    if _INSTAGRAM_IMPORT_ERROR is not None:
+        detail = f"{detail} Import error: {_INSTAGRAM_IMPORT_ERROR}"
+    raise HTTPException(status_code=503, detail=detail)
+
+
+def _require_anthropic_api_key() -> None:
+    if os.getenv("ANTHROPIC_API_KEY"):
+        return
+
+    raise HTTPException(
+        status_code=503,
+        detail="ANTHROPIC_API_KEY is not configured for this service.",
+    )
+
+
 @router.post("/api/instagram/generate")
 async def instagram_generate(req: InstagramGenerateRequest):
+    _require_instagram_dependencies()
+    _require_anthropic_api_key()
+
     try:
         request = GenerationRequest(
             topic=req.topic,

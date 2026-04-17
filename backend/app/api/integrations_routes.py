@@ -3,8 +3,20 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from ..app_layer.integrations.gmail_scanner import scan_inbox
-from ..app_layer.integrations.linkedin_publisher import publish_to_linkedin
+_GMAIL_IMPORT_ERROR = None
+_LINKEDIN_IMPORT_ERROR = None
+
+try:
+    from ..app_layer.integrations.gmail_scanner import scan_inbox
+except ModuleNotFoundError as exc:
+    scan_inbox = None
+    _GMAIL_IMPORT_ERROR = exc
+
+try:
+    from ..app_layer.integrations.linkedin_publisher import publish_to_linkedin
+except ModuleNotFoundError as exc:
+    publish_to_linkedin = None
+    _LINKEDIN_IMPORT_ERROR = exc
 
 router = APIRouter()
 
@@ -17,6 +29,15 @@ class PublishLinkedInRequest(BaseModel):
 
 @router.post("/api/publish/linkedin")
 async def publish_linkedin(req: PublishLinkedInRequest):
+    if publish_to_linkedin is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "LinkedIn integration is unavailable because its optional dependencies "
+                "failed to import."
+            ),
+        )
+
     access_token = req.access_token or os.getenv("LINKEDIN_ACCESS_TOKEN")
     person_urn = req.person_urn or os.getenv("LINKEDIN_PERSON_URN")
 
@@ -37,6 +58,15 @@ async def publish_linkedin(req: PublishLinkedInRequest):
 
 @router.get("/api/ideas/scan")
 async def scan_gmail_ideas(max_results: int = Query(default=20, ge=1, le=50)):
+    if scan_inbox is None:
+        detail = (
+            "Gmail integration is unavailable. Install optional integration dependencies "
+            "and configure Gmail credentials before calling this endpoint."
+        )
+        if _GMAIL_IMPORT_ERROR is not None:
+            detail = f"{detail} Import error: {_GMAIL_IMPORT_ERROR}"
+        raise HTTPException(status_code=503, detail=detail)
+
     try:
         return scan_inbox(max_results=max_results)
     except RuntimeError as e:
