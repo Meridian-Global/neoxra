@@ -32,13 +32,13 @@ def _get_pipeline_runner():
         return run_pipeline_stream
 
     try:
-        from ..core.orchestrator import run_pipeline_stream as runner
+        from ..core.pipeline import run_pipeline_stream as runner
     except ModuleNotFoundError as exc:
-        if exc.name and exc.name.startswith("orchestra_core"):
+        if exc.name and exc.name.startswith("neoxra_core"):
             raise HTTPException(
                 status_code=503,
                 detail=(
-                    "Core AI package 'orchestra_core' is unavailable. "
+                    "Core AI package 'neoxra_core' is unavailable. "
                     "Install it in the runtime environment before calling /api/run."
                 ),
             ) from exc

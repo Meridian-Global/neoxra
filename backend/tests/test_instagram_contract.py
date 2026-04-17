@@ -109,9 +109,9 @@ def _fire_pipeline() -> list[dict]:
         side_effect=[STYLE_ANALYSIS_JSON, GENERATION_JSON, SCORING_JSON],
     )
     with (
-        patch("orchestra_core.skills.style_analysis.generate", mock),
-        patch("orchestra_core.skills.instagram_generation.generate", mock),
-        patch("orchestra_core.skills.content_scoring.generate", mock),
+        patch("neoxra_core.skills.style_analysis.generate", mock),
+        patch("neoxra_core.skills.instagram_generation.generate", mock),
+        patch("neoxra_core.skills.content_scoring.generate", mock),
     ):
         resp = client.post(
             "/api/instagram/generate",

@@ -1,5 +1,5 @@
 """
-Orchestra FastAPI app.
+Neoxra FastAPI app.
 
 Run with:
   cd backend && uvicorn app.main:app --reload
@@ -20,7 +20,7 @@ from .api.routes import router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
 
-app = FastAPI(title="Orchestra API")
+app = FastAPI(title="Neoxra API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,7 +36,7 @@ app.include_router(instagram_router)
 
 @app.get("/", tags=["health"])
 async def root_health() -> dict:
-    return {"status": "ok", "service": "orchestra-api"}
+    return {"status": "ok", "service": "neoxra-api"}
 
 
 @app.get("/healthz", tags=["health"])

@@ -13,7 +13,7 @@ The user interacts through the frontend. The flow has two entry points that conv
 ### Entry A — From Idea Input (new)
 
 1. User types a content idea into the textarea.
-2. User clicks "Run Orchestra" (existing flow runs the full multi-platform pipeline).
+2. User clicks "Run Neoxra" (existing flow runs the full multi-platform pipeline).
 3. Frontend receives SSE events. When `instagram_pass2_completed` arrives, the Instagram card renders with the refined caption, hook options, hashtags, carousel outline, and reel script.
 4. User can copy, edit inline, or click "Regenerate Instagram" to re-run only the Instagram leg.
 
@@ -112,7 +112,7 @@ Return `422 Unprocessable Entity` with a JSON body:
 
 ### 2.3 Existing pipeline endpoint (unchanged)
 
-`POST /api/run` continues to work as-is. The Instagram agent inside that pipeline uses `orchestra-core`'s models internally but the SSE event shape stays the same (`instagram_pass1_completed`, `instagram_pass2_completed`) to avoid breaking the frontend.
+`POST /api/run` continues to work as-is. The Instagram agent inside that pipeline uses `neoxra-core`'s models internally but the SSE event shape stays the same (`instagram_pass1_completed`, `instagram_pass2_completed`) to avoid breaking the frontend.
 
 ---
 
@@ -163,15 +163,15 @@ Next.js file-based routing. `/instagram` maps to `app/instagram/page.tsx`. No la
 
 ## 4. Backend Responsibilities
 
-Orchestra's backend (the product layer) is responsible for:
+Neoxra's backend (the product layer) is responsible for:
 
-1. **Request handling** — Validate the incoming HTTP request, build an `orchestra_core.models.instagram.GenerationRequest`, and return SSE.
-2. **Voice loading** — Call `orchestra_core.voice.load_voice_profile()` with the voice_dir pointing at `backend/voice_profiles/`.
-3. **Pipeline invocation** — Instantiate `orchestra_core.orchestration.instagram.InstagramPipeline` and call `pipeline.run(request)`.
-4. **SSE translation** — The pipeline today runs synchronously and returns an `InstagramResult`. Orchestra's route wraps this in a streaming generator that emits events after each stage completes (see section 6 for how to make this work without changing core).
+1. **Request handling** — Validate the incoming HTTP request, build an `neoxra_core.models.instagram.GenerationRequest`, and return SSE.
+2. **Voice loading** — Call `neoxra_core.voice.load_voice_profile()` with the voice_dir pointing at `backend/voice_profiles/`.
+3. **Pipeline invocation** — Instantiate `neoxra_core.pipeline.instagram.InstagramPipeline` and call `pipeline.run(request)`.
+4. **SSE translation** — The pipeline today runs synchronously and returns an `InstagramResult`. Neoxra's route wraps this in a streaming generator that emits events after each stage completes (see section 6 for how to make this work without changing core).
 5. **Error mapping** — Catch exceptions from core, translate them into SSE `error` events or HTTP error responses.
 
-Orchestra's backend must **not**:
+Neoxra's backend must **not**:
 
 - Contain prompt text or LLM calls.
 - Instantiate the Anthropic client directly.
@@ -180,14 +180,14 @@ Orchestra's backend must **not**:
 
 ---
 
-## 5. Integration with orchestra-core
+## 5. Integration with neoxra-core
 
-### What orchestra imports from core
+### What neoxra imports from core
 
 ```python
-from orchestra_core.models.instagram import GenerationRequest, InstagramResult
-from orchestra_core.orchestration.instagram import InstagramPipeline
-from orchestra_core.voice import load_voice_profile
+from neoxra_core.models.instagram import GenerationRequest, InstagramResult
+from neoxra_core.pipeline.instagram import InstagramPipeline
+from neoxra_core.voice import load_voice_profile
 ```
 
 ### Pipeline wiring
@@ -199,18 +199,18 @@ pipeline = InstagramPipeline()          # uses default skills
 result: InstagramResult = pipeline.run(request)
 ```
 
-Skills are not overridden at the orchestra layer — core's defaults are used. If orchestra later needs to swap a skill (e.g., a cached scoring skill), it can inject via constructor args.
+Skills are not overridden at the neoxra layer — core's defaults are used. If neoxra later needs to swap a skill (e.g., a cached scoring skill), it can inject via constructor args.
 
 ### Streaming adaptation
 
 `InstagramPipeline.run()` currently executes three steps synchronously and returns the final `InstagramResult`. To emit per-stage SSE events without changing core's interface:
 
-**Option chosen: wrap in orchestra's route.**
+**Option chosen: wrap in neoxra's route.**
 
-The route calls each skill individually in sequence, emitting SSE events between calls. This keeps core's pipeline as the canonical "run all three" path, while orchestra's route handles the streaming concern:
+The route calls each skill individually in sequence, emitting SSE events between calls. This keeps core's pipeline as the canonical "run all three" path, while neoxra's route handles the streaming concern:
 
 ```
-# Pseudocode — orchestra route
+# Pseudocode — neoxra route
 style_skill = StyleAnalysisSkill()
 gen_skill   = InstagramGenerationSkill()
 score_skill = ContentScoringSkill()
@@ -230,17 +230,17 @@ yield sse("scoring_completed", score)
 yield sse("pipeline_completed", full_result)
 ```
 
-This is acceptable because orchestra is calling core's public skill classes — it's using the library, not duplicating logic. The AI prompts, LLM calls, and validation all remain inside core.
+This is acceptable because neoxra is calling core's public skill classes — it's using the library, not duplicating logic. The AI prompts, LLM calls, and validation all remain inside core.
 
 ### Future: streaming in core
 
-When core adds a `run_stream()` generator to `InstagramPipeline`, orchestra's route can simplify to forwarding those events directly — same pattern as the existing `run_pipeline_stream()` in the multi-platform orchestrator.
+When core adds a `run_stream()` generator to `InstagramPipeline`, neoxra's route can simplify to forwarding those events directly — same pattern as the existing `run_pipeline_stream()` in the multi-platform pipeline coordinator.
 
 ---
 
 ## 6. Error Handling
 
-### Layer 1 — Request validation (orchestra)
+### Layer 1 — Request validation (neoxra)
 
 | Condition | Response |
 |---|---|
@@ -253,7 +253,7 @@ Validation happens in the Pydantic request model before any core code runs.
 
 ### Layer 2 — Core pipeline errors
 
-| Error source | How orchestra handles it |
+| Error source | How neoxra handles it |
 |---|---|
 | `GenerationRequest.__post_init__` raises `ValueError` | Catch, return 422 with message |
 | LLM provider raises `anthropic.APIError` | Catch, emit SSE `error` event with `stage` and `message`, close stream |
@@ -270,7 +270,7 @@ Validation happens in the Pydantic request model before any core code runs.
 
 ### Logging
 
-Orchestra logs every pipeline run with: timestamp, request fingerprint (topic hash), stages completed, total duration, and any error. No PII or full content in logs.
+Neoxra logs every pipeline run with: timestamp, request fingerprint (topic hash), stages completed, total duration, and any error. No PII or full content in logs.
 
 ---
 
@@ -286,7 +286,7 @@ Orchestra logs every pipeline run with: timestamp, request fingerprint (topic ha
 | SSE streaming integration | Mock `fetch` to return an SSE stream, verify progressive state updates |
 | Error states | Simulate SSE `error` event, verify banner renders |
 
-### Backend tests (orchestra layer)
+### Backend tests (neoxra layer)
 
 | What | How |
 |---|---|

@@ -2,7 +2,7 @@
 
 **Reference:** `docs/design-instagram-flow.md`  
 **Ordering:** End-to-end thin slice first (Tasks 1-5), then polished UI (Tasks 6-11), then hardening (Tasks 12-16).  
-**Rule:** orchestra owns HTTP + UI. All AI logic stays in orchestra-core.
+**Rule:** neoxra owns HTTP + UI. All AI logic stays in neoxra-core.
 
 ---
 
@@ -17,7 +17,7 @@
 - Create `InstagramGenerateRequest(BaseModel)` with fields: `topic: str`, `template_text: str`, `goal: str = "engagement"`, `style_examples: list[str] = []`, `voice_profile: str = "default"`.
 - Add a `field_validator` on `goal` that rejects values not in `("engagement", "authority", "conversion", "save", "share")`.
 - Add `field_validator`s on `topic` and `template_text` that reject empty or whitespace-only strings.
-- Import `VALID_GOALS` from `orchestra_core.models.instagram` rather than duplicating the tuple.
+- Import `VALID_GOALS` from `neoxra_core.models.instagram` rather than duplicating the tuple.
 
 **Acceptance criteria:**
 - Constructing `InstagramGenerateRequest(topic="x", template_text="y")` succeeds.
@@ -31,7 +31,7 @@
 
 ## Task 2 — Backend: SSE streaming route (happy path)
 
-**Objective:** Create the `POST /api/instagram/generate` route that calls orchestra-core's three skills in sequence and streams SSE events.
+**Objective:** Create the `POST /api/instagram/generate` route that calls neoxra-core's three skills in sequence and streams SSE events.
 
 **Files:**
 - `backend/app/api/instagram_routes.py` (extend from Task 1)
@@ -42,7 +42,7 @@
 - Inside the route, translate `InstagramGenerateRequest` → core's `GenerationRequest` (the boundary conversion).
 - Write an `async def stream()` generator that:
   1. Instantiates `StyleAnalysisSkill`, `InstagramGenerationSkill`, `ContentScoringSkill`.
-  2. Calls each skill's `.run(SkillInput(...))` in sequence, matching the exact input wiring from `InstagramPipeline.run()` in `orchestra_core/orchestration/instagram.py` (lines 49-94).
+  2. Calls each skill's `.run(SkillInput(...))` in sequence, matching the exact input wiring from `InstagramPipeline.run()` in `neoxra_core/pipeline/instagram.py` (lines 49-94).
   3. Yields SSE events between calls using the same `sse()` helper pattern from `routes.py`.
 - Events emitted in order: `style_analysis_started`, `style_analysis_completed`, `generation_started`, `generation_completed`, `scoring_started`, `scoring_completed`, `pipeline_completed`.
 - The `pipeline_completed` data payload must contain `content`, `scorecard`, `critique`, `style_analysis` — matching `InstagramResult`'s four fields, serialized as dicts.
@@ -56,7 +56,7 @@
 - `scorecard` contains all six dimension keys plus computable `average`.
 - `content` contains `caption`, `hook_options`, `hashtags`, `carousel_outline`, `reel_script`.
 
-**Test approach:** Mock `orchestra_core.providers.llm.generate` to return canned JSON. Use FastAPI `TestClient(app)` with the POST, read the streamed response, split by `\n\n`, parse each SSE message, assert event order and payload shapes. File: `tests/test_instagram_route.py`.
+**Test approach:** Mock `neoxra_core.providers.llm.generate` to return canned JSON. Use FastAPI `TestClient(app)` with the POST, read the streamed response, split by `\n\n`, parse each SSE message, assert event order and payload shapes. File: `tests/test_instagram_route.py`.
 
 ---
 
@@ -141,7 +141,7 @@
 
 ## Task 6 — Frontend: TypeScript types for Instagram models
 
-**Objective:** Define TypeScript interfaces matching orchestra-core's Instagram dataclasses so all subsequent components are type-safe.
+**Objective:** Define TypeScript interfaces matching neoxra-core's Instagram dataclasses so all subsequent components are type-safe.
 
 **Files:**
 - `frontend/lib/instagram-types.ts` (new)
@@ -293,7 +293,7 @@
 - At stream start, capture `t0 = time.monotonic()` and a request fingerprint: `hashlib.sha256(topic[:50].encode()).hexdigest()[:8]`.
 - Before each skill call, capture `stage_start`. After each call, log: `logger.info("instagram.%s completed in %dms", stage, elapsed_ms)`.
 - At stream end (both success and error), log: `logger.info("instagram.pipeline req=%s total=%dms stages=%d/3", fingerprint, total_ms, count)`.
-- Use `logging.getLogger("orchestra.instagram")`.
+- Use `logging.getLogger("neoxra.instagram")`.
 
 **Acceptance criteria:**
 - A successful run produces 4 log lines (3 stages + 1 summary).
@@ -312,7 +312,7 @@
 - `backend/app/api/instagram_routes.py` (modify)
 
 **Work:**
-- Import `load_voice_profile` from `orchestra_core.voice`.
+- Import `load_voice_profile` from `neoxra_core.voice`.
 - Define `VOICE_DIR` pointing to the backend root's `voice_profiles/` directory (resolves to `backend/voice_profiles/` after consolidation).
 - Before entering the stream generator, call `load_voice_profile(req.voice_profile, voice_dir=VOICE_DIR)`. If the file doesn't exist, `load_voice_profile` raises `FileNotFoundError` — catch it and raise `HTTPException(422, detail=f"Voice profile '{req.voice_profile}' not found")`.
 - Pass the loaded profile dict into the generation skill's `SkillInput.context` under a `"voice_profile"` key.
@@ -342,7 +342,7 @@
   - `scoring_started`: `{}`.
   - `scoring_completed`: `{hook_strength: int, cta_clarity: int, hashtag_relevance: int, platform_fit: int, tone_match: int, originality: int}`.
   - `pipeline_completed`: `{content: dict, scorecard: dict, critique: str, style_analysis: dict}`.
-- Mock `orchestra_core.providers.llm.generate`, fire the route, parse the SSE stream, and validate each event against its schema.
+- Mock `neoxra_core.providers.llm.generate`, fire the route, parse the SSE stream, and validate each event against its schema.
 - Assert exact event count (7) and exact event order.
 
 **Acceptance criteria:**

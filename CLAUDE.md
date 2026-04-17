@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working in this repository.
 
 ## Project Overview
 
-Orchestra is a multi-agent content system that transforms one idea into platform-native content for Instagram, Threads, and LinkedIn.
+Neoxra is a multi-agent content system that transforms one idea into platform-native content for Instagram, Threads, and LinkedIn.
 
 The system is centered around a structured **Brief** object:
 - A Planner agent turns a raw idea into a structured brief
@@ -28,7 +28,7 @@ Priority order:
 2. Planner agent
 3. Instagram / Threads / LinkedIn agents
 4. Critic agent
-5. Orchestrator
+5. Pipeline Coordinator
 6. FastAPI endpoint
 7. Frontend
 8. Scheduling / publishing integrations
@@ -37,7 +37,7 @@ Do not overengineer early versions.
 
 ## Repository Structure
 
-orchestra/
+neoxra/
 ├── backend/
 │   ├── app/
 │   │   ├── agents/

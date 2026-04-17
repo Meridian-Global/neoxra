@@ -2,9 +2,9 @@ from .base import BaseAgent
 from ..core.brief import Brief
 import json
 
-# Re-export from orchestra-core. Local imports (e.g. from ..agents.critic import CriticReview)
+# Re-export from neoxra-core. Local imports (e.g. from ..agents.critic import CriticReview)
 # continue to work unchanged during migration.
-from orchestra_core.models.outputs import CriticReview
+from neoxra_core.models.outputs import CriticReview
 
 
 class CriticAgent(BaseAgent):

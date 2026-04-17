@@ -11,7 +11,7 @@ VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 _INSTAGRAM_IMPORT_ERROR = None
 
 try:
-    from orchestra_core.models.instagram import (
+    from neoxra_core.models.instagram import (
         VALID_GOALS as CORE_VALID_GOALS,
         CarouselSlide,
         GenerationRequest,
@@ -20,10 +20,10 @@ try:
         Scorecard,
         StyleAnalysis,
     )
-    from orchestra_core.skills.base import SkillInput
-    from orchestra_core.skills.content_scoring import ContentScoringSkill
-    from orchestra_core.skills.instagram_generation import InstagramGenerationSkill
-    from orchestra_core.skills.style_analysis import StyleAnalysisSkill
+    from neoxra_core.skills.base import SkillInput
+    from neoxra_core.skills.content_scoring import ContentScoringSkill
+    from neoxra_core.skills.instagram_generation import InstagramGenerationSkill
+    from neoxra_core.skills.style_analysis import StyleAnalysisSkill
 
     VALID_GOALS = CORE_VALID_GOALS
 except ModuleNotFoundError as exc:
@@ -75,7 +75,7 @@ def _require_instagram_dependencies() -> None:
 
     detail = (
         "Instagram generation is unavailable because the core AI package "
-        "'orchestra_core' is not installed in the runtime environment."
+        "'neoxra_core' is not installed in the runtime environment."
     )
     if _INSTAGRAM_IMPORT_ERROR is not None:
         detail = f"{detail} Import error: {_INSTAGRAM_IMPORT_ERROR}"

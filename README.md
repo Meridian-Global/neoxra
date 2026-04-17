@@ -1,6 +1,6 @@
-# Orchestra
+# Neoxra
 
-Orchestra is Meridian Global's app-layer content generation platform.
+Neoxra is Meridian Global's app-layer content generation platform.
 
 It combines:
 - a FastAPI backend
@@ -8,7 +8,7 @@ It combines:
 - streaming content-generation routes
 - app-layer integrations like LinkedIn publishing and Gmail idea scanning
 
-The shared AI logic itself lives in the private sibling repo `orchestra-core`. This repo is the surface you run locally: API, demo UI, integration wiring, voice profiles, and developer workflow.
+The shared AI logic itself lives in the private sibling repo `neoxra-core`. This repo is the surface you run locally: API, demo UI, integration wiring, voice profiles, and developer workflow.
 
 ## What you can do today
 
@@ -40,7 +40,7 @@ It owns:
 - integration endpoints
 - local testing and smoke-test workflows
 
-It does not own the full AI engine. Shared models, skills, prompts, and LLM provider logic live in `orchestra-core`.
+It does not own the full AI engine. Shared models, skills, prompts, and LLM provider logic live in `neoxra-core`.
 
 ## Repo layout
 
@@ -54,7 +54,7 @@ It does not own the full AI engine. Shared models, skills, prompts, and LLM prov
 - Python 3.10+
 - Node 20+ recommended
 - Anthropic API key
-- local access to the private `orchestra-core` repo
+- local access to the private `neoxra-core` repo
 
 ### 1. Backend setup
 
@@ -65,7 +65,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install -e ../orchestra-core
+pip install -e ../neoxra-core
 cp .env.example .env
 ```
 
@@ -80,7 +80,7 @@ Then confirm the shared package is importable:
 
 ```bash
 cd backend
-python -c "import orchestra_core; print('orchestra_core import ok')"
+python -c "import neoxra_core; print('neoxra_core import ok')"
 ```
 
 ### 2. Start the API
@@ -159,7 +159,7 @@ data: {"stage":"generation","message":"..."}
 
 ### `/`
 
-The root page demos the original Orchestra pipeline and streams the multi-agent sequence live.
+The root page demos the original Neoxra pipeline and streams the multi-agent sequence live.
 
 ### `/instagram`
 
@@ -219,7 +219,7 @@ If you're using a sibling checkout rather than an installed package:
 
 ```bash
 cd backend
-PYTHONPATH=../orchestra-core pytest tests/test_instagram_request.py tests/test_instagram_route.py tests/test_instagram_contract.py
+PYTHONPATH=../neoxra-core pytest tests/test_instagram_request.py tests/test_instagram_route.py tests/test_instagram_contract.py
 ```
 
 ### Frontend
@@ -244,13 +244,13 @@ npm run build
 | Standalone frontend demo | `frontend/` | Yes |
 | App-layer integrations | `backend/app/app_layer/integrations/` | Yes |
 | Voice profiles | `backend/voice_profiles/` | Yes |
-| Shared models, skills, LLM provider wrapper | `../orchestra-core` | No |
+| Shared models, skills, LLM provider wrapper | `../neoxra-core` | No |
 
 Most important runtime check:
 
 ```bash
 cd backend
-python -c "import orchestra_core; print('ok')"
+python -c "import neoxra_core; print('ok')"
 ```
 
 If that fails, this repo will not run correctly.
@@ -322,7 +322,7 @@ The multi-platform pipeline uses these profiles directly. The Instagram standalo
 ## Notes on project maturity
 
 - This repo is evolving quickly
-- `orchestra-core` is required for meaningful backend runs
+- `neoxra-core` is required for meaningful backend runs
 - `/api/run` and `/api/instagram/generate` coexist because they serve different product surfaces
 - some docs describe target-state behavior before implementation fully catches up
 
