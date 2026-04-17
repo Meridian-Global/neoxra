@@ -1,5 +1,5 @@
 """
-Orchestrator: coordinates multi-agent content generation with two-pass refinement.
+Pipeline coordinator: coordinates multi-agent content generation with two-pass refinement.
 
 Pass 1: Each agent generates initial output based on Brief
 Pass 2: Each agent refines its output after seeing what others wrote

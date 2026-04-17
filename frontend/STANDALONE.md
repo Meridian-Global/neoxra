@@ -1,6 +1,6 @@
 ## Status
 
-This frontend is a standalone demo surface for the Orchestra backend.
+This frontend is a standalone demo surface for the Neoxra backend.
 It is not the shared AI engine and it is not the future product shell.
 
 Right now it serves two purposes:
@@ -14,7 +14,7 @@ Both pages talk to the FastAPI backend over Server-Sent Events.
 
 ### `/`
 
-The root page is the original Orchestra demo.
+The root page is the original Neoxra demo.
 
 It calls:
 
@@ -62,7 +62,7 @@ From the repo root, start the backend first:
 
 ```bash
 source .venv/bin/activate
-uvicorn orchestra.backend.main:app --reload
+uvicorn neoxra.backend.main:app --reload
 ```
 
 Then in a separate terminal:
@@ -130,8 +130,8 @@ npm run build
 
 ## Notes
 
-- This frontend is a demo client for the Orchestra backend, not the core AI package
-- Backend generation still depends on `orchestra-core` being installed and configured correctly
+- This frontend is a demo client for the Neoxra backend, not the core AI package
+- Backend generation still depends on `neoxra-core` being installed and configured correctly
 - `NEXT_PUBLIC_API_BASE` must point to the running backend or the UI will fail to stream
 - The Instagram page is the most actively evolving surface right now
 

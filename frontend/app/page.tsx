@@ -128,7 +128,7 @@ export default function Page() {
       <div className="container">
 
         <header>
-          <h1>Orchestra</h1>
+          <h1>Neoxra</h1>
           <p className="subtitle">One idea. Three platforms. Agents working live.</p>
         </header>
 
@@ -145,7 +145,7 @@ export default function Page() {
             onClick={run}
             disabled={isRunning || !idea.trim()}
           >
-            {isRunning ? 'Running…' : 'Run Orchestra'}
+            {isRunning ? 'Running…' : 'Run Neoxra'}
           </button>
         </div>
 

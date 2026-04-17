@@ -1,7 +1,7 @@
 # CORE API
 
 ## Overview
-Orchestra exposes a single streaming endpoint: apps POST an idea and receive agent outputs as Server-Sent Events (SSE).
+Neoxra exposes a single streaming endpoint: apps POST an idea and receive agent outputs as Server-Sent Events (SSE).
 
 ## POST /api/run
 

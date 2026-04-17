@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI demo for Orchestra multi-agent content system.
+CLI demo for Neoxra multi-agent content system.
 Usage: cd backend && python scripts/run_cli.py "your content idea here"
 """
 
@@ -17,7 +17,7 @@ load_dotenv(BACKEND_ROOT / ".env")
 # Add backend root to path so we can import the app package when run as a script.
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.core.orchestrator import run_full_pipeline
+from app.core.pipeline import run_full_pipeline
 
 
 def print_section(title: str, content: str):
@@ -34,7 +34,7 @@ def main():
 
     idea = " ".join(sys.argv[1:])
 
-    print("\n🎼 ORCHESTRA — Multi-Agent Content System")
+    print("\n🎼 NEOXRA — Multi-Agent Content System")
     print(f"   Idea: {idea}")
 
     # Pipeline runs and prints thinking live

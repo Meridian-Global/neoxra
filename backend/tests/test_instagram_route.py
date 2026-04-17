@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from orchestra_core.skills.base import SkillOutput
+from neoxra_core.skills.base import SkillOutput
 
 from app.main import app
 from app.api.instagram_routes import (
@@ -85,9 +85,9 @@ EXPECTED_EVENT_ORDER = [
 def mock_llm():
     mock = MagicMock(side_effect=_mock_generate_side_effects())
     with (
-        patch("orchestra_core.skills.style_analysis.generate", mock),
-        patch("orchestra_core.skills.instagram_generation.generate", mock),
-        patch("orchestra_core.skills.content_scoring.generate", mock),
+        patch("neoxra_core.skills.style_analysis.generate", mock),
+        patch("neoxra_core.skills.instagram_generation.generate", mock),
+        patch("neoxra_core.skills.content_scoring.generate", mock),
     ):
         yield mock
 

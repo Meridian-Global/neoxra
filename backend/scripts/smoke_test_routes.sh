@@ -4,7 +4,7 @@ BASE_URL="http://localhost:8000"
 OPENAPI_URL="$BASE_URL/openapi.json"
 
 check_status() {
-  status="$(curl -s -o /tmp/orchestra_openapi_smoke.json -w "%{http_code}" "$OPENAPI_URL")"
+  status="$(curl -s -o /tmp/neoxra_openapi_smoke.json -w "%{http_code}" "$OPENAPI_URL")"
   if [ "$status" = "200" ]; then
     echo "PASS: GET /openapi.json returned 200"
   else
