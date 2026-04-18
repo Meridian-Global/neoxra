@@ -1,5 +1,0 @@
--r requirements.txt
-
-# Production base dependencies.
-# The private neoxra-core install is intentionally handled by render-build.sh
-# so the build can fail fast with explicit diagnostics if the package does not import.

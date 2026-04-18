@@ -31,7 +31,7 @@ try:
     from neoxra_core.skills.style_analysis import StyleAnalysisSkill
 
     VALID_GOALS = CORE_VALID_GOALS
-except ModuleNotFoundError as exc:
+except Exception as exc:
     CarouselSlide = None
     GenerationRequest = None
     InstagramContent = None

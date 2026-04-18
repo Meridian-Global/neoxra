@@ -287,35 +287,54 @@ If that fails, this repo will not run correctly.
 
 ### Render backend deploy
 
-Render only checks out this repo, not the sibling `../neoxra-core` directory. That means a build that only runs `pip install -r requirements.txt` will succeed, but `POST /api/run` will later fail at runtime because the backend lazily imports `neoxra_core` on request and the package was never installed.
+Render only checks out this repo, not the sibling `../neoxra-core` directory. That means a build that only runs `pip install -r requirements.txt` will succeed, but `POST /api/run` and `POST /api/instagram/generate` will later fail at runtime because the backend imports `neoxra_core` from a separate private repository.
 
-Use these settings for the backend service:
+There is one authoritative production install path:
 
 - Root Directory: `backend`
 - Build Command: `./render-build.sh`
 - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
+`render-build.sh` is the only production installer. It:
+
+1. prints the working directory and selected core source
+2. installs backend dependencies from `requirements.txt`
+3. installs `neoxra_core` from the private Git repo
+4. runs `pip show neoxra-core`
+5. runs `python -c "import neoxra_core; print(neoxra_core.__file__)"`
+6. runs deep imports for `neoxra_core.models.context`, `neoxra_core.models.outputs`, and `neoxra_core.voice`
+7. runs `python scripts/check_neoxra_core.py`
+
+If any of those fail, the Render build fails immediately.
+
+Current default private core source:
+
+```text
+https://github.com/Meridian-Global/orchestra-core.git
+```
+
+That legacy GitHub slug is still the current repository origin for the package that exposes the `neoxra_core` Python module, so the build script defaults to it. You can override it later if the repo slug changes.
+
 Required Render environment variables:
 
 - `ANTHROPIC_API_KEY`
 - `ANTHROPIC_MODEL`
-- `NEOXRA_CORE_GIT_URL`
-
-If `NEOXRA_CORE_GIT_URL` is a private GitHub HTTPS URL, also set:
-
 - `GITHUB_TOKEN`
 
-Example if the private repo is currently still hosted under the legacy slug:
+Optional Render environment variables:
+
+- `NEOXRA_CORE_GIT_URL`
+- `NEOXRA_CORE_GIT_REF`
+
+Example values:
 
 ```text
+GITHUB_TOKEN=ghp_xxx
 NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/orchestra-core.git
+NEOXRA_CORE_GIT_REF=main
 ```
 
-Optional override variables:
-
-- `NEOXRA_CORE_GIT_REF` if you need a branch/tag other than `main`
-
-After setting the URL and switching the build command to `./render-build.sh`, a redeploy is enough. The script prints `pwd`, `pip show neoxra-core`, runs `python -c "import neoxra_core"` and then runs `python scripts/check_neoxra_core.py`, so Render will fail the deploy immediately if the core package is missing or installed-but-broken.
+After updating the Render settings, redeploy. Also check `GET /health/core` after startup; it returns the exact `neoxra_core` diagnostics that the service sees at runtime.
 
 ### Optional integration credentials
 

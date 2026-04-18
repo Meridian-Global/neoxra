@@ -60,11 +60,6 @@ app.include_router(router)
 app.include_router(integrations_router)
 app.include_router(instagram_router)
 
-logger.info(
-    "neoxra_core startup status: %s",
-    format_neoxra_core_diagnostics(get_neoxra_core_diagnostics()),
-)
-
 
 @app.get("/", tags=["health"])
 async def root_health() -> dict:
@@ -74,3 +69,20 @@ async def root_health() -> dict:
 @app.get("/healthz", tags=["health"])
 async def healthz() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/health/core", tags=["health"])
+async def core_health() -> dict:
+    diagnostics = get_neoxra_core_diagnostics()
+    return {
+        "status": "ok" if diagnostics.get("import_ok") else "degraded",
+        "core": diagnostics,
+        "summary": format_neoxra_core_diagnostics(diagnostics),
+    }
+
+
+@app.on_event("startup")
+async def log_core_diagnostics_on_startup() -> None:
+    diagnostics = get_neoxra_core_diagnostics()
+    logger.info("neoxra_core startup status: %s", format_neoxra_core_diagnostics(diagnostics))
+    logger.info("neoxra_core startup diagnostics: %s", diagnostics)
