@@ -27,6 +27,16 @@ def test_core_route_exists(monkeypatch):
 
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["content-type"]
+    assert "X-Request-ID" in response.headers
+
+
+def test_health_route_sets_request_id_header():
+    client = TestClient(app)
+
+    response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"]
 
 
 def test_core_route_emits_error_when_stream_ends_early(monkeypatch):

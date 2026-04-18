@@ -1,10 +1,11 @@
 import json
 import os
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from ..core.logging_utils import get_request_id
 from ..core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
@@ -43,6 +44,19 @@ def sse(event: dict) -> str:
     return f"event: {name}\ndata: {payload}\n\n"
 
 
+def _log_pipeline_event(event_name: str, **fields) -> None:
+    base_fields = {
+        "request_id": get_request_id(),
+        "event": event_name,
+    }
+    base_fields.update(fields)
+    logger.info(
+        "core pipeline event=%s %s",
+        event_name,
+        " ".join(f"{key}={value}" for key, value in base_fields.items() if key != "event"),
+    )
+
+
 def _get_pipeline_runner():
     if run_pipeline_stream is not None:
         return run_pipeline_stream
@@ -75,7 +89,7 @@ def _require_anthropic_api_key() -> None:
 
 
 @router.post("/api/run")
-async def run_pipeline(req: RunRequest):
+async def run_pipeline(req: RunRequest, request: Request):
     """
     Stream pipeline execution as Server-Sent Events.
 
@@ -94,14 +108,22 @@ async def run_pipeline(req: RunRequest):
     """
     _require_anthropic_api_key()
     pipeline_runner = _get_pipeline_runner()
+    logger.info(
+        "core pipeline request accepted idea_length=%s voice_profile=%s path=%s",
+        len(req.idea),
+        req.voice_profile,
+        request.url.path,
+    )
 
     async def stream():
         completed = False
+        _log_pipeline_event("pipeline_started", voice_profile=req.voice_profile)
         yield sse({"event": "pipeline_started", "data": {"idea": req.idea, "voice_profile": req.voice_profile}})
 
         try:
             # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
             for event in pipeline_runner(req.idea, req.voice_profile):
+                _log_pipeline_event(event.get("event", "unknown"))
                 if event.get("event") == "pipeline_completed":
                     completed = True
                 yield sse(event)
@@ -125,5 +147,7 @@ async def run_pipeline(req: RunRequest):
                     "message": "Pipeline ended before pipeline_completed was emitted.",
                 },
             })
+        else:
+            logger.info("Core pipeline completed successfully")
 
     return StreamingResponse(stream(), media_type="text/event-stream")

@@ -1,64 +1,68 @@
 # Neoxra
 
-Neoxra is Meridian Global's app-layer content generation platform.
+Neoxra helps small teams turn one strong idea into polished, platform-native content they can ship immediately.
 
-It combines:
-- a FastAPI backend
-- a standalone Next.js demo frontend
-- streaming content-generation routes
-- app-layer integrations like LinkedIn publishing and Gmail idea scanning
+Today the product focuses on two demo-ready experiences:
+- a multi-platform content workflow that generates coordinated LinkedIn, Instagram, and Threads output
+- a dedicated Instagram Studio that analyzes style, generates a post system, scores it, and streams the result live
 
-The shared AI logic itself lives in the private sibling repo `neoxra-core`. This repo is the surface you run locally: API, demo UI, integration wiring, voice profiles, and developer workflow.
+## Live demo
 
-## What you can do today
+- Frontend: https://neoxra.com/
+- Backend: https://api.neoxra.com/
+- Instagram Studio: https://neoxra.com/instagram
 
-### Multi-platform content pipeline
+## What the product does
 
-`POST /api/run` turns one idea into coordinated Instagram, Threads, and LinkedIn drafts using a streamed multi-agent workflow:
+Neoxra is built for founders, operators, and small teams who have ideas worth distributing but do not want to manually rewrite the same message for every platform.
 
-planner → platform passes → critic → final output
+The current product flow is:
 
-### Standalone Instagram generator
+1. Start with a topic or content angle
+2. Generate live streamed output
+3. Review platform-ready drafts and structure
+4. Walk away with content that is easier to publish, refine, or demo
 
-`POST /api/instagram/generate` runs a focused Instagram flow:
+## Current product surfaces
 
-style analysis → content generation → scoring → final Instagram result
+### Landing page
 
-The frontend currently exposes both flows:
+`/` is the main Neoxra landing page and product demo entrypoint.
 
-- `/` for the original multi-platform pipeline
-- `/instagram` for the standalone Instagram generator
+It introduces the multi-platform workflow and links into the Instagram Studio.
+
+### Instagram Studio
+
+`/instagram` is the most polished product subpage today.
+
+It supports:
+- preset demo inputs
+- live streaming generation states
+- clear completion/error handling
+- dark/light mode shared with the landing page
+- a presentation-friendly results layout
 
 ## Why this repo exists
 
-This repo is where the product surface lives.
-
-It owns:
-- FastAPI routes and SSE streaming responses
-- the standalone frontend demo
+This repo contains the product surface:
+- Next.js frontend
+- FastAPI backend
+- SSE streaming routes
+- app-layer integrations
 - local voice profiles
-- integration endpoints
-- local testing and smoke-test workflows
 
-It does not own the full AI engine. Shared models, skills, prompts, and LLM provider logic live in `neoxra-core`.
-
-## Repo layout
-
-- `frontend/` contains the Next.js demo app
-- `backend/` contains the FastAPI app, Python tests, scripts, and voice profiles
+The shared AI engine lives in the private sibling package `neoxra-core`.
 
 ## Quickstart
 
 ### Requirements
 
 - Python 3.10+
-- Node 20+ recommended
+- Node 20+
 - Anthropic API key
-- local access to the private `neoxra-core` repo
+- access to the private `neoxra-core` repo
 
-### 1. Backend setup
-
-From the repo root:
+### Backend
 
 ```bash
 cd backend
@@ -67,6 +71,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pip install ../neoxra-core
 cp .env.example .env
+uvicorn app.main:app --reload
 ```
 
 Set at least:
@@ -76,30 +81,7 @@ ANTHROPIC_API_KEY=...
 ANTHROPIC_MODEL=claude-haiku-4-5
 ```
 
-Then confirm the shared package is importable:
-
-```bash
-cd backend
-python -c "import neoxra_core; print('neoxra_core import ok')"
-```
-
-If you're actively editing the sibling core repo and want live editable behavior:
-
-```bash
-cd backend
-pip install -e ../neoxra-core
-```
-
-### 2. Start the API
-
-```bash
-cd backend
-uvicorn app.main:app --reload
-```
-
-### 3. Start the frontend
-
-In another terminal:
+### Frontend
 
 ```bash
 cd frontend
@@ -119,282 +101,44 @@ npm run dev
 ```
 
 Open:
-
 - `http://localhost:3000/`
 - `http://localhost:3000/instagram`
 
-## Local smoke tests
-
-### Multi-platform pipeline
-
-```bash
-curl -N -X POST http://localhost:8000/api/run \
-  -H "Content-Type: application/json" \
-  -d '{"idea": "why small teams should document decisions", "voice_profile": "default"}'
-```
-
-### Instagram flow
-
-```bash
-curl -N -X POST http://localhost:8000/api/instagram/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "topic": "How AI tools help small teams ship faster",
-    "template_text": "Hook first, short paragraphs, practical tone, clear CTA",
-    "goal": "engagement"
-  }'
-```
-
-Expected Instagram SSE sequence:
-
-- `style_analysis_started`
-- `style_analysis_completed`
-- `generation_started`
-- `generation_completed`
-- `scoring_started`
-- `scoring_completed`
-- `pipeline_completed`
-
-If a stage fails, the route emits a structured SSE error instead of just dropping the connection:
-
-```text
-event: error
-data: {"stage":"generation","message":"..."}
-```
-
-## Frontend behavior
-
-### `/`
-
-The root page demos the original Neoxra pipeline and streams the multi-agent sequence live.
-
-### `/instagram`
-
-The Instagram page is a dedicated creator-facing flow that progressively renders:
-
-- style analysis
-- generated Instagram content
-- scorecard
-- carousel deck / critique
-
-This is currently the most actively evolving surface in the repo.
-
-## API overview
-
-### Core content routes
-
-- `POST /api/run`
-- `POST /api/instagram/generate`
-
-### App-layer integration routes
-
-- `POST /api/publish/linkedin`
-- `GET /api/ideas/scan`
-
-### Notes
-
-- `/api/run` is the original multi-agent pipeline surface
-- `/api/instagram/generate` is the newer Instagram-first standalone flow
-- integration routes are conveniences owned by this repo, not the core engine contract
-
-Additional references:
-
-- [CORE_API.md](./CORE_API.md)
-- [docs/design-instagram-flow.md](./docs/design-instagram-flow.md)
-- [docs/tasks-instagram-flow.md](./docs/tasks-instagram-flow.md)
-- [frontend/STANDALONE.md](./frontend/STANDALONE.md)
-
-## Testing
-
-### Backend
-
-Main backend checks:
-
-```bash
-cd backend
-pytest tests/test_app_smoke.py tests/test_route_boundaries.py tests/test_import_paths.py
-```
-
-Instagram-specific backend tests:
-
-```bash
-cd backend
-pytest tests/test_instagram_request.py tests/test_instagram_route.py tests/test_instagram_contract.py
-```
-
-If you're using a sibling checkout rather than an installed package:
-
-```bash
-cd backend
-PYTHONPATH=../neoxra-core pytest tests/test_instagram_request.py tests/test_instagram_route.py tests/test_instagram_contract.py
-```
-
-If you want to validate the backend the same way production installs it, use a fresh venv and a non-editable install:
-
-```bash
-cd backend
-python -m venv .venv.prod
-source .venv.prod/bin/activate
-pip install -r requirements.txt
-pip install ../neoxra-core
-python -c "import neoxra_core; print('ok')"
-uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm test -- --runInBand
-```
-
-Production build check:
-
-```bash
-cd frontend
-npm run build
-```
-
-## Repo boundary
-
-| Layer | Lives in | Owned here? |
-| --- | --- | --- |
-| FastAPI app and route wiring | `backend/app/` | Yes |
-| Standalone frontend demo | `frontend/` | Yes |
-| App-layer integrations | `backend/app/app_layer/integrations/` | Yes |
-| Voice profiles | `backend/voice_profiles/` | Yes |
-| Shared models, skills, LLM provider wrapper | `../neoxra-core` | No |
-
-Most important runtime check:
-
-```bash
-cd backend
-python -c "import neoxra_core; print('ok')"
-```
-
-If that fails, this repo will not run correctly.
-
 ## Environment
 
-### Required
+Backend envs are documented in [backend/.env.example](./backend/.env.example).
 
-- `ANTHROPIC_API_KEY`
-- `ANTHROPIC_MODEL` recommended
-
-### Frontend
-
-- `NEXT_PUBLIC_API_BASE_URL` in `frontend/.env.local`
-
-### Render backend deploy
-
-Render only checks out this repo, not the sibling `../neoxra-core` directory. That means a build that only runs `pip install -r requirements.txt` will succeed, but `POST /api/run` and `POST /api/instagram/generate` will later fail at runtime because the backend imports `neoxra_core` from a separate private repository.
-
-There is one authoritative production install path:
-
-- Root Directory: `backend`
-- Build Command: `./render-build.sh`
-- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-
-`render-build.sh` is the only production installer. It:
-
-1. prints the working directory and selected core source
-2. installs backend dependencies from `requirements.txt`
-3. installs `neoxra_core` from the private Git repo
-4. runs `pip show neoxra-core`
-5. runs `python -c "import neoxra_core; print(neoxra_core.__file__)"`
-6. runs deep imports for `neoxra_core.models.context`, `neoxra_core.models.outputs`, and `neoxra_core.voice`
-7. runs `python scripts/check_neoxra_core.py`
-
-If any of those fail, the Render build fails immediately.
-
-Current default private core source:
-
-```text
-https://github.com/Meridian-Global/neoxra-core.git
-```
-
-The build script defaults to the current private core repository slug. You can override it later if the repo slug changes.
-
-Required Render environment variables:
-
+Most important variables:
 - `ANTHROPIC_API_KEY`
 - `ANTHROPIC_MODEL`
-- `GITHUB_TOKEN`
+- `ENVIRONMENT`
+- `LOG_LEVEL`
+- `CORS_ALLOWED_ORIGINS`
 
-Optional Render environment variables:
+Frontend:
+- `NEXT_PUBLIC_API_BASE_URL`
 
-- `NEOXRA_CORE_GIT_URL`
-- `NEOXRA_CORE_GIT_REF`
+## Production notes
 
-Example values:
+The backend depends on the private `neoxra-core` package. A healthy production deploy must be able to import `neoxra_core`.
 
-```text
-GITHUB_TOKEN=ghp_xxx
-NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/neoxra-core.git
-NEOXRA_CORE_GIT_REF=main
-```
+Useful checks:
+- `GET /healthz`
+- `GET /health/core`
 
-After updating the Render settings, redeploy. Also check `GET /health/core` after startup; it returns the exact `neoxra_core` diagnostics that the service sees at runtime.
+The backend now also returns `X-Request-ID` headers and logs request IDs plus pipeline stage transitions to make production debugging easier.
 
-### Optional integration credentials
+## Repo layout
 
-- `LINKEDIN_ACCESS_TOKEN`
-- `LINKEDIN_PERSON_URN`
+- `frontend/` — Next.js app
+- `backend/` — FastAPI app, tests, scripts, voice profiles
+- `docs/` — design and implementation notes
 
-Some integration workflows may also need:
+## Notes
 
-```bash
-cd backend
-pip install -r requirements-integrations.txt
-```
-
-## Voice profiles
-
-Voice profiles live in:
-
-```text
-backend/voice_profiles/
-```
-
-Default:
-
-```text
-backend/voice_profiles/default.yaml
-```
-
-The multi-platform pipeline uses these profiles directly. The Instagram standalone request model currently accepts `voice_profile` for forward compatibility, but the present route implementation does not yet actively apply it in the flow.
-
-## Project structure
-
-```text
-.
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── agents/
-│   │   ├── core/
-│   │   ├── app_layer/
-│   │   │   └── integrations/
-│   │   └── main.py
-│   ├── scripts/
-│   ├── tests/
-│   └── voice_profiles/
-├── frontend/
-│   ├── app/
-│   ├── components/
-│   ├── lib/
-│   └── __tests__/
-├── docs/
-├── CORE_API.md
-└── README.md
-```
-
-## Notes on project maturity
-
-- This repo is evolving quickly
+- `/` remains the main landing page
+- `/instagram` is a product subpage, not the default route
 - `neoxra-core` is required for meaningful backend runs
-- `/api/run` and `/api/instagram/generate` coexist because they serve different product surfaces
-- some docs describe target-state behavior before implementation fully catches up
 
 ## License
 
