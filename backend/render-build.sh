@@ -6,7 +6,7 @@ echo "pwd=$(pwd)"
 echo "python=$(command -v python)"
 
 CORE_GIT_REF="${NEOXRA_CORE_GIT_REF:-main}"
-CORE_GIT_URL="${NEOXRA_CORE_GIT_URL:-https://github.com/Meridian-Global/orchestra-core.git}"
+CORE_GIT_URL="${NEOXRA_CORE_GIT_URL:-https://github.com/Meridian-Global/neoxra-core.git}"
 echo "core_git_ref=${CORE_GIT_REF}"
 echo "core_git_url=${CORE_GIT_URL}"
 

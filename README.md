@@ -310,10 +310,10 @@ If any of those fail, the Render build fails immediately.
 Current default private core source:
 
 ```text
-https://github.com/Meridian-Global/orchestra-core.git
+https://github.com/Meridian-Global/neoxra-core.git
 ```
 
-That legacy GitHub slug is still the current repository origin for the package that exposes the `neoxra_core` Python module, so the build script defaults to it. You can override it later if the repo slug changes.
+The build script defaults to the current private core repository slug. You can override it later if the repo slug changes.
 
 Required Render environment variables:
 
@@ -330,7 +330,7 @@ Example values:
 
 ```text
 GITHUB_TOKEN=ghp_xxx
-NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/orchestra-core.git
+NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/neoxra-core.git
 NEOXRA_CORE_GIT_REF=main
 ```
 

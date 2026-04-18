@@ -7,7 +7,7 @@ from importlib import metadata
 
 DIST_NAME = "neoxra-core"
 IMPORT_NAME = "neoxra_core"
-DEFAULT_REPO_URL = "https://github.com/Meridian-Global/orchestra-core.git"
+DEFAULT_REPO_URL = "https://github.com/Meridian-Global/neoxra-core.git"
 CRITICAL_IMPORTS = (
     "neoxra_core",
     "neoxra_core.models.outputs",
