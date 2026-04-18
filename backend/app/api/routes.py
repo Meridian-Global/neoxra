@@ -1,8 +1,9 @@
 import json
 import os
-from fastapi import APIRouter, HTTPException, Query
+import logging
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
@@ -11,11 +12,21 @@ from ..core.neoxra_core_diagnostics import (
 
 router = APIRouter()
 run_pipeline_stream = None
+logger = logging.getLogger(__name__)
 
 
 class RunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     idea: str
     voice_profile: str = "default"
+
+    @field_validator("idea")
+    @classmethod
+    def must_not_be_blank(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("idea must not be empty or whitespace-only")
+        return value
 
 
 def sse(event: dict) -> str:
@@ -85,8 +96,34 @@ async def run_pipeline(req: RunRequest):
     pipeline_runner = _get_pipeline_runner()
 
     async def stream():
-        # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
-        for event in pipeline_runner(req.idea, req.voice_profile):
-            yield sse(event)
+        completed = False
+        yield sse({"event": "pipeline_started", "data": {"idea": req.idea, "voice_profile": req.voice_profile}})
+
+        try:
+            # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
+            for event in pipeline_runner(req.idea, req.voice_profile):
+                if event.get("event") == "pipeline_completed":
+                    completed = True
+                yield sse(event)
+        except Exception as exc:
+            logger.exception("Core pipeline failed before completion")
+            yield sse({
+                "event": "error",
+                "data": {
+                    "stage": "pipeline",
+                    "message": str(exc) or "Pipeline failed before completion.",
+                },
+            })
+            return
+
+        if not completed:
+            logger.error("Core pipeline stream ended without pipeline_completed")
+            yield sse({
+                "event": "error",
+                "data": {
+                    "stage": "pipeline",
+                    "message": "Pipeline ended before pipeline_completed was emitted.",
+                },
+            })
 
     return StreamingResponse(stream(), media_type="text/event-stream")

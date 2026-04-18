@@ -4,6 +4,11 @@ export interface SSEEvent {
   data: any
 }
 
+export interface StreamSSEOptions {
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
 /**
  * Consumes a POST SSE stream via fetch + ReadableStream.
  * Use instead of EventSource because EventSource only supports GET.
@@ -13,13 +18,18 @@ export interface SSEEvent {
 export async function* streamSSE(
   url: string,
   body: unknown,
-  signal?: AbortSignal
+  signalOrOptions?: AbortSignal | StreamSSEOptions
 ): AsyncGenerator<SSEEvent> {
+  const options =
+    signalOrOptions instanceof AbortSignal
+      ? { signal: signalOrOptions, timeoutMs: 45_000 }
+      : { signal: signalOrOptions?.signal, timeoutMs: signalOrOptions?.timeoutMs ?? 45_000 }
+
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    signal,
+    signal: options.signal,
   })
 
   if (!res.ok) {
@@ -33,8 +43,27 @@ export async function* streamSSE(
   const decoder = new TextDecoder()
   let buffer = ''
 
+  async function readWithTimeout() {
+    let timeoutId: number | undefined
+
+    try {
+      return await Promise.race([
+        reader.read(),
+        new Promise<never>((_, reject) => {
+          timeoutId = window.setTimeout(() => {
+            reject(new Error('Stream timed out before completion.'))
+          }, options.timeoutMs)
+        }),
+      ])
+    } finally {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }
+
   while (true) {
-    const { done, value } = await reader.read()
+    const { done, value } = await readWithTimeout()
     if (done) break
 
     buffer += decoder.decode(value, { stream: true })

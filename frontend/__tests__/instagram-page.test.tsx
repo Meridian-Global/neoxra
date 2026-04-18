@@ -196,6 +196,21 @@ describe('InstagramPage progressive rendering', () => {
     expect(screen.getByText('Network connection lost')).toBeInTheDocument()
   })
 
+  it('treats early stream close without pipeline_completed as an error', async () => {
+    mockEvents([
+      { event: 'style_analysis_completed', data: mockStyleAnalysis },
+      { event: 'generation_completed', data: mockContent },
+    ])
+
+    render(<InstagramPage />)
+    await fillAndSubmit()
+
+    await waitFor(() => {
+      expect(screen.getByText('Generation stopped')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Generation ended before completion. Please try again.')).toBeInTheDocument()
+  })
+
   it('stops streaming when cancel is triggered', async () => {
     let yieldResolve: () => void
     const blockForever = new Promise<void>((r) => { yieldResolve = r })

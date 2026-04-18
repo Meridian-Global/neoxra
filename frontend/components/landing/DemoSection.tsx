@@ -21,6 +21,7 @@ const DEFAULT_IDEA =
   'How AI tools help small teams ship faster without adding headcount.'
 
 const STAGE_COPY: Record<string, { step: StepId; message: string; platform?: PlatformKey }> = {
+  pipeline_started: { step: 'planner', message: 'Pipeline is starting.' },
   planner_started: { step: 'planner', message: 'Planner is building the brief.' },
   instagram_pass1_started: { step: 'agents', message: 'Instagram agent is drafting.', platform: 'instagram' },
   threads_pass1_started: { step: 'agents', message: 'Threads agent is drafting.', platform: 'threads' },
@@ -45,6 +46,28 @@ const PLATFORM_META: Array<{ key: PlatformKey; eyebrow: string }> = [
   { key: 'instagram', eyebrow: 'Visual-first storytelling' },
   { key: 'threads', eyebrow: 'Fast conversational take' },
 ]
+
+const KNOWN_EVENTS = new Set([
+  'pipeline_started',
+  'planner_started',
+  'planner_completed',
+  'instagram_pass1_started',
+  'instagram_pass1_completed',
+  'threads_pass1_started',
+  'threads_pass1_completed',
+  'linkedin_pass1_started',
+  'linkedin_pass1_completed',
+  'instagram_pass2_started',
+  'instagram_pass2_completed',
+  'threads_pass2_started',
+  'threads_pass2_completed',
+  'linkedin_pass2_started',
+  'linkedin_pass2_completed',
+  'critic_started',
+  'critic_completed',
+  'pipeline_completed',
+  'error',
+])
 
 function createInitialOutputs(): OutputState {
   return {
@@ -89,6 +112,8 @@ export function DemoSection() {
 
     const abortController = new AbortController()
     abortRef.current = abortController
+    let completed = false
+    let failed = false
 
     setStatus('running')
     setActiveStep('planner')
@@ -106,6 +131,15 @@ export function DemoSection() {
         abortController.signal
       )) {
         if (abortController.signal.aborted) break
+
+        if (!KNOWN_EVENTS.has(event)) {
+          setStatus('error')
+          setError(`Unexpected server event: ${event}`)
+          setStageMessage('The stream returned an unexpected event.')
+          setActivePlatform(null)
+          failed = true
+          break
+        }
 
         const stage = STAGE_COPY[event]
         if (stage) {
@@ -167,12 +201,29 @@ export function DemoSection() {
           }))
           if (typeof data?.critic_notes === 'string') setCriticNotes(data.critic_notes)
           setStageMessage('Three platform-native outputs generated.')
+          completed = true
           setStatus('done')
           setActivePlatform(null)
         }
+
+        if (event === 'error') {
+          setStatus('error')
+          setError(typeof data?.message === 'string' ? data.message : 'Pipeline failed before completion.')
+          setStageMessage('The stream failed before completion.')
+          setActivePlatform(null)
+          failed = true
+          break
+        }
+      }
+
+      if (!abortController.signal.aborted && !completed && !failed) {
+        setStatus('error')
+        setError('Generation ended before completion. Please try again.')
+        setStageMessage('The stream ended before pipeline_completed.')
+        setActivePlatform(null)
       }
     } catch (err) {
-      if (!abortController.signal.aborted) {
+      if (!abortController.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
         setStatus('error')
         setError(err instanceof Error ? err.message : 'Unable to generate right now.')
         setStageMessage('The stream failed before completion.')
