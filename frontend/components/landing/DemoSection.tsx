@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { API_BASE_URL } from '../../lib/api'
 import { streamSSE } from '../../lib/sse'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000'
 
 type Status = 'idle' | 'running' | 'done' | 'error'
 type StepId = 'planner' | 'agents' | 'critic'
@@ -102,7 +101,7 @@ export function DemoSection() {
 
     try {
       for await (const { event, data } of streamSSE(
-        `${API_BASE}/api/run`,
+        `${API_BASE_URL}/api/run`,
         { idea: idea.trim() },
         abortController.signal
       )) {

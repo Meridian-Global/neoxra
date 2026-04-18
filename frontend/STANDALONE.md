@@ -75,7 +75,7 @@ npm install
 Create `frontend/.env.local`:
 
 ```bash
-NEXT_PUBLIC_API_BASE=http://localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
 Then run:
@@ -132,7 +132,7 @@ npm run build
 
 - This frontend is a demo client for the Neoxra backend, not the core AI package
 - Backend generation still depends on `neoxra-core` being installed and configured correctly
-- `NEXT_PUBLIC_API_BASE` must point to the running backend or the UI will fail to stream
+- `NEXT_PUBLIC_API_BASE_URL` must point to the running backend or the UI will fail to stream
 - The Instagram page is the most actively evolving surface right now
 
 ## Future
