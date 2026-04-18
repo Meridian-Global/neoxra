@@ -292,7 +292,7 @@ Render only checks out this repo, not the sibling `../neoxra-core` directory. Th
 Use these settings for the backend service:
 
 - Root Directory: `backend`
-- Build Command: `pip install -r requirements-prod.txt`
+- Build Command: `./render-build.sh`
 - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
 Required Render environment variables:
@@ -301,13 +301,13 @@ Required Render environment variables:
 - `ANTHROPIC_MODEL`
 - `GITHUB_TOKEN`
 
-`GITHUB_TOKEN` must be a GitHub token with read access to the private `Meridian-Global/orchestra-core` repository because `requirements-prod.txt` installs:
+`GITHUB_TOKEN` must be a GitHub token with read access to the private `Meridian-Global/orchestra-core` repository because the build installs:
 
 ```text
 neoxra-core @ git+https://x-access-token:${GITHUB_TOKEN}@github.com/Meridian-Global/orchestra-core.git@main
 ```
 
-After setting the token and switching the build command to `requirements-prod.txt`, a redeploy is enough. No runtime `sys.path` patching is needed because Render will install `neoxra_core` into the Python environment during the build step.
+After setting the token and switching the build command to `./render-build.sh`, a redeploy is enough. The script also runs `python -c "import neoxra_core"` during build, so Render will fail the deploy immediately if the core package was not installed correctly.
 
 ### Optional integration credentials
 
