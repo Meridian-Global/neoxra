@@ -5,6 +5,7 @@ Run with:
   cd backend && uvicorn app.main:app --reload
 """
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,13 +21,33 @@ from .api.routes import router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
 
+DEFAULT_CORS_ORIGINS = (
+    "https://neoxra.com",
+    "https://www.neoxra.com",
+    "http://localhost:3000",
+)
+
+
+def _get_allowed_origins() -> list[str]:
+    configured_origins = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    parsed_origins = [
+        origin.strip().rstrip("/")
+        for origin in configured_origins.split(",")
+        if origin.strip()
+    ]
+    if parsed_origins:
+        return parsed_origins
+    return list(DEFAULT_CORS_ORIGINS)
+
+
 app = FastAPI(title="Neoxra API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_get_allowed_origins(),
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
+    allow_credentials=False,
 )
 
 app.include_router(router)

@@ -102,7 +102,7 @@ npm install
 Create `frontend/.env.local`:
 
 ```bash
-NEXT_PUBLIC_API_BASE=http://localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
 Then run:
@@ -264,7 +264,7 @@ If that fails, this repo will not run correctly.
 
 ### Frontend
 
-- `NEXT_PUBLIC_API_BASE` in `frontend/.env.local`
+- `NEXT_PUBLIC_API_BASE_URL` in `frontend/.env.local`
 
 ### Optional integration credentials
 

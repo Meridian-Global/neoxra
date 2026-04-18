@@ -5,14 +5,13 @@ import { InstagramForm } from '../../components/InstagramForm'
 import { InstagramResult as InstagramResultView } from '../../components/InstagramResult'
 import { ScorecardRadar } from '../../components/ScorecardRadar'
 import { CarouselPreview } from '../../components/CarouselPreview'
+import { API_BASE_URL } from '../../lib/api'
 import { streamSSE } from '../../lib/sse'
 import type {
   StyleAnalysis,
   InstagramContent,
   Scorecard,
 } from '../../lib/instagram-types'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000'
 
 const STAGE_LABELS: Record<string, string> = {
   style_analysis_started: 'Analyzing writing style…',
@@ -59,7 +58,7 @@ export default function InstagramPage() {
 
       try {
         for await (const { event, data: payload } of streamSSE(
-          `${API_BASE}/api/instagram/generate`,
+          `${API_BASE_URL}/api/instagram/generate`,
           data,
           abort.signal,
         )) {
