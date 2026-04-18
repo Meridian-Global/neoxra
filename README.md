@@ -65,7 +65,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install -e ../neoxra-core
+pip install ../neoxra-core
 cp .env.example .env
 ```
 
@@ -81,6 +81,13 @@ Then confirm the shared package is importable:
 ```bash
 cd backend
 python -c "import neoxra_core; print('neoxra_core import ok')"
+```
+
+If you're actively editing the sibling core repo and want live editable behavior:
+
+```bash
+cd backend
+pip install -e ../neoxra-core
 ```
 
 ### 2. Start the API
@@ -222,6 +229,18 @@ cd backend
 PYTHONPATH=../neoxra-core pytest tests/test_instagram_request.py tests/test_instagram_route.py tests/test_instagram_contract.py
 ```
 
+If you want to validate the backend the same way production installs it, use a fresh venv and a non-editable install:
+
+```bash
+cd backend
+python -m venv .venv.prod
+source .venv.prod/bin/activate
+pip install -r requirements.txt
+pip install ../neoxra-core
+python -c "import neoxra_core; print('ok')"
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
 ### Frontend
 
 ```bash
@@ -265,6 +284,30 @@ If that fails, this repo will not run correctly.
 ### Frontend
 
 - `NEXT_PUBLIC_API_BASE_URL` in `frontend/.env.local`
+
+### Render backend deploy
+
+Render only checks out this repo, not the sibling `../neoxra-core` directory. That means a build that only runs `pip install -r requirements.txt` will succeed, but `POST /api/run` will later fail at runtime because the backend lazily imports `neoxra_core` on request and the package was never installed.
+
+Use these settings for the backend service:
+
+- Root Directory: `backend`
+- Build Command: `pip install -r requirements-prod.txt`
+- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+Required Render environment variables:
+
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_MODEL`
+- `GITHUB_TOKEN`
+
+`GITHUB_TOKEN` must be a GitHub token with read access to the private `Meridian-Global/orchestra-core` repository because `requirements-prod.txt` installs:
+
+```text
+neoxra-core @ git+https://x-access-token:${GITHUB_TOKEN}@github.com/Meridian-Global/orchestra-core.git@main
+```
+
+After setting the token and switching the build command to `requirements-prod.txt`, a redeploy is enough. No runtime `sys.path` patching is needed because Render will install `neoxra_core` into the Python environment during the build step.
 
 ### Optional integration credentials
 
