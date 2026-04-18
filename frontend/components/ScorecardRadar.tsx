@@ -20,20 +20,25 @@ export function ScorecardRadar({ scorecard }: ScorecardRadarProps) {
     DIMENSIONS.reduce((sum, d) => sum + scorecard[d.key], 0) / DIMENSIONS.length
 
   return (
-    <div className="scorecard-radar ig-panel">
-      <div className="ig-panel-head">
+    <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
+      <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <span className="ig-section-kicker">Quality Scan</span>
-          <h3>Scorecard</h3>
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Quality Scan</span>
+          <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Scorecard</h3>
         </div>
-        <div className="scorecard-badge">{average.toFixed(1)} / 10</div>
+        <div className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold text-[var(--text)]">
+          {average.toFixed(1)} / 10
+        </div>
       </div>
       {DIMENSIONS.map(({ key, label }) => {
         const value = scorecard[key]
         return (
-          <div key={key} className="scorecard-bar-row">
-            <span className="scorecard-label">{label}</span>
-            <div className="scorecard-track">
+          <div key={key} className="mb-4 last:mb-0">
+            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+              <span className="text-[var(--text)]">{label}</span>
+              <span className="text-[var(--subtle)]">{value}</span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-[var(--surface)]">
               <div
                 className="scorecard-fill"
                 style={{
@@ -42,11 +47,10 @@ export function ScorecardRadar({ scorecard }: ScorecardRadarProps) {
                 }}
               />
             </div>
-            <span className="scorecard-value">{value}</span>
           </div>
         )
       })}
-      <div className="scorecard-average">Average: {average.toFixed(1)}</div>
+      <div className="mt-5 text-sm font-medium text-[var(--muted)]">Average: {average.toFixed(1)}</div>
     </div>
   )
 }

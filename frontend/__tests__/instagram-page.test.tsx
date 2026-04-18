@@ -175,7 +175,7 @@ describe('InstagramPage progressive rendering', () => {
     await waitFor(() => {
       expect(screen.getByText('Generation stopped')).toBeInTheDocument()
     })
-    expect(screen.getByText('Rate limit exceeded')).toBeInTheDocument()
+    expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument()
 
     // Style analysis rendered before the error should still be visible
     expect(screen.getByText('bold')).toBeInTheDocument()
@@ -193,7 +193,7 @@ describe('InstagramPage progressive rendering', () => {
     await waitFor(() => {
       expect(screen.getByText('Generation stopped')).toBeInTheDocument()
     })
-    expect(screen.getByText('Network connection lost')).toBeInTheDocument()
+    expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument()
   })
 
   it('treats early stream close without pipeline_completed as an error', async () => {
@@ -208,14 +208,15 @@ describe('InstagramPage progressive rendering', () => {
     await waitFor(() => {
       expect(screen.getByText('Generation stopped')).toBeInTheDocument()
     })
-    expect(screen.getByText('Generation ended before completion. Please try again.')).toBeInTheDocument()
+    expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument()
   })
 
   it('stops streaming when cancel is triggered', async () => {
     let yieldResolve: () => void
     const blockForever = new Promise<void>((r) => { yieldResolve = r })
 
-    mockStreamSSE.mockImplementation(async function* (_url, _body, signal) {
+    mockStreamSSE.mockImplementation(async function* (_url, _body, options) {
+      const signal = options instanceof AbortSignal ? options : options?.signal
       yield { event: 'style_analysis_started', data: {} }
       // Hang here until the test aborts via the signal
       await Promise.race([

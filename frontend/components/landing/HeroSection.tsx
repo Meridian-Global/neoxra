@@ -1,4 +1,5 @@
 import { ThemeToggle } from './ThemeToggle'
+import Link from 'next/link'
 
 export function HeroSection() {
   return (
@@ -36,6 +37,12 @@ export function HeroSection() {
             >
               Try Demo
             </a>
+            <Link
+              href="/instagram"
+              className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:bg-[var(--surface)]"
+            >
+              Instagram
+            </Link>
             <div className="text-sm text-[var(--subtle)]">Working generation, streamed live from the product</div>
           </div>
         </div>
