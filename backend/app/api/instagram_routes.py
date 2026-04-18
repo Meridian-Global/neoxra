@@ -5,7 +5,7 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
@@ -49,11 +49,12 @@ logger = logging.getLogger(__name__)
 
 
 class InstagramGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     topic: str
     template_text: str
     goal: str = "engagement"
     style_examples: list[str] = []
-    voice_profile: str = "default"
 
     @field_validator("topic", "template_text")
     @classmethod
@@ -113,87 +114,100 @@ async def instagram_generate(req: InstagramGenerateRequest):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     async def stream():
+        completed = False
         style_skill = StyleAnalysisSkill()
         gen_skill = InstagramGenerationSkill()
         scoring_skill = ContentScoringSkill()
 
-        # Step 1: Style analysis
-        yield _sse("style_analysis_started", {})
         try:
-            style_output = style_skill.run(SkillInput(
-                text=request.template_text,
-                context={"style_examples": request.style_examples},
-            ))
-            style_data = style_output.metadata["style_analysis"]
-            style_analysis = StyleAnalysis(
-                tone_keywords=style_data["tone_keywords"],
-                structural_patterns=style_data["structural_patterns"],
-                vocabulary_notes=style_data["vocabulary_notes"],
+            yield _sse("pipeline_started", {"topic": request.topic, "goal": request.goal})
+
+            # Step 1: Style analysis
+            yield _sse("style_analysis_started", {})
+            try:
+                style_output = style_skill.run(SkillInput(
+                    text=request.template_text,
+                    context={"style_examples": request.style_examples},
+                ))
+                style_data = style_output.metadata["style_analysis"]
+                style_analysis = StyleAnalysis(
+                    tone_keywords=style_data["tone_keywords"],
+                    structural_patterns=style_data["structural_patterns"],
+                    vocabulary_notes=style_data["vocabulary_notes"],
+                )
+            except Exception as exc:
+                logger.exception("Instagram flow failed during style analysis")
+                yield _sse("error", {"stage": "style_analysis", "message": str(exc)})
+                return
+            yield _sse("style_analysis_completed", style_data)
+
+            # Step 2: Content generation
+            yield _sse("generation_started", {})
+            try:
+                gen_output = gen_skill.run(SkillInput(
+                    text=request.topic,
+                    context={
+                        "template_text": request.template_text,
+                        "goal": request.goal,
+                        "style_analysis": style_data,
+                    },
+                ))
+                gen_meta = gen_output.metadata
+                content = InstagramContent(
+                    caption=gen_meta["caption"],
+                    hook_options=gen_meta["hook_options"],
+                    hashtags=gen_meta["hashtags"],
+                    carousel_outline=[
+                        CarouselSlide(title=s["title"], body=s["body"])
+                        for s in gen_meta["carousel_outline"]
+                    ],
+                    reel_script=gen_meta["reel_script"],
+                )
+            except Exception as exc:
+                logger.exception("Instagram flow failed during generation")
+                yield _sse("error", {"stage": "generation", "message": str(exc)})
+                return
+            yield _sse("generation_completed", gen_meta)
+
+            # Step 3: Scoring
+            yield _sse("scoring_started", {})
+            try:
+                score_output = scoring_skill.run(SkillInput(
+                    text=content.caption,
+                    context={
+                        "hook_options": content.hook_options,
+                        "hashtags": content.hashtags,
+                        "carousel_slide_count": len(content.carousel_outline),
+                        "reel_script": content.reel_script,
+                        "goal": request.goal,
+                    },
+                ))
+                score_data = score_output.metadata["scorecard"]
+                scorecard = Scorecard(**score_data)
+            except Exception as exc:
+                logger.exception("Instagram flow failed during scoring")
+                yield _sse("error", {"stage": "scoring", "message": str(exc)})
+                return
+            yield _sse("scoring_completed", score_data)
+
+            # Final result
+            result = InstagramResult(
+                content=content,
+                scorecard=scorecard,
+                critique=score_output.text,
+                style_analysis=style_analysis,
             )
+            result_dict = asdict(result)
+            result_dict["scorecard"]["average"] = scorecard.average
+            completed = True
+            yield _sse("pipeline_completed", result_dict)
         except Exception as exc:
-            logger.exception("Instagram flow failed during style analysis")
-            yield _sse("error", {"stage": "style_analysis", "message": str(exc)})
+            logger.exception("Instagram flow failed before completion")
+            yield _sse("error", {"stage": "pipeline", "message": str(exc) or "Pipeline failed before completion."})
             return
-        yield _sse("style_analysis_completed", style_data)
 
-        # Step 2: Content generation
-        yield _sse("generation_started", {})
-        try:
-            gen_output = gen_skill.run(SkillInput(
-                text=request.topic,
-                context={
-                    "template_text": request.template_text,
-                    "goal": request.goal,
-                    "style_analysis": style_data,
-                },
-            ))
-            gen_meta = gen_output.metadata
-            content = InstagramContent(
-                caption=gen_meta["caption"],
-                hook_options=gen_meta["hook_options"],
-                hashtags=gen_meta["hashtags"],
-                carousel_outline=[
-                    CarouselSlide(title=s["title"], body=s["body"])
-                    for s in gen_meta["carousel_outline"]
-                ],
-                reel_script=gen_meta["reel_script"],
-            )
-        except Exception as exc:
-            logger.exception("Instagram flow failed during generation")
-            yield _sse("error", {"stage": "generation", "message": str(exc)})
-            return
-        yield _sse("generation_completed", gen_meta)
-
-        # Step 3: Scoring
-        yield _sse("scoring_started", {})
-        try:
-            score_output = scoring_skill.run(SkillInput(
-                text=content.caption,
-                context={
-                    "hook_options": content.hook_options,
-                    "hashtags": content.hashtags,
-                    "carousel_slide_count": len(content.carousel_outline),
-                    "reel_script": content.reel_script,
-                    "goal": request.goal,
-                },
-            ))
-            score_data = score_output.metadata["scorecard"]
-            scorecard = Scorecard(**score_data)
-        except Exception as exc:
-            logger.exception("Instagram flow failed during scoring")
-            yield _sse("error", {"stage": "scoring", "message": str(exc)})
-            return
-        yield _sse("scoring_completed", score_data)
-
-        # Final result
-        result = InstagramResult(
-            content=content,
-            scorecard=scorecard,
-            critique=score_output.text,
-            style_analysis=style_analysis,
-        )
-        result_dict = asdict(result)
-        result_dict["scorecard"]["average"] = scorecard.average
-        yield _sse("pipeline_completed", result_dict)
+        if not completed:
+            logger.error("Instagram pipeline stream ended without pipeline_completed")
+            yield _sse("error", {"stage": "pipeline", "message": "Pipeline ended before pipeline_completed was emitted."})
 
     return StreamingResponse(stream(), media_type="text/event-stream")

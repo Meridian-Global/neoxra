@@ -14,6 +14,7 @@ import type {
 } from '../../lib/instagram-types'
 
 const STAGE_LABELS: Record<string, string> = {
+  pipeline_started: 'Starting pipeline…',
   style_analysis_started: 'Analyzing writing style…',
   generation_started:     'Generating Instagram content…',
   scoring_started:        'Scoring content quality…',
@@ -29,6 +30,18 @@ const SCORE_DIMS = [
   'hook_strength', 'cta_clarity', 'hashtag_relevance',
   'platform_fit', 'tone_match', 'originality',
 ] as const
+
+const KNOWN_EVENTS = new Set([
+  'pipeline_started',
+  'style_analysis_started',
+  'style_analysis_completed',
+  'generation_started',
+  'generation_completed',
+  'scoring_started',
+  'scoring_completed',
+  'pipeline_completed',
+  'error',
+])
 
 type Status = 'idle' | 'streaming' | 'done' | 'error'
 
@@ -55,6 +68,8 @@ export default function InstagramPage() {
 
       const abort = new AbortController()
       abortRef.current = abort
+      let completed = false
+      let failed = false
 
       try {
         for await (const { event, data: payload } of streamSSE(
@@ -63,6 +78,13 @@ export default function InstagramPage() {
           abort.signal,
         )) {
           if (abort.signal.aborted) break
+
+          if (!KNOWN_EVENTS.has(event)) {
+            setError(`Unexpected server event: ${event}`)
+            setStatus('error')
+            failed = true
+            break
+          }
 
           // *_started → update stage label
           if (event in STAGE_LABELS) {
@@ -95,6 +117,7 @@ export default function InstagramPage() {
             setCritique(payload.critique)
             setStyleAnalysis(payload.style_analysis)
             setCurrentStage('')
+            completed = true
             setStatus('done')
             continue
           }
@@ -103,16 +126,21 @@ export default function InstagramPage() {
           if (event === 'error') {
             setError(payload.message ?? 'An error occurred during generation')
             setStatus('error')
+            failed = true
             break
           }
         }
 
-        // Stream ended without explicit pipeline_completed or error
-        setStatus(prev => (prev === 'streaming' ? 'done' : prev))
+        if (!abort.signal.aborted && !completed && !failed) {
+          setError('Generation ended before completion. Please try again.')
+          setStatus('error')
+          setCurrentStage('')
+        }
       } catch (err) {
-        if (!abort.signal.aborted) {
+        if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
           setError(err instanceof Error ? err.message : 'Something went wrong')
           setStatus('error')
+          setCurrentStage('')
         }
       }
     },

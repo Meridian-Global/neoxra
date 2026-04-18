@@ -18,6 +18,7 @@ def test_core_route_exists(monkeypatch):
         assert idea == "hello"
         assert voice_profile == "default"
         yield {"event": "planner_started", "data": {}}
+        yield {"event": "pipeline_completed", "data": {"ok": True}}
 
     monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
 
@@ -26,6 +27,22 @@ def test_core_route_exists(monkeypatch):
 
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["content-type"]
+
+
+def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default"):
+        assert idea == "hello"
+        assert voice_profile == "default"
+        yield {"event": "planner_started", "data": {}}
+
+    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+
+    client = TestClient(app)
+    response = client.post("/api/run", json={"idea": "hello"})
+
+    assert response.status_code == 200
+    assert "event: error" in response.text
+    assert '"message": "Pipeline ended before pipeline_completed was emitted."' in response.text
 
 
 def test_linkedin_publish_route_exists(monkeypatch):
