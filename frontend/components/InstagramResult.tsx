@@ -19,7 +19,11 @@ function CopyButton({ text }: { text: string }) {
   }
 
   return (
-    <button className="copy-btn" type="button" onClick={copy}>
+    <button
+      className="inline-flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--subtle)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
+      type="button"
+      onClick={copy}
+    >
       {copied ? 'copied' : 'copy'}
     </button>
   )
@@ -27,88 +31,95 @@ function CopyButton({ text }: { text: string }) {
 
 export function InstagramResult({ content, critique }: InstagramResultProps) {
   return (
-    <div className="ig-result">
-      <section className="ig-panel ig-panel-feature">
-        <div className="ig-panel-head">
+    <div className="space-y-5">
+      <section className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur">
+        <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <span className="ig-section-kicker">Primary Copy</span>
-            <h3>Caption</h3>
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Primary Copy</span>
+            <h3 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">Caption</h3>
           </div>
           <CopyButton text={content.caption} />
         </div>
-        <p className="ig-body-copy">{content.caption}</p>
+        <p className="text-base leading-7 text-[var(--text)]">{content.caption}</p>
       </section>
 
-      <section className="ig-panel">
-        <div className="ig-panel-head">
+      <section className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
+        <div className="mb-4">
           <div>
-            <span className="ig-section-kicker">Open Strong</span>
-            <h3>Hook Options</h3>
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Open Strong</span>
+            <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Hook Options</h3>
           </div>
         </div>
-        <ol className="ig-hook-list">
+        <ol className="space-y-3">
           {content.hook_options.map((hook, i) => (
-            <li key={i} className="ig-hook-item">
-              <span className="ig-hook-index">{String(i + 1).padStart(2, '0')}</span>
-              <span>{hook}</span>
+            <li key={i} className="flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+              <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-semibold text-[var(--text)]">
+                {i + 1}
+              </span>
+              <span className="text-sm leading-6 text-[var(--text)]">{hook}</span>
             </li>
           ))}
         </ol>
       </section>
 
-      <section className="ig-panel">
-        <div className="ig-panel-head">
+      <section className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
+        <div className="mb-4">
           <div>
-            <span className="ig-section-kicker">Discovery</span>
-            <h3>Hashtags</h3>
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Discovery</span>
+            <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Hashtags</h3>
           </div>
         </div>
-        <div className="hashtag-chips">
+        <div className="flex flex-wrap gap-2">
           {content.hashtags.map((tag) => (
-            <span key={tag} className="hashtag-chip">{tag}</span>
+            <span
+              key={tag}
+              className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text)]"
+            >
+              {tag}
+            </span>
           ))}
         </div>
       </section>
 
-      <section className="ig-panel">
-        <div className="ig-panel-head">
+      <section className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
+        <div className="mb-4">
           <div>
-            <span className="ig-section-kicker">Structure</span>
-            <h3>Carousel Outline</h3>
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Structure</span>
+            <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Carousel Outline</h3>
           </div>
         </div>
-        <ol className="ig-carousel-outline">
+        <ol className="space-y-3">
           {content.carousel_outline.map((slide, i) => (
-            <li key={i} className="ig-carousel-outline-item">
-              <div className="ig-carousel-outline-step">Slide {i + 1}</div>
+            <li key={i} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">Slide {i + 1}</div>
               <div>
-                <strong>{slide.title}</strong>
-                <p>{slide.body}</p>
+                <strong className="text-base text-[var(--text)]">{slide.title}</strong>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{slide.body}</p>
               </div>
             </li>
           ))}
         </ol>
       </section>
 
-      <section className="ig-panel">
-        <div className="ig-panel-head">
+      <section className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
+        <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <span className="ig-section-kicker">Motion Version</span>
-            <h3>Reel Script</h3>
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Motion Version</span>
+            <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Reel Script</h3>
           </div>
           <CopyButton text={content.reel_script} />
         </div>
-        <p className="ig-body-copy">{content.reel_script}</p>
+        <p className="text-base leading-7 text-[var(--text)]">{content.reel_script}</p>
       </section>
 
-      <section className="ig-panel ig-panel-muted">
-        <div className="ig-panel-head">
+      <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <div className="mb-4">
           <div>
-            <span className="ig-section-kicker">Editor Note</span>
-            <h3>Critique</h3>
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Editor Note</span>
+            <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Critique</h3>
           </div>
         </div>
-        <p className="critique-note">{critique}</p>
+        <p className="text-sm leading-6 text-[var(--muted)]">{critique}</p>
       </section>
     </div>
   )

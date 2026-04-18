@@ -9,6 +9,18 @@ export interface StreamSSEOptions {
   timeoutMs?: number
 }
 
+export class APIError extends Error {
+  status: number
+  detail?: string
+
+  constructor(status: number, detail?: string) {
+    super(detail ?? `HTTP ${status}`)
+    this.name = 'APIError'
+    this.status = status
+    this.detail = detail
+  }
+}
+
 /**
  * Consumes a POST SSE stream via fetch + ReadableStream.
  * Use instead of EventSource because EventSource only supports GET.
@@ -33,7 +45,14 @@ export async function* streamSSE(
   })
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+    let detail: string | undefined
+    try {
+      const payload = await res.json()
+      detail = typeof payload?.detail === 'string' ? payload.detail : undefined
+    } catch {
+      detail = undefined
+    }
+    throw new APIError(res.status, detail ?? res.statusText)
   }
   if (!res.body) {
     throw new Error('No response body')
