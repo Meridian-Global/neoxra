@@ -7,6 +7,8 @@ Run with:
 
 import os
 import logging
+import time
+import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -15,12 +17,18 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 load_dotenv(BACKEND_ROOT / ".env", override=False)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from .api.routes import router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
+from .core.logging_utils import (
+    configure_logging,
+    reset_request_id,
+    set_request_id,
+)
 from .core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
@@ -46,6 +54,7 @@ def _get_allowed_origins() -> list[str]:
 
 
 logger = logging.getLogger(__name__)
+configure_logging()
 app = FastAPI(title="Neoxra API")
 
 app.add_middleware(
@@ -59,6 +68,46 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(integrations_router)
 app.include_router(instagram_router)
+
+
+@app.middleware("http")
+async def add_request_context(request: Request, call_next) -> Response:
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
+    request.state.request_id = request_id
+    token = set_request_id(request_id)
+    start = time.perf_counter()
+
+    logger.info(
+        "request started method=%s path=%s client=%s",
+        request.method,
+        request.url.path,
+        request.client.host if request.client else "-",
+    )
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = round((time.perf_counter() - start) * 1000, 1)
+        logger.exception(
+            "request failed method=%s path=%s duration_ms=%s",
+            request.method,
+            request.url.path,
+            duration_ms,
+        )
+        reset_request_id(token)
+        raise
+
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+    response.headers["X-Request-ID"] = request_id
+    logger.info(
+        "request completed method=%s path=%s status_code=%s duration_ms=%s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
+    reset_request_id(token)
+    return response
 
 
 @app.get("/", tags=["health"])
@@ -84,5 +133,12 @@ async def core_health() -> dict:
 @app.on_event("startup")
 async def log_core_diagnostics_on_startup() -> None:
     diagnostics = get_neoxra_core_diagnostics()
+    logger.info(
+        "startup configuration environment=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s",
+        os.getenv("ENVIRONMENT", "development"),
+        os.getenv("LOG_LEVEL", "INFO"),
+        ",".join(_get_allowed_origins()),
+        os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),
+    )
     logger.info("neoxra_core startup status: %s", format_neoxra_core_diagnostics(diagnostics))
     logger.info("neoxra_core startup diagnostics: %s", diagnostics)

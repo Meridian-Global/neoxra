@@ -3,10 +3,11 @@ import logging
 import os
 from dataclasses import asdict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from ..core.logging_utils import get_request_id
 from ..core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
@@ -75,6 +76,19 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+def _log_instagram_event(event_name: str, **fields) -> None:
+    base_fields = {
+        "request_id": get_request_id(),
+        "event": event_name,
+    }
+    base_fields.update(fields)
+    logger.info(
+        "instagram pipeline event=%s %s",
+        event_name,
+        " ".join(f"{key}={value}" for key, value in base_fields.items() if key != "event"),
+    )
+
+
 def _require_instagram_dependencies() -> None:
     if GenerationRequest is not None:
         return
@@ -99,12 +113,19 @@ def _require_anthropic_api_key() -> None:
 
 
 @router.post("/api/instagram/generate")
-async def instagram_generate(req: InstagramGenerateRequest):
+async def instagram_generate(req: InstagramGenerateRequest, request: Request):
     _require_instagram_dependencies()
     _require_anthropic_api_key()
+    logger.info(
+        "instagram generation request accepted topic_length=%s goal=%s style_examples=%s path=%s",
+        len(req.topic),
+        req.goal,
+        len(req.style_examples),
+        request.url.path,
+    )
 
     try:
-        request = GenerationRequest(
+        generation_request = GenerationRequest(
             topic=req.topic,
             template_text=req.template_text,
             style_examples=req.style_examples,
@@ -120,14 +141,16 @@ async def instagram_generate(req: InstagramGenerateRequest):
         scoring_skill = ContentScoringSkill()
 
         try:
-            yield _sse("pipeline_started", {"topic": request.topic, "goal": request.goal})
+            _log_instagram_event("pipeline_started", goal=generation_request.goal)
+            yield _sse("pipeline_started", {"topic": generation_request.topic, "goal": generation_request.goal})
 
             # Step 1: Style analysis
+            _log_instagram_event("style_analysis_started")
             yield _sse("style_analysis_started", {})
             try:
                 style_output = style_skill.run(SkillInput(
-                    text=request.template_text,
-                    context={"style_examples": request.style_examples},
+                    text=generation_request.template_text,
+                    context={"style_examples": generation_request.style_examples},
                 ))
                 style_data = style_output.metadata["style_analysis"]
                 style_analysis = StyleAnalysis(
@@ -139,16 +162,18 @@ async def instagram_generate(req: InstagramGenerateRequest):
                 logger.exception("Instagram flow failed during style analysis")
                 yield _sse("error", {"stage": "style_analysis", "message": str(exc)})
                 return
+            _log_instagram_event("style_analysis_completed")
             yield _sse("style_analysis_completed", style_data)
 
             # Step 2: Content generation
+            _log_instagram_event("generation_started")
             yield _sse("generation_started", {})
             try:
                 gen_output = gen_skill.run(SkillInput(
-                    text=request.topic,
+                    text=generation_request.topic,
                     context={
-                        "template_text": request.template_text,
-                        "goal": request.goal,
+                        "template_text": generation_request.template_text,
+                        "goal": generation_request.goal,
                         "style_analysis": style_data,
                     },
                 ))
@@ -167,9 +192,11 @@ async def instagram_generate(req: InstagramGenerateRequest):
                 logger.exception("Instagram flow failed during generation")
                 yield _sse("error", {"stage": "generation", "message": str(exc)})
                 return
+            _log_instagram_event("generation_completed")
             yield _sse("generation_completed", gen_meta)
 
             # Step 3: Scoring
+            _log_instagram_event("scoring_started")
             yield _sse("scoring_started", {})
             try:
                 score_output = scoring_skill.run(SkillInput(
@@ -179,7 +206,7 @@ async def instagram_generate(req: InstagramGenerateRequest):
                         "hashtags": content.hashtags,
                         "carousel_slide_count": len(content.carousel_outline),
                         "reel_script": content.reel_script,
-                        "goal": request.goal,
+                        "goal": generation_request.goal,
                     },
                 ))
                 score_data = score_output.metadata["scorecard"]
@@ -188,6 +215,7 @@ async def instagram_generate(req: InstagramGenerateRequest):
                 logger.exception("Instagram flow failed during scoring")
                 yield _sse("error", {"stage": "scoring", "message": str(exc)})
                 return
+            _log_instagram_event("scoring_completed")
             yield _sse("scoring_completed", score_data)
 
             # Final result
@@ -200,6 +228,7 @@ async def instagram_generate(req: InstagramGenerateRequest):
             result_dict = asdict(result)
             result_dict["scorecard"]["average"] = scorecard.average
             completed = True
+            _log_instagram_event("pipeline_completed")
             yield _sse("pipeline_completed", result_dict)
         except Exception as exc:
             logger.exception("Instagram flow failed before completion")
@@ -209,5 +238,7 @@ async def instagram_generate(req: InstagramGenerateRequest):
         if not completed:
             logger.error("Instagram pipeline stream ended without pipeline_completed")
             yield _sse("error", {"stage": "pipeline", "message": "Pipeline ended before pipeline_completed was emitted."})
+        else:
+            logger.info("Instagram pipeline completed successfully")
 
     return StreamingResponse(stream(), media_type="text/event-stream")
