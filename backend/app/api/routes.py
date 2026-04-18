@@ -4,6 +4,11 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ..core.neoxra_core_diagnostics import (
+    format_neoxra_core_diagnostics,
+    get_neoxra_core_diagnostics,
+)
+
 router = APIRouter()
 run_pipeline_stream = None
 
@@ -33,13 +38,14 @@ def _get_pipeline_runner():
 
     try:
         from ..core.pipeline import run_pipeline_stream as runner
-    except ModuleNotFoundError as exc:
-        if exc.name and exc.name.startswith("neoxra_core"):
+    except Exception as exc:
+        diagnostics = get_neoxra_core_diagnostics()
+        if not diagnostics.get("import_ok"):
             raise HTTPException(
                 status_code=503,
                 detail=(
                     "Core AI package 'neoxra_core' is unavailable. "
-                    "Install it in the runtime environment before calling /api/run."
+                    f"{format_neoxra_core_diagnostics(diagnostics)}"
                 ),
             ) from exc
         raise

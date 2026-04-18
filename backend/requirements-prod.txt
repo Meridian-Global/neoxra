@@ -1,5 +1,5 @@
 -r requirements.txt
 
-# Render builds only this repo, so the private core package must be installed explicitly.
-# GITHUB_TOKEN should have access to Meridian-Global/orchestra-core.
-neoxra-core @ git+https://x-access-token:${GITHUB_TOKEN}@github.com/Meridian-Global/orchestra-core.git@main
+# Production base dependencies.
+# The private neoxra-core install is intentionally handled by render-build.sh
+# so the build can fail fast with explicit diagnostics if the package does not import.

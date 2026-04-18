@@ -7,6 +7,11 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
+from ..core.neoxra_core_diagnostics import (
+    format_neoxra_core_diagnostics,
+    get_neoxra_core_diagnostics,
+)
+
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 _INSTAGRAM_IMPORT_ERROR = None
 
@@ -75,7 +80,7 @@ def _require_instagram_dependencies() -> None:
 
     detail = (
         "Instagram generation is unavailable because the core AI package "
-        "'neoxra_core' is not installed in the runtime environment."
+        f"'neoxra_core' is unavailable. {format_neoxra_core_diagnostics(get_neoxra_core_diagnostics())}"
     )
     if _INSTAGRAM_IMPORT_ERROR is not None:
         detail = f"{detail} Import error: {_INSTAGRAM_IMPORT_ERROR}"

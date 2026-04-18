@@ -299,15 +299,23 @@ Required Render environment variables:
 
 - `ANTHROPIC_API_KEY`
 - `ANTHROPIC_MODEL`
+- `NEOXRA_CORE_GIT_URL`
+
+If `NEOXRA_CORE_GIT_URL` is a private GitHub HTTPS URL, also set:
+
 - `GITHUB_TOKEN`
 
-`GITHUB_TOKEN` must be a GitHub token with read access to the private `Meridian-Global/orchestra-core` repository because the build installs:
+Example if the private repo is currently still hosted under the legacy slug:
 
 ```text
-neoxra-core @ git+https://x-access-token:${GITHUB_TOKEN}@github.com/Meridian-Global/orchestra-core.git@main
+NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/orchestra-core.git
 ```
 
-After setting the token and switching the build command to `./render-build.sh`, a redeploy is enough. The script also runs `python -c "import neoxra_core"` during build, so Render will fail the deploy immediately if the core package was not installed correctly.
+Optional override variables:
+
+- `NEOXRA_CORE_GIT_REF` if you need a branch/tag other than `main`
+
+After setting the URL and switching the build command to `./render-build.sh`, a redeploy is enough. The script prints `pwd`, `pip show neoxra-core`, runs `python -c "import neoxra_core"` and then runs `python scripts/check_neoxra_core.py`, so Render will fail the deploy immediately if the core package is missing or installed-but-broken.
 
 ### Optional integration credentials
 

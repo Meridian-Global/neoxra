@@ -6,6 +6,7 @@ Run with:
 """
 
 import os
+import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,6 +21,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
+from .core.neoxra_core_diagnostics import (
+    format_neoxra_core_diagnostics,
+    get_neoxra_core_diagnostics,
+)
 
 DEFAULT_CORS_ORIGINS = (
     "https://neoxra.com",
@@ -40,6 +45,7 @@ def _get_allowed_origins() -> list[str]:
     return list(DEFAULT_CORS_ORIGINS)
 
 
+logger = logging.getLogger(__name__)
 app = FastAPI(title="Neoxra API")
 
 app.add_middleware(
@@ -53,6 +59,11 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(integrations_router)
 app.include_router(instagram_router)
+
+logger.info(
+    "neoxra_core startup status: %s",
+    format_neoxra_core_diagnostics(get_neoxra_core_diagnostics()),
+)
 
 
 @app.get("/", tags=["health"])
