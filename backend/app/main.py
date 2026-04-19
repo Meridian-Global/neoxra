@@ -24,8 +24,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from .api.routes import router
+from .api.demo_access_routes import router as demo_access_router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
+from .core.demo_access import get_demo_surface_summary, get_runtime_mode
 from .core.error_handling import json_error_response
 from .core.generation_metrics import get_generation_metrics_snapshot
 from .core.logging_utils import (
@@ -72,6 +74,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(demo_access_router)
 app.include_router(integrations_router)
 app.include_router(instagram_router)
 
@@ -268,11 +271,13 @@ async def generation_metrics_health() -> dict:
 async def log_core_diagnostics_on_startup() -> None:
     diagnostics = get_neoxra_core_diagnostics()
     logger.info(
-        "startup configuration environment=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s",
+        "startup configuration environment=%s runtime_mode=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s demo_surfaces=%s",
         os.getenv("ENVIRONMENT", "development"),
+        get_runtime_mode(),
         os.getenv("LOG_LEVEL", "INFO"),
         ",".join(_get_allowed_origins()),
         os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),
+        get_demo_surface_summary(),
     )
     logger.info(
         "startup neoxra_core import_ok=%s version=%s",

@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useLanguage } from '../LanguageProvider'
 import { API_BASE_URL } from '../../lib/api'
+import { buildDemoHeaders } from '../../lib/demo-access'
+import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { APIError, streamSSE } from '../../lib/sse'
 
 type Status = 'idle' | 'running' | 'done' | 'error'
@@ -278,6 +280,7 @@ function toFriendlyError(error: unknown, copy: ReturnType<typeof createDemoCopy>
 export function DemoSection() {
   const { language } = useLanguage()
   const copy = createDemoCopy(language)
+  const demoConfig = useMemo(() => getDemoSurfaceConfig('landing'), [])
   const [idea, setIdea] = useState(copy.defaultIdea)
   const [status, setStatus] = useState<Status>('idle')
   const [activeStep, setActiveStep] = useState<StepId>('planner')
@@ -319,7 +322,10 @@ export function DemoSection() {
       for await (const { event, data } of streamSSE(
         `${API_BASE_URL}/api/run`,
         { idea: idea.trim(), locale: language },
-        abortController.signal
+        {
+          signal: abortController.signal,
+          headers: buildDemoHeaders(demoConfig.apiSurface),
+        }
       )) {
         if (abortController.signal.aborted) break
 
@@ -421,7 +427,7 @@ export function DemoSection() {
         setActivePlatform(null)
       }
     }
-  }, [copy, idea, language, status])
+  }, [copy, demoConfig.apiSurface, idea, language, status])
 
   const stop = useCallback(() => {
     abortRef.current?.abort()

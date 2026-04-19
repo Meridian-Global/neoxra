@@ -65,6 +65,43 @@ def test_core_health_hides_internal_diagnostics():
     assert "verified_imports" not in payload["core"]
 
 
+def test_runtime_health_exposes_safe_demo_surface_summary(monkeypatch):
+    monkeypatch.setenv("NEOXRA_ENV_MODE", "public-demo")
+    monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_MODE", "gated")
+
+    client = TestClient(app)
+    response = client.get("/health/runtime")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["runtime_mode"] == "public-demo"
+    assert payload["demo_surfaces"]["landing"] == "public"
+    assert payload["demo_surfaces"]["instagram"] == "public"
+    assert payload["demo_surfaces"]["legal"] == "gated"
+
+
+def test_demo_access_endpoint_returns_signed_token_for_gated_surface(monkeypatch):
+    monkeypatch.setenv("NEOXRA_ENV_MODE", "public-demo")
+    monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_MODE", "gated")
+    monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_CODE", "law-demo")
+    monkeypatch.setenv("NEOXRA_DEMO_SIGNING_SECRET", "demo-secret")
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/demo/access",
+        json={"surface": "legal", "access_code": "law-demo"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["surface"] == "legal"
+    assert payload["access_mode"] == "gated"
+    assert payload["runtime_mode"] == "public-demo"
+    assert isinstance(payload["demo_token"], str)
+    assert payload["demo_token"]
+
+
 def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
     reset_generation_metrics()
     reset_generation_guards()

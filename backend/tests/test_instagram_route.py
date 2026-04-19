@@ -100,6 +100,48 @@ def mock_llm():
 
 
 class TestInstagramSSERoute:
+    def test_legal_demo_surface_requires_access_when_gated(self, mock_llm, monkeypatch):
+        reset_generation_metrics()
+        reset_generation_guards()
+        monkeypatch.setenv("NEOXRA_ENV_MODE", "public-demo")
+        monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_MODE", "gated")
+        monkeypatch.setenv("NEOXRA_DEMO_SIGNING_SECRET", "demo-secret")
+
+        resp = client.post(
+            "/api/instagram/generate",
+            headers={"X-Neoxra-Demo-Surface": "legal"},
+            json={"topic": "test", "template_text": "template"},
+        )
+
+        assert resp.status_code == 401
+        assert resp.json()["error_code"] == "DEMO_ACCESS_REQUIRED"
+
+    def test_legal_demo_surface_accepts_valid_demo_token(self, mock_llm, monkeypatch):
+        reset_generation_metrics()
+        reset_generation_guards()
+        monkeypatch.setenv("NEOXRA_ENV_MODE", "public-demo")
+        monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_MODE", "gated")
+        monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_CODE", "law-demo")
+        monkeypatch.setenv("NEOXRA_DEMO_SIGNING_SECRET", "demo-secret")
+
+        access_response = client.post(
+            "/api/demo/access",
+            json={"surface": "legal", "access_code": "law-demo"},
+        )
+        token = access_response.json()["demo_token"]
+
+        resp = client.post(
+            "/api/instagram/generate",
+            headers={
+                "X-Neoxra-Demo-Surface": "legal",
+                "X-Neoxra-Demo-Token": token,
+            },
+            json={"topic": "test", "template_text": "template"},
+        )
+
+        assert resp.status_code == 200
+        assert "text/event-stream" in resp.headers["content-type"]
+
     def test_content_type_is_event_stream(self, mock_llm):
         reset_generation_metrics()
         reset_generation_guards()

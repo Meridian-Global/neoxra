@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CarouselPreview } from '../../../components/CarouselPreview'
+import { DemoAccessGate } from '../../../components/DemoAccessGate'
 import { InstagramForm } from '../../../components/InstagramForm'
 import { InstagramResult as InstagramResultView } from '../../../components/InstagramResult'
 import { ScorecardRadar } from '../../../components/ScorecardRadar'
@@ -10,6 +11,8 @@ import { LanguageToggle } from '../../../components/LanguageToggle'
 import { useLanguage } from '../../../components/LanguageProvider'
 import { ThemeToggle } from '../../../components/landing/ThemeToggle'
 import { API_BASE_URL } from '../../../lib/api'
+import { buildDemoHeaders, clearStoredDemoToken } from '../../../lib/demo-access'
+import { getDemoSurfaceConfig } from '../../../lib/demo-config'
 import {
   getLegalDemoPresets,
   getLegalDemoValueProp,
@@ -88,6 +91,18 @@ function createLegalCopy(language: 'en' | 'zh-TW') {
         unavailable: '系統暫時無法使用，請改用 golden scenario 或稍後重試。',
         generic: '發生了一點問題，請再試一次。',
         timeout: '生成時間過長，請重試或改用 golden scenario。',
+      },
+      access: {
+        eyebrow: '法律客戶 demo 存取',
+        title: '這個法律 demo 目前只對已授權的客戶展示開放。',
+        body: '輸入本次 law-firm demo 的 access code，或直接使用已簽章的 signed link 進入。',
+        inputLabel: 'Demo access code',
+        inputPlaceholder: '輸入法律 demo 的 access code',
+        submitLabel: '解鎖法律 demo',
+        loadingLabel: '驗證中…',
+        signedLinkLoaded: '若你是從 signed link 進入，系統會自動保留這次存取權限。',
+        invalidCode: 'Access code 無效，或這個連結已經過期。',
+        clearAccess: '清除存取',
       },
       header: {
         badge: 'Neoxra 法律 Demo',
@@ -209,6 +224,18 @@ function createLegalCopy(language: 'en' | 'zh-TW') {
       generic: 'Something went wrong. Please try again.',
       timeout: 'The generation took too long. Please retry or switch to the golden scenario.',
     },
+    access: {
+      eyebrow: 'Legal client demo access',
+      title: 'This legal demo is limited to approved client sessions.',
+      body: 'Enter the access code for this law-firm demo, or open the signed link that was shared for the meeting.',
+      inputLabel: 'Demo access code',
+      inputPlaceholder: 'Enter the access code for this legal demo',
+      submitLabel: 'Unlock legal demo',
+      loadingLabel: 'Checking access…',
+      signedLinkLoaded: 'If you opened a signed link, access will be preserved automatically on this device.',
+      invalidCode: 'That access code is invalid or this signed link has expired.',
+      clearAccess: 'Clear access',
+    },
     header: {
       badge: 'Neoxra Legal Demo',
       workflow: 'Legal demo workflow',
@@ -310,6 +337,7 @@ function toFriendlyError(error: unknown, copy: ReturnType<typeof createLegalCopy
 export default function LegalDemoPage() {
   const { language } = useLanguage()
   const copy = createLegalCopy(language)
+  const demoConfig = useMemo(() => getDemoSurfaceConfig('legal'), [])
   const legalDemoPresets = getLegalDemoPresets(language)
   const legalVoicePresets = getLegalVoicePresets(language)
   const legalGoldenScenario = getLegalGoldenScenario(language)
@@ -332,6 +360,7 @@ export default function LegalDemoPage() {
   const [scorecard, setScorecard] = useState<Scorecard | null>(null)
   const [critique, setCritique] = useState<string | null>(null)
   const [resultOrigin, setResultOrigin] = useState<'live' | 'golden' | null>(null)
+  const [demoToken, setDemoToken] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -372,6 +401,7 @@ export default function LegalDemoPage() {
   const isStreaming = status === 'streaming'
   const isWorking = isLoading || isStreaming
   const hasResults = Boolean(styleAnalysis || content || scorecard || critique)
+  const needsAccess = demoConfig.accessMode === 'gated' && !demoToken
   const hasPendingEdits = Boolean(
     lastSubmitted &&
       (preview.topic !== lastSubmitted.topic ||
@@ -436,7 +466,11 @@ export default function LegalDemoPage() {
             goal: data.goal,
             locale: language,
           },
-          { signal: abort.signal, timeoutMs: 45_000 },
+          {
+            signal: abort.signal,
+            timeoutMs: 45_000,
+            headers: buildDemoHeaders(demoConfig.apiSurface, demoToken),
+          },
         )) {
           if (abort.signal.aborted) break
           if (!sawStreamEvent) {
@@ -507,13 +541,19 @@ export default function LegalDemoPage() {
         }
       } catch (err) {
         if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
-          setError(toFriendlyError(err, copy))
+          if (err instanceof APIError && err.status === 401) {
+            clearStoredDemoToken(demoConfig.apiSurface)
+            setDemoToken(null)
+            setError(copy.access.invalidCode)
+          } else {
+            setError(toFriendlyError(err, copy))
+          }
           setStatus('error')
           setCurrentStage('')
         }
       }
     },
-    [clearResults, copy, language, selectedVoice],
+    [clearResults, copy, demoConfig.apiSurface, demoToken, language, selectedVoice],
   )
 
   function handleCancel() {
@@ -573,6 +613,30 @@ export default function LegalDemoPage() {
     <main className="relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/10" />
       <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-10 px-5 pb-20 pt-8 sm:px-6 lg:px-8 lg:pb-28">
+        {needsAccess ? (
+          <section className="pt-12 sm:pt-16">
+            <div className="mb-8 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5">
+                <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+                {copy.header.badge}
+              </div>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/"
+                  className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5 text-sm text-[var(--subtle)] transition hover:border-white/20 hover:text-[var(--text)]"
+                >
+                  {copy.header.back}
+                </Link>
+                <LanguageToggle />
+                <ThemeToggle />
+              </div>
+            </div>
+            <DemoAccessGate surface={demoConfig.apiSurface} copy={copy.access} onAccessReady={setDemoToken} />
+          </section>
+        ) : null}
+
+        {!needsAccess ? (
+          <>
         <section className="pt-8 sm:pt-12">
           <div className="mb-12 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5">
@@ -966,6 +1030,8 @@ export default function LegalDemoPage() {
             </div>
           </section>
         )}
+          </>
+        ) : null}
       </div>
     </main>
   )
