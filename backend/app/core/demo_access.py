@@ -169,10 +169,17 @@ def create_demo_access_response(surface: str) -> dict[str, object]:
     mode = get_runtime_mode()
     token = issue_demo_token(surface, mode)
     try:
+        # Token payload is "{surface}:{mode}:{exp}" base64-encoded before the "." separator.
+        # Parsing it here keeps expires_at in sync with the embedded exp claim.
         encoded_payload = token.split(".")[0]
-        payload = _b64url_decode(encoded_payload).decode("utf-8")
-        expires_at = int(payload.split(":")[2])
+        payload_parts = _b64url_decode(encoded_payload).decode("utf-8").split(":")
+        if len(payload_parts) != 3:
+            raise ValueError("unexpected token payload structure")
+        expires_at = int(payload_parts[2])
     except Exception:
+        # The token was just issued by this process, so this path should never
+        # be reached.  Fall back to an independently-computed expiry as a
+        # last-resort safety net.
         expires_at = int(time.time()) + _token_ttl_seconds()
     return {
         "surface": surface,
