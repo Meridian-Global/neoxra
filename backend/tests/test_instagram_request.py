@@ -65,6 +65,20 @@ class TestInstagramGenerateRequestInvalid:
             InstagramGenerateRequest(topic="x", template_text="y", locale="zh-CN")
         assert "locale" in str(exc_info.value)
 
+    def test_topic_length_limit_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            InstagramGenerateRequest(topic="x" * 241, template_text="y")
+        assert "topic must be <=" in str(exc_info.value)
+
+    def test_style_examples_count_limit_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            InstagramGenerateRequest(
+                topic="x",
+                template_text="y",
+                style_examples=["a", "b", "c", "d", "e", "f"],
+            )
+        assert "style_examples must contain <=" in str(exc_info.value)
+
     def test_extra_fields_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             InstagramGenerateRequest(topic="x", template_text="y", voice_profile="default")

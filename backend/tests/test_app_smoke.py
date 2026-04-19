@@ -3,6 +3,11 @@ import app.api.routes as core_routes
 from fastapi.testclient import TestClient
 
 from app.core.generation_metrics import reset_generation_metrics
+from app.core.request_guards import (
+    CORE_ROUTE_KEY,
+    GENERATION_GUARDS,
+    reset_generation_guards,
+)
 from app.main import app
 
 
@@ -16,6 +21,7 @@ def test_app_starts():
 
 def test_core_route_exists(monkeypatch):
     reset_generation_metrics()
+    reset_generation_guards()
 
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
@@ -45,6 +51,7 @@ def test_health_route_sets_request_id_header():
 
 def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
     reset_generation_metrics()
+    reset_generation_guards()
 
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
@@ -64,6 +71,7 @@ def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
 
 def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
     reset_generation_metrics()
+    reset_generation_guards()
 
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
@@ -84,6 +92,7 @@ def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
 
 def test_core_route_accepts_locale(monkeypatch):
     reset_generation_metrics()
+    reset_generation_guards()
 
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
@@ -103,6 +112,7 @@ def test_core_route_accepts_locale(monkeypatch):
 
 def test_core_route_emits_error_when_completed_payload_is_invalid(monkeypatch):
     reset_generation_metrics()
+    reset_generation_guards()
 
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         yield {"event": "planner_started", "data": {}}
@@ -139,6 +149,7 @@ def test_core_route_emits_error_when_completed_payload_is_invalid(monkeypatch):
 
 def test_generation_metrics_endpoint_tracks_core_success_and_failure(monkeypatch):
     reset_generation_metrics()
+    reset_generation_guards()
 
     def fake_success(idea: str, voice_profile: str = "default", locale: str = "en"):
         yield {"event": "planner_started", "data": {}}
@@ -231,6 +242,89 @@ def test_generation_metrics_endpoint_tracks_core_success_and_failure(monkeypatch
     assert metrics["overall"]["successful_runs"] == 1
     assert metrics["overall"]["failed_runs"] == 1
     assert metrics["by_pipeline"]["core"]["failures_by_reason"]["stream_incomplete"] == 1
+
+
+def test_core_route_rate_limits_by_ip(monkeypatch):
+    reset_generation_metrics()
+    reset_generation_guards()
+    monkeypatch.setenv("CORE_RUN_RATE_LIMIT_PER_MINUTE", "1")
+
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
+        yield {"event": "planner_started", "data": {}}
+        yield {
+            "event": "pipeline_completed",
+            "data": {
+                "brief": {
+                    "original_idea": "hello",
+                    "core_angle": "angle",
+                    "target_audience": "audience",
+                    "tone": "tone",
+                    "instagram_notes": "ig",
+                    "threads_notes": "th",
+                    "linkedin_notes": "li",
+                },
+                "instagram": "instagram",
+                "threads": "threads",
+                "linkedin": "linkedin",
+                "instagram_final": "instagram_final",
+                "threads_final": "threads_final",
+                "linkedin_final": "linkedin_final",
+                "critic_notes": "notes",
+            },
+        }
+
+    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+
+    client = TestClient(app)
+    headers = {"X-Forwarded-For": "203.0.113.10"}
+    first = client.post("/api/run", json={"idea": "hello"}, headers=headers)
+    second = client.post("/api/run", json={"idea": "hello"}, headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.json()["detail"] == "Rate limit exceeded for generation endpoint. Please retry shortly."
+
+
+def test_core_route_rejects_concurrent_runs_from_same_ip(monkeypatch):
+    reset_generation_metrics()
+    reset_generation_guards()
+    monkeypatch.setenv("CORE_RUN_MAX_CONCURRENT_PER_IP", "1")
+
+    # Simulate an existing concurrent request from this IP.
+    GENERATION_GUARDS._set_active_count_for_test(CORE_ROUTE_KEY, "203.0.113.11", 1)
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/run",
+            json={"idea": "hello"},
+            headers={"X-Forwarded-For": "203.0.113.11"},
+        )
+        assert response.status_code == 429
+        assert response.json()["detail"] == (
+            "Too many concurrent generation requests from this IP. Please wait for the current run to finish."
+        )
+    finally:
+        GENERATION_GUARDS._set_active_count_for_test(CORE_ROUTE_KEY, "203.0.113.11", 0)
+
+
+def test_core_route_rejects_oversized_request_body(monkeypatch):
+    reset_generation_guards()
+    monkeypatch.setenv("CORE_RUN_MAX_BODY_BYTES", "80")
+
+    client = TestClient(app)
+    response = client.post("/api/run", json={"idea": "x" * 200})
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == "Request body too large for generation endpoint."
+
+
+def test_core_route_rejects_overlong_idea():
+    reset_generation_guards()
+    client = TestClient(app)
+    response = client.post("/api/run", json={"idea": "x" * 401})
+
+    assert response.status_code == 422
+    assert "idea must be <= 400 characters" in response.text
 
 
 def test_linkedin_publish_route_exists(monkeypatch):
