@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from ..core.localization import DEFAULT_LOCALE, validate_locale
 from ..core.logging_utils import get_request_id
 from ..core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
@@ -21,6 +22,7 @@ class RunRequest(BaseModel):
 
     idea: str
     voice_profile: str = "default"
+    locale: str = DEFAULT_LOCALE
 
     @field_validator("idea")
     @classmethod
@@ -28,6 +30,11 @@ class RunRequest(BaseModel):
         if not value or not value.strip():
             raise ValueError("idea must not be empty or whitespace-only")
         return value
+
+    @field_validator("locale")
+    @classmethod
+    def must_be_supported_locale(cls, value: str) -> str:
+        return validate_locale(value)
 
 
 def sse(event: dict) -> str:
@@ -109,23 +116,24 @@ async def run_pipeline(req: RunRequest, request: Request):
     _require_anthropic_api_key()
     pipeline_runner = _get_pipeline_runner()
     logger.info(
-        "core pipeline request accepted idea_length=%s voice_profile=%s path=%s",
+        "core pipeline request accepted idea_length=%s voice_profile=%s locale=%s path=%s",
         len(req.idea),
         req.voice_profile,
+        req.locale,
         request.url.path,
     )
 
     async def stream():
         completed = False
         failed = False
-        _log_pipeline_event("pipeline_started", voice_profile=req.voice_profile)
-        yield sse({"event": "pipeline_started", "data": {"idea": req.idea, "voice_profile": req.voice_profile}})
+        _log_pipeline_event("pipeline_started", voice_profile=req.voice_profile, locale=req.locale)
+        yield sse({"event": "pipeline_started", "data": {"idea": req.idea, "voice_profile": req.voice_profile, "locale": req.locale}})
 
         try:
             # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
-            for event in pipeline_runner(req.idea, req.voice_profile):
+            for event in pipeline_runner(req.idea, req.voice_profile, req.locale):
                 event_name = event.get("event", "unknown")
-                _log_pipeline_event(event_name)
+                _log_pipeline_event(event_name, locale=req.locale)
                 if event_name == "pipeline_completed":
                     completed = True
                     yield sse(event)

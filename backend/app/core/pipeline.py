@@ -8,6 +8,7 @@ Pass 2: Each agent refines its output after seeing what others wrote
 from typing import Generator
 
 from .context import AgentContext
+from .localization import DEFAULT_LOCALE
 from .voice_store import load_voice_profile
 from ..agents.planner import PlannerAgent
 from ..agents.instagram import InstagramAgent
@@ -27,7 +28,11 @@ def _show(agent_name: str, result, pass_label: str = ""):
         print(f"   {line}")
 
 
-def run_pipeline_stream(idea: str, voice_profile_name: str = "default") -> Generator[dict, None, None]:
+def run_pipeline_stream(
+    idea: str,
+    voice_profile_name: str = "default",
+    locale: str = DEFAULT_LOCALE,
+) -> Generator[dict, None, None]:
     """
     Generator version of the pipeline. Yields structured events for SSE streaming.
     Each event is a dict: {"event": "<name>", "data": {...}}
@@ -38,7 +43,7 @@ def run_pipeline_stream(idea: str, voice_profile_name: str = "default") -> Gener
     # Planner
     yield {"event": "planner_started", "data": {}}
     planner = PlannerAgent()
-    context.brief = planner.run(idea=idea, voice_profile=voice_profile)
+    context.brief = planner.run(idea=idea, voice_profile=voice_profile, locale=locale)
     yield {"event": "planner_completed", "data": {"brief": context.brief.to_dict()}}
 
     # Pass 1
@@ -47,33 +52,56 @@ def run_pipeline_stream(idea: str, voice_profile_name: str = "default") -> Gener
     linkedin_agent = LinkedInAgent()
 
     yield {"event": "instagram_pass1_started", "data": {}}
-    ig1 = instagram_agent.run(brief=context.brief)
+    ig1 = instagram_agent.run(brief=context.brief, locale=locale)
     context.instagram_output = ig1.output
     yield {"event": "instagram_pass1_completed", "data": {"thinking": ig1.thinking, "output": ig1.output}}
 
     yield {"event": "threads_pass1_started", "data": {}}
-    th1 = threads_agent.run(brief=context.brief, instagram_output=context.instagram_output)
+    th1 = threads_agent.run(brief=context.brief, instagram_output=context.instagram_output, locale=locale)
     context.threads_output = th1.output
     yield {"event": "threads_pass1_completed", "data": {"thinking": th1.thinking, "output": th1.output}}
 
     yield {"event": "linkedin_pass1_started", "data": {}}
-    li1 = linkedin_agent.run(brief=context.brief, instagram_output=context.instagram_output, threads_output=context.threads_output)
+    li1 = linkedin_agent.run(
+        brief=context.brief,
+        instagram_output=context.instagram_output,
+        threads_output=context.threads_output,
+        locale=locale,
+    )
     context.linkedin_output = li1.output
     yield {"event": "linkedin_pass1_completed", "data": {"thinking": li1.thinking, "output": li1.output}}
 
     # Pass 2
     yield {"event": "instagram_pass2_started", "data": {}}
-    ig2 = instagram_agent.run(brief=context.brief, threads_output=context.threads_output, linkedin_output=context.linkedin_output, is_refinement=True)
+    ig2 = instagram_agent.run(
+        brief=context.brief,
+        threads_output=context.threads_output,
+        linkedin_output=context.linkedin_output,
+        is_refinement=True,
+        locale=locale,
+    )
     context.instagram_output = ig2.output
     yield {"event": "instagram_pass2_completed", "data": {"thinking": ig2.thinking, "output": ig2.output}}
 
     yield {"event": "threads_pass2_started", "data": {}}
-    th2 = threads_agent.run(brief=context.brief, instagram_output=context.instagram_output, linkedin_output=context.linkedin_output, is_refinement=True)
+    th2 = threads_agent.run(
+        brief=context.brief,
+        instagram_output=context.instagram_output,
+        linkedin_output=context.linkedin_output,
+        is_refinement=True,
+        locale=locale,
+    )
     context.threads_output = th2.output
     yield {"event": "threads_pass2_completed", "data": {"thinking": th2.thinking, "output": th2.output}}
 
     yield {"event": "linkedin_pass2_started", "data": {}}
-    li2 = linkedin_agent.run(brief=context.brief, instagram_output=context.instagram_output, threads_output=context.threads_output, is_refinement=True)
+    li2 = linkedin_agent.run(
+        brief=context.brief,
+        instagram_output=context.instagram_output,
+        threads_output=context.threads_output,
+        is_refinement=True,
+        locale=locale,
+    )
     context.linkedin_output = li2.output
     yield {"event": "linkedin_pass2_completed", "data": {"thinking": li2.thinking, "output": li2.output}}
 
@@ -85,7 +113,8 @@ def run_pipeline_stream(idea: str, voice_profile_name: str = "default") -> Gener
         instagram_output=context.instagram_output,
         threads_output=context.threads_output,
         linkedin_output=context.linkedin_output,
-        voice_profile=voice_profile
+        voice_profile=voice_profile,
+        locale=locale,
     )
     yield {"event": "critic_completed", "data": {
         "notes": critic_review.notes,
@@ -106,7 +135,11 @@ def run_pipeline_stream(idea: str, voice_profile_name: str = "default") -> Gener
     }}
 
 
-def run_full_pipeline(idea: str, voice_profile_name: str = "default") -> dict:
+def run_full_pipeline(
+    idea: str,
+    voice_profile_name: str = "default",
+    locale: str = DEFAULT_LOCALE,
+) -> dict:
     """
     Run the complete multi-agent content generation pipeline.
 
@@ -125,7 +158,7 @@ def run_full_pipeline(idea: str, voice_profile_name: str = "default") -> dict:
     print("  PLANNER")
     print("══════════════════════════════════════════════════")
     planner = PlannerAgent()
-    context.brief = planner.run(idea=idea, voice_profile=voice_profile)
+    context.brief = planner.run(idea=idea, voice_profile=voice_profile, locale=locale)
     print(context.brief.to_string())
 
     # Step 2: First Pass
@@ -134,17 +167,22 @@ def run_full_pipeline(idea: str, voice_profile_name: str = "default") -> dict:
     print("══════════════════════════════════════════════════")
 
     instagram_agent = InstagramAgent()
-    ig1 = instagram_agent.run(brief=context.brief)
+    ig1 = instagram_agent.run(brief=context.brief, locale=locale)
     _show("Instagram", ig1, "pass 1")
     context.instagram_output = ig1.output
 
     threads_agent = ThreadsAgent()
-    th1 = threads_agent.run(brief=context.brief, instagram_output=context.instagram_output)
+    th1 = threads_agent.run(brief=context.brief, instagram_output=context.instagram_output, locale=locale)
     _show("Threads", th1, "pass 1")
     context.threads_output = th1.output
 
     linkedin_agent = LinkedInAgent()
-    li1 = linkedin_agent.run(brief=context.brief, instagram_output=context.instagram_output, threads_output=context.threads_output)
+    li1 = linkedin_agent.run(
+        brief=context.brief,
+        instagram_output=context.instagram_output,
+        threads_output=context.threads_output,
+        locale=locale,
+    )
     _show("LinkedIn", li1, "pass 1")
     context.linkedin_output = li1.output
 
@@ -153,15 +191,33 @@ def run_full_pipeline(idea: str, voice_profile_name: str = "default") -> dict:
     print("  PASS 2 — Refinement with full context")
     print("══════════════════════════════════════════════════")
 
-    ig2 = instagram_agent.run(brief=context.brief, threads_output=context.threads_output, linkedin_output=context.linkedin_output, is_refinement=True)
+    ig2 = instagram_agent.run(
+        brief=context.brief,
+        threads_output=context.threads_output,
+        linkedin_output=context.linkedin_output,
+        is_refinement=True,
+        locale=locale,
+    )
     _show("Instagram", ig2, "pass 2")
     context.instagram_output = ig2.output
 
-    th2 = threads_agent.run(brief=context.brief, instagram_output=context.instagram_output, linkedin_output=context.linkedin_output, is_refinement=True)
+    th2 = threads_agent.run(
+        brief=context.brief,
+        instagram_output=context.instagram_output,
+        linkedin_output=context.linkedin_output,
+        is_refinement=True,
+        locale=locale,
+    )
     _show("Threads", th2, "pass 2")
     context.threads_output = th2.output
 
-    li2 = linkedin_agent.run(brief=context.brief, instagram_output=context.instagram_output, threads_output=context.threads_output, is_refinement=True)
+    li2 = linkedin_agent.run(
+        brief=context.brief,
+        instagram_output=context.instagram_output,
+        threads_output=context.threads_output,
+        is_refinement=True,
+        locale=locale,
+    )
     _show("LinkedIn", li2, "pass 2")
     context.linkedin_output = li2.output
 
@@ -175,7 +231,8 @@ def run_full_pipeline(idea: str, voice_profile_name: str = "default") -> dict:
         instagram_output=context.instagram_output,
         threads_output=context.threads_output,
         linkedin_output=context.linkedin_output,
-        voice_profile=voice_profile
+        voice_profile=voice_profile,
+        locale=locale,
     )
 
     return {

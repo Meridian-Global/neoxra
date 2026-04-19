@@ -1,5 +1,6 @@
 from .base import BaseAgent
 from ..core.brief import Brief
+from ..core.localization import DEFAULT_LOCALE, locale_instruction
 import json
 
 
@@ -11,7 +12,12 @@ class PlannerAgent(BaseAgent):
     def __init__(self):
         super().__init__(name="Planner")
 
-    def build_prompt(self, idea: str, voice_profile: dict) -> str:
+    def build_prompt(
+        self,
+        idea: str,
+        voice_profile: dict,
+        locale: str = DEFAULT_LOCALE,
+    ) -> str:
         return f"""You are a content strategist planning social media content.
 
 INPUT:
@@ -19,6 +25,9 @@ Idea: {idea}
 
 BRAND VOICE:
 {json.dumps(voice_profile, indent=2)}
+
+OUTPUT LANGUAGE:
+{locale_instruction(locale)}
 
 TASK:
 Create a content brief for this idea. Return ONLY valid JSON with these exact keys:
@@ -36,13 +45,19 @@ RULES:
 - Be specific, not generic
 - Consider what works on each platform
 - Stay true to the brand voice
-- Return ONLY the JSON, no other text"""
+- Return ONLY the JSON, no other text
+- Ensure the brief and platform notes are written in the requested output language"""
 
-    def run(self, idea: str, voice_profile: dict) -> Brief:
+    def run(
+        self,
+        idea: str,
+        voice_profile: dict,
+        locale: str = DEFAULT_LOCALE,
+    ) -> Brief:
         """
         Override run() to parse JSON and return Brief object.
         """
-        prompt = self.build_prompt(idea=idea, voice_profile=voice_profile)
+        prompt = self.build_prompt(idea=idea, voice_profile=voice_profile, locale=locale)
         response = self.generate(prompt)
 
         # Strip markdown code blocks if present
