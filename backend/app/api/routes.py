@@ -176,13 +176,13 @@ async def run_pipeline(req: RunRequest, request: Request):
                     # Catch both Pydantic ValidationError (schema mismatch) and ValueError
                     # (explicit pre-checks in output_validation). Both represent bad model
                     # output; both are logged in full server-side and hidden from the client.
-                    except (ValidationError, ValueError):
+                    except (ValidationError, ValueError) as exc:
                         logger.exception("Core pipeline output validation failed event=%s", event_name)
                         tracker.fail(
                             stage=stage_name or event_name,
                             failure_reason="output_validation_failed",
-                            error_type="ValidationError",
-                            message=f"Core pipeline output validation failed for {event_name}",
+                            error_type=type(exc).__name__,
+                            message=str(exc) or f"Core pipeline output validation failed for {event_name}",
                         )
                         yield sse({
                             "event": "error",
