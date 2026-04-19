@@ -5,7 +5,7 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from ..core.localization import (
     DEFAULT_LOCALE,
@@ -17,9 +17,15 @@ from ..core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
 )
+from ..core.output_validation import (
+    validate_instagram_generation_payload,
+    validate_scorecard_payload,
+    validate_style_analysis_payload,
+)
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 _INSTAGRAM_IMPORT_ERROR = None
+_OUTPUT_VALIDATION_ERROR_MSG = "Output validation failed."
 
 try:
     from neoxra_core.models.instagram import (
@@ -176,12 +182,16 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     text=generation_request.template_text,
                     context={"style_examples": generation_request.style_examples},
                 ))
-                style_data = style_output.metadata["style_analysis"]
+                style_data = validate_style_analysis_payload(style_output.metadata["style_analysis"])
                 style_analysis = StyleAnalysis(
                     tone_keywords=style_data["tone_keywords"],
                     structural_patterns=style_data["structural_patterns"],
                     vocabulary_notes=style_data["vocabulary_notes"],
                 )
+            except ValidationError:
+                logger.exception("Instagram flow failed during style analysis")
+                yield _sse("error", {"stage": "style_analysis", "message": _OUTPUT_VALIDATION_ERROR_MSG})
+                return
             except Exception as exc:
                 logger.exception("Instagram flow failed during style analysis")
                 yield _sse("error", {"stage": "style_analysis", "message": str(exc)})
@@ -202,7 +212,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         "style_analysis": style_data,
                     },
                 ))
-                gen_meta = gen_output.metadata
+                gen_meta = validate_instagram_generation_payload(gen_output.metadata)
                 content = InstagramContent(
                     caption=gen_meta["caption"],
                     hook_options=gen_meta["hook_options"],
@@ -213,6 +223,10 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     ],
                     reel_script=gen_meta["reel_script"],
                 )
+            except ValidationError:
+                logger.exception("Instagram flow failed during generation")
+                yield _sse("error", {"stage": "generation", "message": _OUTPUT_VALIDATION_ERROR_MSG})
+                return
             except Exception as exc:
                 logger.exception("Instagram flow failed during generation")
                 yield _sse("error", {"stage": "generation", "message": str(exc)})
@@ -234,8 +248,12 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         "goal": generation_request.goal,
                     },
                 ))
-                score_data = score_output.metadata["scorecard"]
+                score_data = validate_scorecard_payload(score_output.metadata["scorecard"])
                 scorecard = Scorecard(**score_data)
+            except ValidationError:
+                logger.exception("Instagram flow failed during scoring")
+                yield _sse("error", {"stage": "scoring", "message": _OUTPUT_VALIDATION_ERROR_MSG})
+                return
             except Exception as exc:
                 logger.exception("Instagram flow failed during scoring")
                 yield _sse("error", {"stage": "scoring", "message": str(exc)})

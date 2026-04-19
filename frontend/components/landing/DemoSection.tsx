@@ -318,7 +318,7 @@ export function DemoSection() {
     try {
       for await (const { event, data } of streamSSE(
         `${API_BASE_URL}/api/run`,
-        { idea: idea.trim() },
+        { idea: idea.trim(), locale: language },
         abortController.signal
       )) {
         if (abortController.signal.aborted) break
@@ -421,7 +421,7 @@ export function DemoSection() {
         setActivePlatform(null)
       }
     }
-  }, [copy, idea, status])
+  }, [copy, idea, language, status])
 
   const stop = useCallback(() => {
     abortRef.current?.abort()

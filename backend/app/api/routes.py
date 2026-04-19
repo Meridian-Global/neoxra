@@ -3,7 +3,7 @@ import os
 import logging
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from ..core.localization import DEFAULT_LOCALE, validate_locale
 from ..core.logging_utils import get_request_id
@@ -11,10 +11,24 @@ from ..core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
 )
+from ..core.output_validation import validate_core_pipeline_event
 
 router = APIRouter()
 run_pipeline_stream = None
 logger = logging.getLogger(__name__)
+
+# Events that carry no validatable payload – skip output validation for these.
+_PIPELINE_NON_PAYLOAD_EVENTS = frozenset({
+    "planner_started",
+    "instagram_pass1_started",
+    "threads_pass1_started",
+    "linkedin_pass1_started",
+    "instagram_pass2_started",
+    "threads_pass2_started",
+    "linkedin_pass2_started",
+    "critic_started",
+    "error",
+})
 
 
 class RunRequest(BaseModel):
@@ -133,6 +147,22 @@ async def run_pipeline(req: RunRequest, request: Request):
             # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
             for event in pipeline_runner(req.idea, req.voice_profile, req.locale):
                 event_name = event.get("event", "unknown")
+                if event_name not in _PIPELINE_NON_PAYLOAD_EVENTS:
+                    try:
+                        event["data"] = validate_core_pipeline_event(event_name, event.get("data", {}))
+                    # Catch both Pydantic ValidationError (schema mismatch) and ValueError
+                    # (explicit pre-checks in output_validation). Both represent bad model
+                    # output; both are logged in full server-side and hidden from the client.
+                    except (ValidationError, ValueError):
+                        logger.exception("Core pipeline output validation failed event=%s", event_name)
+                        yield sse({
+                            "event": "error",
+                            "data": {
+                                "stage": event_name,
+                                "message": "Pipeline output validation failed.",
+                            },
+                        })
+                        return
                 _log_pipeline_event(event_name, locale=req.locale)
                 if event_name == "pipeline_completed":
                     completed = True
