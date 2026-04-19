@@ -25,7 +25,7 @@ def publish_to_linkedin(content: str, access_token: str, person_urn: str) -> dic
     try:
         response = httpx.post(url, headers=headers, json=payload, timeout=20.0)
     except httpx.HTTPError as exc:
-        return {"success": False, "post_id": None, "error": str(exc)}
+        return {"success": False, "post_id": None, "error": "upstream_http_error"}
 
     if response.status_code == 201:
         post_id = response.headers.get("X-RestLi-Id") or response.headers.get("x-restli-id")
@@ -34,5 +34,5 @@ def publish_to_linkedin(content: str, access_token: str, person_urn: str) -> dic
     return {
         "success": False,
         "post_id": None,
-        "error": f"{response.status_code}: {response.text}",
+        "error": f"upstream_status_{response.status_code}",
     }

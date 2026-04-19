@@ -32,10 +32,7 @@ async def publish_linkedin(req: PublishLinkedInRequest):
     if publish_to_linkedin is None:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "LinkedIn integration is unavailable because its optional dependencies "
-                "failed to import."
-            ),
+            detail="LinkedIn integration is temporarily unavailable.",
         )
 
     access_token = req.access_token or os.getenv("LINKEDIN_ACCESS_TOKEN")
@@ -53,23 +50,27 @@ async def publish_linkedin(req: PublishLinkedInRequest):
     if result["success"]:
         return {"post_id": result["post_id"], "error": None}
 
-    return JSONResponse(status_code=502, content={"post_id": None, "error": result["error"]})
+    return JSONResponse(
+        status_code=502,
+        content={
+            "post_id": None,
+            "error": "LinkedIn publishing failed.",
+            "error_code": "LINKEDIN_PUBLISH_FAILED",
+        },
+    )
 
 
 @router.get("/api/ideas/scan")
 async def scan_gmail_ideas(max_results: int = Query(default=20, ge=1, le=50)):
     if scan_inbox is None:
-        detail = (
-            "Gmail integration is unavailable. Install optional integration dependencies "
-            "and configure Gmail credentials before calling this endpoint."
+        raise HTTPException(
+            status_code=503,
+            detail="Gmail integration is temporarily unavailable.",
         )
-        if _GMAIL_IMPORT_ERROR is not None:
-            detail = f"{detail} Import error: {_GMAIL_IMPORT_ERROR}"
-        raise HTTPException(status_code=503, detail=detail)
 
     try:
         return scan_inbox(max_results=max_results)
     except RuntimeError as e:
-        raise HTTPException(status_code=401, detail=str(e)) from e
+        raise HTTPException(status_code=401, detail="Gmail credentials are not configured.") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="Gmail idea scan failed.") from e

@@ -7,16 +7,14 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from ..core.error_handling import generation_error_payload, public_generation_error, validation_error_for_stage
 from ..core.localization import (
     DEFAULT_LOCALE,
     append_locale_instruction,
     validate_locale,
 )
 from ..core.logging_utils import format_log_fields, get_request_id
-from ..core.neoxra_core_diagnostics import (
-    format_neoxra_core_diagnostics,
-    get_neoxra_core_diagnostics,
-)
+from ..core.neoxra_core_diagnostics import get_neoxra_core_diagnostics
 from ..core.output_validation import (
     validate_instagram_generation_payload,
     validate_scorecard_payload,
@@ -34,8 +32,6 @@ from ..core.request_guards import (
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 _INSTAGRAM_IMPORT_ERROR = None
-_OUTPUT_VALIDATION_ERROR_MSG = "Output validation failed."
-
 try:
     from neoxra_core.models.instagram import (
         VALID_GOALS as CORE_VALID_GOALS,
@@ -136,13 +132,10 @@ def _require_instagram_dependencies() -> None:
     if GenerationRequest is not None:
         return
 
-    detail = (
-        "Instagram generation is unavailable because the core AI package "
-        f"'neoxra_core' is unavailable. {format_neoxra_core_diagnostics(get_neoxra_core_diagnostics())}"
+    raise HTTPException(
+        status_code=503,
+        detail="Instagram generation is temporarily unavailable because the core AI package is not ready.",
     )
-    if _INSTAGRAM_IMPORT_ERROR is not None:
-        detail = f"{detail} Import error: {_INSTAGRAM_IMPORT_ERROR}"
-    raise HTTPException(status_code=503, detail=detail)
 
 
 def _require_anthropic_api_key() -> None:
@@ -182,7 +175,10 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
             goal=req.goal,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=422,
+            detail="Request validation failed for Instagram generation.",
+        ) from exc
 
     concurrency_lease = await enforce_generation_limits(request, INSTAGRAM_ROUTE_KEY)
 
@@ -233,23 +229,39 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     )
                 except ValidationError:
                     logger.exception("Instagram flow failed during style analysis")
+                    error_code, safe_message = validation_error_for_stage("style_analysis")
                     tracker.fail(
                         stage="style_analysis",
                         failure_reason="output_validation_failed",
                         error_type="ValidationError",
-                        message=_OUTPUT_VALIDATION_ERROR_MSG,
+                        message=safe_message,
                     )
-                    yield _sse("error", {"stage": "style_analysis", "message": _OUTPUT_VALIDATION_ERROR_MSG})
+                    yield _sse(
+                        "error",
+                        generation_error_payload(
+                            stage="style_analysis",
+                            error_code=error_code,
+                            message=safe_message,
+                        ),
+                    )
                     return
                 except Exception as exc:
                     logger.exception("Instagram flow failed during style analysis")
+                    error_code, safe_message = public_generation_error("style_analysis")
                     tracker.fail(
                         stage="style_analysis",
                         failure_reason="stage_exception",
                         error_type=type(exc).__name__,
-                        message=str(exc),
+                        message=safe_message,
                     )
-                    yield _sse("error", {"stage": "style_analysis", "message": str(exc)})
+                    yield _sse(
+                        "error",
+                        generation_error_payload(
+                            stage="style_analysis",
+                            error_code=error_code,
+                            message=safe_message,
+                        ),
+                    )
                     return
                 tracker.stage_completed("style_analysis")
                 _log_instagram_event("style_analysis_completed", locale=req.locale)
@@ -282,23 +294,39 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     )
                 except ValidationError:
                     logger.exception("Instagram flow failed during generation")
+                    error_code, safe_message = validation_error_for_stage("generation")
                     tracker.fail(
                         stage="generation",
                         failure_reason="output_validation_failed",
                         error_type="ValidationError",
-                        message=_OUTPUT_VALIDATION_ERROR_MSG,
+                        message=safe_message,
                     )
-                    yield _sse("error", {"stage": "generation", "message": _OUTPUT_VALIDATION_ERROR_MSG})
+                    yield _sse(
+                        "error",
+                        generation_error_payload(
+                            stage="generation",
+                            error_code=error_code,
+                            message=safe_message,
+                        ),
+                    )
                     return
                 except Exception as exc:
                     logger.exception("Instagram flow failed during generation")
+                    error_code, safe_message = public_generation_error("generation")
                     tracker.fail(
                         stage="generation",
                         failure_reason="stage_exception",
                         error_type=type(exc).__name__,
-                        message=str(exc),
+                        message=safe_message,
                     )
-                    yield _sse("error", {"stage": "generation", "message": str(exc)})
+                    yield _sse(
+                        "error",
+                        generation_error_payload(
+                            stage="generation",
+                            error_code=error_code,
+                            message=safe_message,
+                        ),
+                    )
                     return
                 tracker.stage_completed("generation")
                 _log_instagram_event("generation_completed", locale=req.locale)
@@ -323,23 +351,39 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     scorecard = Scorecard(**score_data)
                 except ValidationError:
                     logger.exception("Instagram flow failed during scoring")
+                    error_code, safe_message = validation_error_for_stage("scoring")
                     tracker.fail(
                         stage="scoring",
                         failure_reason="output_validation_failed",
                         error_type="ValidationError",
-                        message=_OUTPUT_VALIDATION_ERROR_MSG,
+                        message=safe_message,
                     )
-                    yield _sse("error", {"stage": "scoring", "message": _OUTPUT_VALIDATION_ERROR_MSG})
+                    yield _sse(
+                        "error",
+                        generation_error_payload(
+                            stage="scoring",
+                            error_code=error_code,
+                            message=safe_message,
+                        ),
+                    )
                     return
                 except Exception as exc:
                     logger.exception("Instagram flow failed during scoring")
+                    error_code, safe_message = public_generation_error("scoring")
                     tracker.fail(
                         stage="scoring",
                         failure_reason="stage_exception",
                         error_type=type(exc).__name__,
-                        message=str(exc),
+                        message=safe_message,
                     )
-                    yield _sse("error", {"stage": "scoring", "message": str(exc)})
+                    yield _sse(
+                        "error",
+                        generation_error_payload(
+                            stage="scoring",
+                            error_code=error_code,
+                            message=safe_message,
+                        ),
+                    )
                     return
                 tracker.stage_completed("scoring")
                 _log_instagram_event("scoring_completed", locale=req.locale)
@@ -360,13 +404,21 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 yield _sse("pipeline_completed", result_dict)
             except Exception as exc:
                 logger.exception("Instagram flow failed before completion")
+                error_code, safe_message = public_generation_error("pipeline")
                 tracker.fail(
                     stage="pipeline",
                     failure_reason="pipeline_exception",
                     error_type=type(exc).__name__,
-                    message=str(exc) or "Pipeline failed before completion.",
+                    message=safe_message,
                 )
-                yield _sse("error", {"stage": "pipeline", "message": str(exc) or "Pipeline failed before completion."})
+                yield _sse(
+                    "error",
+                    generation_error_payload(
+                        stage="pipeline",
+                        error_code=error_code,
+                        message=safe_message,
+                    ),
+                )
                 return
 
             if not completed:
@@ -374,9 +426,16 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 tracker.fail(
                     stage="pipeline",
                     failure_reason="stream_incomplete",
-                    message="Pipeline ended before pipeline_completed was emitted.",
+                    message="Generation could not be completed. Please try again.",
                 )
-                yield _sse("error", {"stage": "pipeline", "message": "Pipeline ended before pipeline_completed was emitted."})
+                yield _sse(
+                    "error",
+                    generation_error_payload(
+                        stage="pipeline",
+                        error_code="PIPELINE_INCOMPLETE",
+                        message="Generation could not be completed. Please try again.",
+                    ),
+                )
             else:
                 logger.info("Instagram pipeline completed successfully")
         finally:

@@ -5,12 +5,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
+from ..core.error_handling import generation_error_payload, public_generation_error, validation_error_for_stage
 from ..core.localization import DEFAULT_LOCALE, validate_locale
 from ..core.logging_utils import format_log_fields, get_request_id
-from ..core.neoxra_core_diagnostics import (
-    format_neoxra_core_diagnostics,
-    get_neoxra_core_diagnostics,
-)
+from ..core.neoxra_core_diagnostics import get_neoxra_core_diagnostics
 from ..core.output_validation import validate_core_pipeline_event
 from ..core.pipeline_observability import PipelineLifecycleTracker
 from ..core.request_guards import (
@@ -114,10 +112,7 @@ def _get_pipeline_runner():
         if not diagnostics.get("import_ok"):
             raise HTTPException(
                 status_code=503,
-                detail=(
-                    "Core AI package 'neoxra_core' is unavailable. "
-                    f"{format_neoxra_core_diagnostics(diagnostics)}"
-                ),
+                detail="Core AI package 'neoxra_core' is unavailable. Generation is temporarily unavailable.",
             ) from exc
         raise
 
@@ -192,24 +187,25 @@ async def run_pipeline(req: RunRequest, request: Request):
                     if event_name not in _PIPELINE_NON_PAYLOAD_EVENTS:
                         try:
                             event["data"] = validate_core_pipeline_event(event_name, event.get("data", {}))
-                        # Catch both Pydantic ValidationError (schema mismatch) and ValueError
-                        # (explicit pre-checks in output_validation). Both represent bad model
-                        # output; both are logged in full server-side and hidden from the client.
                         except (ValidationError, ValueError) as exc:
                             logger.exception("Core pipeline output validation failed event=%s", event_name)
+                            error_code, safe_message = validation_error_for_stage(stage_name or "pipeline")
                             tracker.fail(
                                 stage=stage_name or event_name,
                                 failure_reason="output_validation_failed",
                                 error_type=type(exc).__name__,
-                                message=str(exc) or f"Core pipeline output validation failed for {event_name}",
+                                message=safe_message,
                             )
-                            yield sse({
-                                "event": "error",
-                                "data": {
-                                    "stage": event_name,
-                                    "message": "Pipeline output validation failed.",
-                                },
-                            })
+                            yield sse(
+                                {
+                                    "event": "error",
+                                    "data": generation_error_payload(
+                                        stage=event_name,
+                                        error_code=error_code,
+                                        message=safe_message,
+                                    ),
+                                }
+                            )
                             return
                     if event_name.endswith("_completed") and stage_name is not None:
                         tracker.stage_completed(stage_name)
@@ -222,29 +218,45 @@ async def run_pipeline(req: RunRequest, request: Request):
                     if event_name == "error":
                         failed = True
                         error_data = event.get("data", {})
+                        stage = error_data.get("stage", "pipeline")
+                        error_code, safe_message = public_generation_error(stage)
                         tracker.fail(
-                            stage=error_data.get("stage", "pipeline"),
+                            stage=stage,
                             failure_reason="pipeline_error_event",
-                            message=error_data.get("message"),
+                            message=safe_message,
+                            error_type=error_code,
                         )
-                        yield sse(event)
+                        yield sse(
+                            {
+                                "event": "error",
+                                "data": generation_error_payload(
+                                    stage=stage,
+                                    error_code=error_code,
+                                    message=safe_message,
+                                ),
+                            }
+                        )
                         break
                     yield sse(event)
             except Exception as exc:
                 logger.exception("Core pipeline failed before completion")
+                error_code, safe_message = public_generation_error("pipeline")
                 tracker.fail(
                     stage="pipeline",
                     failure_reason="pipeline_exception",
                     error_type=type(exc).__name__,
-                    message=str(exc) or "Pipeline failed before completion.",
+                    message=safe_message,
                 )
-                yield sse({
-                    "event": "error",
-                    "data": {
-                        "stage": "pipeline",
-                        "message": str(exc) or "Pipeline failed before completion.",
-                    },
-                })
+                yield sse(
+                    {
+                        "event": "error",
+                        "data": generation_error_payload(
+                            stage="pipeline",
+                            error_code=error_code,
+                            message=safe_message,
+                        ),
+                    }
+                )
                 return
 
             if not completed and not failed:
@@ -252,15 +264,18 @@ async def run_pipeline(req: RunRequest, request: Request):
                 tracker.fail(
                     stage="pipeline",
                     failure_reason="stream_incomplete",
-                    message="Pipeline ended before pipeline_completed was emitted.",
+                    message="Generation could not be completed. Please try again.",
                 )
-                yield sse({
-                    "event": "error",
-                    "data": {
-                        "stage": "pipeline",
-                        "message": "Pipeline ended before pipeline_completed was emitted.",
-                    },
-                })
+                yield sse(
+                    {
+                        "event": "error",
+                        "data": generation_error_payload(
+                            stage="pipeline",
+                            error_code="PIPELINE_INCOMPLETE",
+                            message="Generation could not be completed. Please try again.",
+                        ),
+                    }
+                )
             elif failed:
                 logger.warning("Core pipeline terminated after emitting error event")
             else:
