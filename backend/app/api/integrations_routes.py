@@ -1,7 +1,10 @@
+import logging
 import os
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 _GMAIL_IMPORT_ERROR = None
 _LINKEDIN_IMPORT_ERROR = None
@@ -54,7 +57,7 @@ async def publish_linkedin(req: PublishLinkedInRequest):
         status_code=502,
         content={
             "post_id": None,
-            "error": "LinkedIn publishing failed.",
+            "detail": "LinkedIn publishing failed.",
             "error_code": "LINKEDIN_PUBLISH_FAILED",
         },
     )
@@ -71,6 +74,8 @@ async def scan_gmail_ideas(max_results: int = Query(default=20, ge=1, le=50)):
     try:
         return scan_inbox(max_results=max_results)
     except RuntimeError as e:
+        logger.exception("Gmail scan failed: credentials error")
         raise HTTPException(status_code=401, detail="Gmail credentials are not configured.") from e
     except Exception as e:
+        logger.exception("Gmail scan failed: unexpected error")
         raise HTTPException(status_code=500, detail="Gmail idea scan failed.") from e

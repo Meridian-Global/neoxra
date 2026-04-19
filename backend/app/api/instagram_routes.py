@@ -177,7 +177,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(
             status_code=422,
-            detail="Request validation failed for Instagram generation.",
+            detail="Request validation failed.",
         ) from exc
 
     concurrency_lease = await enforce_generation_limits(request, INSTAGRAM_ROUTE_KEY)

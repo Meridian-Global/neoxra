@@ -200,7 +200,7 @@ async def run_pipeline(req: RunRequest, request: Request):
                                 {
                                     "event": "error",
                                     "data": generation_error_payload(
-                                        stage=event_name,
+                                        stage=stage_name or "pipeline",
                                         error_code=error_code,
                                         message=safe_message,
                                     ),
