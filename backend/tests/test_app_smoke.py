@@ -55,6 +55,23 @@ def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
     assert '"message": "Pipeline ended before pipeline_completed was emitted."' in response.text
 
 
+def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default"):
+        assert idea == "hello"
+        assert voice_profile == "default"
+        yield {"event": "planner_started", "data": {}}
+        yield {"event": "error", "data": {"stage": "planner", "message": "planner failed"}}
+
+    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+
+    client = TestClient(app)
+    response = client.post("/api/run", json={"idea": "hello"})
+
+    assert response.status_code == 200
+    assert response.text.count("event: error") == 1
+    assert '"message": "planner failed"' in response.text
+
+
 def test_linkedin_publish_route_exists(monkeypatch):
     def fake_publish_to_linkedin(content: str, access_token: str, person_urn: str):
         assert content == "test post"

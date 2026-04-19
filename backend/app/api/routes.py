@@ -117,15 +117,23 @@ async def run_pipeline(req: RunRequest, request: Request):
 
     async def stream():
         completed = False
+        failed = False
         _log_pipeline_event("pipeline_started", voice_profile=req.voice_profile)
         yield sse({"event": "pipeline_started", "data": {"idea": req.idea, "voice_profile": req.voice_profile}})
 
         try:
             # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
             for event in pipeline_runner(req.idea, req.voice_profile):
-                _log_pipeline_event(event.get("event", "unknown"))
-                if event.get("event") == "pipeline_completed":
+                event_name = event.get("event", "unknown")
+                _log_pipeline_event(event_name)
+                if event_name == "pipeline_completed":
                     completed = True
+                    yield sse(event)
+                    break
+                if event_name == "error":
+                    failed = True
+                    yield sse(event)
+                    break
                 yield sse(event)
         except Exception as exc:
             logger.exception("Core pipeline failed before completion")
@@ -138,7 +146,7 @@ async def run_pipeline(req: RunRequest, request: Request):
             })
             return
 
-        if not completed:
+        if not completed and not failed:
             logger.error("Core pipeline stream ended without pipeline_completed")
             yield sse({
                 "event": "error",
@@ -147,6 +155,8 @@ async def run_pipeline(req: RunRequest, request: Request):
                     "message": "Pipeline ended before pipeline_completed was emitted.",
                 },
             })
+        elif failed:
+            logger.warning("Core pipeline terminated after emitting error event")
         else:
             logger.info("Core pipeline completed successfully")
 
