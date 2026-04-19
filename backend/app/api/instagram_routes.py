@@ -5,7 +5,7 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from ..core.localization import (
     DEFAULT_LOCALE,
@@ -187,6 +187,10 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     structural_patterns=style_data["structural_patterns"],
                     vocabulary_notes=style_data["vocabulary_notes"],
                 )
+            except ValidationError:
+                logger.exception("Instagram flow failed during style analysis")
+                yield _sse("error", {"stage": "style_analysis", "message": "Output validation failed."})
+                return
             except Exception as exc:
                 logger.exception("Instagram flow failed during style analysis")
                 yield _sse("error", {"stage": "style_analysis", "message": str(exc)})
@@ -218,6 +222,10 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     ],
                     reel_script=gen_meta["reel_script"],
                 )
+            except ValidationError:
+                logger.exception("Instagram flow failed during generation")
+                yield _sse("error", {"stage": "generation", "message": "Output validation failed."})
+                return
             except Exception as exc:
                 logger.exception("Instagram flow failed during generation")
                 yield _sse("error", {"stage": "generation", "message": str(exc)})
@@ -241,6 +249,10 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 ))
                 score_data = validate_scorecard_payload(score_output.metadata["scorecard"])
                 scorecard = Scorecard(**score_data)
+            except ValidationError:
+                logger.exception("Instagram flow failed during scoring")
+                yield _sse("error", {"stage": "scoring", "message": "Output validation failed."})
+                return
             except Exception as exc:
                 logger.exception("Instagram flow failed during scoring")
                 yield _sse("error", {"stage": "scoring", "message": str(exc)})
