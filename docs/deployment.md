@@ -62,14 +62,18 @@ The backend also includes a Dockerfile for reproducible builds.
 From the repo root:
 
 ```bash
-docker build \
+DOCKER_BUILDKIT=1 docker build \
   -f backend/Dockerfile \
   -t neoxra-backend \
   --build-arg NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/neoxra-core.git \
   --build-arg NEOXRA_CORE_GIT_REF=main \
-  --build-arg GITHUB_TOKEN=$GITHUB_TOKEN \
+  --secret id=GITHUB_TOKEN,env=GITHUB_TOKEN \
   backend
 ```
+
+`GITHUB_TOKEN` is passed as a BuildKit secret so it is never stored in image layers, `docker history`, or build caches.
+
+If `neoxra-core` is public, omit `--secret id=GITHUB_TOKEN,env=GITHUB_TOKEN` entirely.
 
 ### Run Example
 
