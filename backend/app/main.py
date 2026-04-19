@@ -140,5 +140,12 @@ async def log_core_diagnostics_on_startup() -> None:
         ",".join(_get_allowed_origins()),
         os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),
     )
+    logger.info(
+        "startup neoxra_core import_ok=%s version=%s source=%s verified_imports=%s",
+        diagnostics.get("import_ok"),
+        diagnostics.get("distribution_version", "unknown"),
+        diagnostics.get("direct_url", diagnostics.get("core_git_url", "unknown")),
+        diagnostics.get("verified_imports", []),
+    )
     logger.info("neoxra_core startup status: %s", format_neoxra_core_diagnostics(diagnostics))
     logger.info("neoxra_core startup diagnostics: %s", diagnostics)

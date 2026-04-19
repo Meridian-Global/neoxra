@@ -25,6 +25,6 @@ python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
 python -m pip install --no-build-isolation "${CORE_INSTALL_SOURCE}"
 python -m pip show neoxra-core
-python -c "import neoxra_core; print(neoxra_core.__file__)"
-python -c "import neoxra_core.models.context, neoxra_core.models.outputs, neoxra_core.voice; print('deep imports ok')"
+python -c "import neoxra_core; print(f'neoxra_core_import=ok path={neoxra_core.__file__}')"
+python -c "import neoxra_core.models.context, neoxra_core.models.outputs, neoxra_core.voice; print('neoxra_core_deep_imports=ok')"
 python scripts/check_neoxra_core.py

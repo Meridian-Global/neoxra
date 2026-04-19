@@ -71,6 +71,7 @@ def _parse_sse_stream(raw: str) -> list[dict]:
 
 
 EXPECTED_EVENT_ORDER = [
+    "pipeline_started",
     "style_analysis_started",
     "style_analysis_completed",
     "generation_started",
@@ -158,6 +159,7 @@ class TestInstagramSSERoute:
             )
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
+            "pipeline_started",
             "style_analysis_started",
             "error",
         ]
@@ -191,6 +193,7 @@ class TestInstagramSSERoute:
             )
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
+            "pipeline_started",
             "style_analysis_started",
             "style_analysis_completed",
             "generation_started",
@@ -241,6 +244,7 @@ class TestInstagramSSERoute:
             )
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
+            "pipeline_started",
             "style_analysis_started",
             "style_analysis_completed",
             "generation_started",
