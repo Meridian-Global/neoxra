@@ -1,7 +1,8 @@
 import contextvars
+import json
 import logging
 import os
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 
 REQUEST_ID_CONTEXT: contextvars.ContextVar[str] = contextvars.ContextVar(
@@ -28,6 +29,23 @@ def get_request_id() -> str:
     return REQUEST_ID_CONTEXT.get("-")
 
 
+def _stringify_log_value(value: Any) -> str:
+    if isinstance(value, (dict, list, tuple)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    # JSON-encode strings so values containing spaces stay as a single key="value" token.
+    if isinstance(value, str):
+        return json.dumps(value)
+    return str(value)
+
+
+def format_log_fields(fields: Mapping[str, Any]) -> str:
+    return " ".join(
+        f"{key}={_stringify_log_value(value)}"
+        for key, value in fields.items()
+        if value is not None
+    )
+
+
 def _coerce_log_level(value: Optional[str]) -> int:
     if not value:
         return logging.INFO
@@ -51,4 +69,3 @@ def configure_logging() -> None:
         has_filter = any(isinstance(existing, RequestIdFilter) for existing in handler.filters)
         if not has_filter:
             handler.addFilter(request_id_filter)
-

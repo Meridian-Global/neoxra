@@ -2,6 +2,7 @@ import app.api.integrations_routes as integrations_routes
 import app.api.routes as core_routes
 from fastapi.testclient import TestClient
 
+from app.core.generation_metrics import reset_generation_metrics
 from app.main import app
 
 
@@ -14,6 +15,8 @@ def test_app_starts():
 
 
 def test_core_route_exists(monkeypatch):
+    reset_generation_metrics()
+
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
         assert voice_profile == "default"
@@ -41,6 +44,8 @@ def test_health_route_sets_request_id_header():
 
 
 def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
+    reset_generation_metrics()
+
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
         assert voice_profile == "default"
@@ -58,6 +63,8 @@ def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
 
 
 def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
+    reset_generation_metrics()
+
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
         assert voice_profile == "default"
@@ -76,6 +83,8 @@ def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
 
 
 def test_core_route_accepts_locale(monkeypatch):
+    reset_generation_metrics()
+
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
         assert voice_profile == "default"
@@ -93,6 +102,8 @@ def test_core_route_accepts_locale(monkeypatch):
 
 
 def test_core_route_emits_error_when_completed_payload_is_invalid(monkeypatch):
+    reset_generation_metrics()
+
     def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         yield {"event": "planner_started", "data": {}}
         yield {
@@ -124,6 +135,102 @@ def test_core_route_emits_error_when_completed_payload_is_invalid(monkeypatch):
 
     assert response.status_code == 200
     assert "event: error" in response.text
+
+
+def test_generation_metrics_endpoint_tracks_core_success_and_failure(monkeypatch):
+    reset_generation_metrics()
+
+    def fake_success(idea: str, voice_profile: str = "default", locale: str = "en"):
+        yield {"event": "planner_started", "data": {}}
+        yield {
+            "event": "planner_completed",
+            "data": {
+                "brief": {
+                    "original_idea": "hello",
+                    "core_angle": "angle",
+                    "target_audience": "audience",
+                    "tone": "tone",
+                    "instagram_notes": "ig",
+                    "threads_notes": "th",
+                    "linkedin_notes": "li",
+                }
+            },
+        }
+        yield {
+            "event": "instagram_pass1_completed",
+            "data": {"thinking": "t", "output": "o"},
+        }
+        yield {
+            "event": "threads_pass1_completed",
+            "data": {"thinking": "t", "output": "o"},
+        }
+        yield {
+            "event": "linkedin_pass1_completed",
+            "data": {"thinking": "t", "output": "o"},
+        }
+        yield {
+            "event": "instagram_pass2_completed",
+            "data": {"thinking": "t", "output": "o"},
+        }
+        yield {
+            "event": "threads_pass2_completed",
+            "data": {"thinking": "t", "output": "o"},
+        }
+        yield {
+            "event": "linkedin_pass2_completed",
+            "data": {"thinking": "t", "output": "o"},
+        }
+        yield {
+            "event": "critic_completed",
+            "data": {
+                "notes": "notes",
+                "instagram_improved": "ig",
+                "threads_improved": "th",
+                "linkedin_improved": "li",
+            },
+        }
+        yield {
+            "event": "pipeline_completed",
+            "data": {
+                "brief": {
+                    "original_idea": "hello",
+                    "core_angle": "angle",
+                    "target_audience": "audience",
+                    "tone": "tone",
+                    "instagram_notes": "ig",
+                    "threads_notes": "th",
+                    "linkedin_notes": "li",
+                },
+                "instagram": "instagram",
+                "threads": "threads",
+                "linkedin": "linkedin",
+                "instagram_final": "instagram_final",
+                "threads_final": "threads_final",
+                "linkedin_final": "linkedin_final",
+                "critic_notes": "notes",
+            },
+        }
+
+    def fake_failure(idea: str, voice_profile: str = "default", locale: str = "en"):
+        yield {"event": "planner_started", "data": {}}
+
+    client = TestClient(app)
+    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_success)
+    success_response = client.post("/api/run", json={"idea": "hello"})
+    assert success_response.status_code == 200
+
+    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_failure)
+    failure_response = client.post("/api/run", json={"idea": "hello"})
+    assert failure_response.status_code == 200
+
+    metrics_response = client.get("/health/generation-metrics")
+    assert metrics_response.status_code == 200
+    metrics = metrics_response.json()
+    assert metrics["status"] == "ok"
+    assert metrics["overall"]["total_runs"] == 2
+    assert metrics["overall"]["successful_runs"] == 1
+    assert metrics["overall"]["failed_runs"] == 1
+    assert metrics["by_pipeline"]["core"]["failures_by_reason"]["stream_incomplete"] == 1
 
 
 def test_linkedin_publish_route_exists(monkeypatch):

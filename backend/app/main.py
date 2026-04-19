@@ -24,8 +24,10 @@ from fastapi.responses import Response
 from .api.routes import router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
+from .core.generation_metrics import get_generation_metrics_snapshot
 from .core.logging_utils import (
     configure_logging,
+    format_log_fields,
     reset_request_id,
     set_request_id,
 )
@@ -78,10 +80,14 @@ async def add_request_context(request: Request, call_next) -> Response:
     start = time.perf_counter()
 
     logger.info(
-        "request started method=%s path=%s client=%s",
-        request.method,
-        request.url.path,
-        request.client.host if request.client else "-",
+        "request started %s",
+        format_log_fields(
+            {
+                "method": request.method,
+                "path": request.url.path,
+                "client": request.client.host if request.client else "-",
+            }
+        ),
     )
 
     try:
@@ -89,10 +95,14 @@ async def add_request_context(request: Request, call_next) -> Response:
     except Exception:
         duration_ms = round((time.perf_counter() - start) * 1000, 1)
         logger.exception(
-            "request failed method=%s path=%s duration_ms=%s",
-            request.method,
-            request.url.path,
-            duration_ms,
+            "request failed %s",
+            format_log_fields(
+                {
+                    "method": request.method,
+                    "path": request.url.path,
+                    "duration_ms": duration_ms,
+                }
+            ),
         )
         reset_request_id(token)
         raise
@@ -100,11 +110,15 @@ async def add_request_context(request: Request, call_next) -> Response:
     duration_ms = round((time.perf_counter() - start) * 1000, 1)
     response.headers["X-Request-ID"] = request_id
     logger.info(
-        "request completed method=%s path=%s status_code=%s duration_ms=%s",
-        request.method,
-        request.url.path,
-        response.status_code,
-        duration_ms,
+        "request completed %s",
+        format_log_fields(
+            {
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": duration_ms,
+            }
+        ),
     )
     reset_request_id(token)
     return response
@@ -128,6 +142,13 @@ async def core_health() -> dict:
         "core": diagnostics,
         "summary": format_neoxra_core_diagnostics(diagnostics),
     }
+
+
+@app.get("/health/generation-metrics", tags=["health"])
+async def generation_metrics_health() -> dict:
+    snapshot = get_generation_metrics_snapshot()
+    snapshot["status"] = "ok"
+    return snapshot
 
 
 @app.on_event("startup")
