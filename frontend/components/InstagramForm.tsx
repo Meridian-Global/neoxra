@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type KeyboardEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useLanguage } from './LanguageProvider'
 
 const GOALS = ['engagement', 'authority', 'conversion', 'save', 'share'] as const
@@ -26,6 +26,8 @@ interface InstagramFormProps {
   templatePlaceholder?: string
   bestInputTips?: readonly string[]
   onPreviewChange?: (data: { topic: string; template_text: string; goal: string }) => void
+  formAnchorId?: string
+  helperPanel?: ReactNode
 }
 
 export function InstagramForm({
@@ -42,6 +44,8 @@ export function InstagramForm({
   templatePlaceholder,
   bestInputTips,
   onPreviewChange,
+  formAnchorId,
+  helperPanel,
 }: InstagramFormProps) {
   const { language } = useLanguage()
 
@@ -203,7 +207,7 @@ export function InstagramForm({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div id={formAnchorId} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur">
           <div className="space-y-5">
             <div>
@@ -247,6 +251,8 @@ export function InstagramForm({
         </div>
 
         <aside className="space-y-4">
+          {helperPanel}
+
           <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)] backdrop-blur">
             <label htmlFor="ig-goal" className="block text-sm font-semibold text-[var(--text)]">
               {language === 'zh-TW' ? '目標' : 'Goal'}

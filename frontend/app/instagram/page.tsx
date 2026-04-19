@@ -36,6 +36,7 @@ const KNOWN_EVENTS = new Set([
 ])
 
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
+type SubmitPayload = { topic: string; template_text: string; goal: string }
 
 function createInstagramCopy(language: 'en' | 'zh-TW') {
   if (language === 'zh-TW') {
@@ -101,6 +102,17 @@ function createInstagramCopy(language: 'en' | 'zh-TW') {
         eyebrow: '輸入',
         title: '建立一份適合展示的生成 brief。',
         body: '可直接使用預設案例，或輸入自己的主題。流程保持簡單：輸入、生成、串流、檢視。',
+      },
+      editFlow: {
+        eyebrow: '編輯後重新生成',
+        title: '保留目前內容，調整後再跑一次。',
+        body: '你可以先修改主題、模板或目標，再重新生成，不需要清空整個畫面。',
+        unsaved: '你有尚未套用的新編輯。',
+        synced: '目前顯示的是最近一次生成所使用的版本。',
+        currentTopic: '目前主題',
+        currentGoal: '目前目標',
+        regenerate: '用目前編輯重新生成',
+        jump: '回到輸入區',
       },
       errorBox: {
         title: '生成已中止',
@@ -189,6 +201,17 @@ function createInstagramCopy(language: 'en' | 'zh-TW') {
       title: 'Build a presentation-ready generation brief.',
       body: 'Use a preset for demo speed or bring your own topic. The flow stays simple: input, generate, stream, review.',
     },
+    editFlow: {
+      eyebrow: 'Edit and regenerate',
+      title: 'Keep the current output, then rerun with sharper edits.',
+      body: 'Adjust the topic, template, or goal without clearing the whole screen, then regenerate when you are ready.',
+      unsaved: 'You have fresh edits that are not reflected in the current output yet.',
+      synced: 'The current output matches the most recent submitted brief.',
+      currentTopic: 'Current topic',
+      currentGoal: 'Current goal',
+      regenerate: 'Regenerate with current edits',
+      jump: 'Jump to input',
+    },
     errorBox: {
       title: 'Generation stopped',
       reset: 'Reset',
@@ -235,6 +258,12 @@ export default function InstagramPage() {
   const { language } = useLanguage()
   const copy = createInstagramCopy(language)
   const sampleResult = getInstagramSampleResult(language)
+  const [preview, setPreview] = useState<SubmitPayload>({
+    topic: '',
+    template_text: '',
+    goal: 'engagement',
+  })
+  const [lastSubmitted, setLastSubmitted] = useState<SubmitPayload | null>(null)
   const [status, setStatus]               = useState<PageStatus>('idle')
   const [error, setError]                 = useState<string | null>(null)
   const [currentStage, setCurrentStage]   = useState('')
@@ -247,7 +276,8 @@ export default function InstagramPage() {
   const abortRef = useRef<AbortController | null>(null)
 
   const handleSubmit = useCallback(
-    async (data: { topic: string; template_text: string; goal: string }) => {
+    async (data: SubmitPayload) => {
+      setLastSubmitted(data)
       setStatus('loading')
       setStyleAnalysis(null)
       setContent(null)
@@ -381,6 +411,13 @@ export default function InstagramPage() {
   const isStreaming = status === 'streaming'
   const isLoading = status === 'loading'
   const isWorking = isLoading || isStreaming
+  const hasResults = Boolean(styleAnalysis || content || scorecard || critique)
+  const hasPendingEdits = Boolean(
+    lastSubmitted &&
+      (preview.topic !== lastSubmitted.topic ||
+        preview.template_text !== lastSubmitted.template_text ||
+        preview.goal !== lastSubmitted.goal)
+  )
   const completedSteps = [
     styleAnalysis ? copy.completedSteps.style : null,
     content ? copy.completedSteps.draft : null,
@@ -392,6 +429,48 @@ export default function InstagramPage() {
     : status === 'completed'
       ? copy.stageSequence.length
       : -1
+
+  const editPanel =
+    hasResults || status === 'error' ? (
+      <div className="rounded-3xl border border-[color:var(--accent-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.14)]">
+        <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.editFlow.eyebrow}</div>
+        <h3 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[var(--text)]">{copy.editFlow.title}</h3>
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{copy.editFlow.body}</p>
+
+        <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="text-sm font-medium text-[var(--text)]">
+            {hasPendingEdits ? copy.editFlow.unsaved : copy.editFlow.synced}
+          </div>
+          <div className="mt-3 space-y-3 text-sm">
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.editFlow.currentTopic}</div>
+              <div className="mt-1 line-clamp-3 text-[var(--muted)]">{preview.topic || '-'}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.editFlow.currentGoal}</div>
+              <div className="mt-1 text-[var(--muted)]">{preview.goal || '-'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => handleSubmit(preview)}
+            disabled={isWorking || !preview.topic.trim() || !preview.template_text.trim()}
+            className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {copy.editFlow.regenerate}
+          </button>
+          <a
+            href="#instagram-form"
+            className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)]"
+          >
+            {copy.editFlow.jump}
+          </a>
+        </div>
+      </div>
+    ) : null
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
@@ -530,7 +609,20 @@ export default function InstagramPage() {
             </p>
           </div>
 
-          <InstagramForm onSubmit={handleSubmit} disabled={isWorking} />
+          <InstagramForm
+            onSubmit={handleSubmit}
+            disabled={isWorking}
+            onPreviewChange={setPreview}
+            formAnchorId="instagram-form"
+            helperPanel={editPanel}
+            submitLabel={
+              lastSubmitted
+                ? language === 'zh-TW'
+                  ? '重新生成內容系統'
+                  : 'Regenerate Post System'
+                : undefined
+            }
+          />
         </section>
 
         {status === 'error' && error && (

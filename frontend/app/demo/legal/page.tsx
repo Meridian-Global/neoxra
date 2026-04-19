@@ -45,6 +45,7 @@ const KNOWN_EVENTS = new Set([
 ])
 
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
+type SubmitPayload = { topic: string; template_text: string; goal: string }
 
 function createLegalCopy(language: 'en' | 'zh-TW') {
   if (language === 'zh-TW') {
@@ -128,6 +129,15 @@ function createLegalCopy(language: 'en' | 'zh-TW') {
         demoBriefEyebrow: 'Demo brief',
         demoBriefTitle: '即時生成法律導向的內容系統。',
         demoBriefBody: '從可信的法律主題出發，保持專業且值得信任的語氣，展示 Neoxra 如何把一個敘事轉成多平台 thought leadership。',
+        editFlowEyebrow: '編輯後重新生成',
+        editFlowTitle: '保留目前 demo，微調後再跑一次。',
+        editFlowBody: '你可以在不清空畫面的情況下調整主題、模板或目標，再用新的版本重新生成。',
+        editFlowUnsaved: '你有尚未套用到目前輸出的新編輯。',
+        editFlowSynced: '目前畫面與最近一次送出的 demo brief 一致。',
+        editFlowTopic: '目前主題',
+        editFlowGoal: '目前目標',
+        editFlowButton: '用目前編輯重新生成',
+        editFlowJump: '回到輸入區',
         presetsTitle: '法律 demo 預設',
         presetsDescription: '為法律服務與 SMB 教育情境調整過的高品質 prompt，兼顧可信度、可收藏性與清楚度。',
         submitLabel: '生成法律 Demo',
@@ -239,6 +249,15 @@ function createLegalCopy(language: 'en' | 'zh-TW') {
       demoBriefEyebrow: 'Demo brief',
       demoBriefTitle: 'Generate a legal-focused content system live.',
       demoBriefBody: 'Start from a credible legal topic, keep the tone expert and trustworthy, and show how Neoxra turns one narrative into platform-ready thought leadership.',
+      editFlowEyebrow: 'Edit and regenerate',
+      editFlowTitle: 'Keep the current demo visible, then rerun with sharper edits.',
+      editFlowBody: 'Adjust the topic, template, or goal without clearing the screen, then regenerate when you are ready.',
+      editFlowUnsaved: 'You have fresh edits that are not reflected in the current output yet.',
+      editFlowSynced: 'The current screen matches the most recent submitted brief.',
+      editFlowTopic: 'Current topic',
+      editFlowGoal: 'Current goal',
+      editFlowButton: 'Regenerate with current edits',
+      editFlowJump: 'Jump to input',
       presetsTitle: 'Legal demo presets',
       presetsDescription: 'High-quality prompts tuned for legal and SMB education, credibility, and save-worthy content.',
       submitLabel: 'Generate Legal Demo',
@@ -304,6 +323,7 @@ export default function LegalDemoPage() {
     template_text: legalDemoPresets[0].templateText,
     goal: legalDemoPresets[0].goal,
   })
+  const [lastSubmitted, setLastSubmitted] = useState<SubmitPayload | null>(null)
   const [status, setStatus] = useState<PageStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [currentStage, setCurrentStage] = useState('')
@@ -351,6 +371,13 @@ export default function LegalDemoPage() {
   const isLoading = status === 'loading'
   const isStreaming = status === 'streaming'
   const isWorking = isLoading || isStreaming
+  const hasResults = Boolean(styleAnalysis || content || scorecard || critique)
+  const hasPendingEdits = Boolean(
+    lastSubmitted &&
+      (preview.topic !== lastSubmitted.topic ||
+        preview.template_text !== lastSubmitted.template_text ||
+        preview.goal !== lastSubmitted.goal)
+  )
 
   const clearResults = useCallback(() => {
     setStyleAnalysis(null)
@@ -388,7 +415,8 @@ export default function LegalDemoPage() {
   }, [clearResults])
 
   const handleSubmit = useCallback(
-    async (data: { topic: string; template_text: string; goal: string }) => {
+    async (data: SubmitPayload) => {
+      setLastSubmitted(data)
       clearResults()
       setStatus('loading')
 
@@ -497,6 +525,48 @@ export default function LegalDemoPage() {
     clearResults()
     setStatus('idle')
   }
+
+  const editPanel =
+    hasResults || status === 'error' ? (
+      <div className="rounded-3xl border border-[color:var(--accent-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.14)]">
+        <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.editFlowEyebrow}</div>
+        <h3 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[var(--text)]">{copy.sections.editFlowTitle}</h3>
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{copy.sections.editFlowBody}</p>
+
+        <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="text-sm font-medium text-[var(--text)]">
+            {hasPendingEdits ? copy.sections.editFlowUnsaved : copy.sections.editFlowSynced}
+          </div>
+          <div className="mt-3 space-y-3 text-sm">
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.editFlowTopic}</div>
+              <div className="mt-1 line-clamp-3 text-[var(--muted)]">{preview.topic || '-'}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.editFlowGoal}</div>
+              <div className="mt-1 text-[var(--muted)]">{preview.goal || '-'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => handleSubmit(preview)}
+            disabled={isWorking || !preview.topic.trim() || !preview.template_text.trim()}
+            className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {copy.sections.editFlowButton}
+          </button>
+          <a
+            href="#legal-demo-form"
+            className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)]"
+          >
+            {copy.sections.editFlowJump}
+          </a>
+        </div>
+      </div>
+    ) : null
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
@@ -785,7 +855,7 @@ export default function LegalDemoPage() {
             presets={legalDemoPresets}
             presetsTitle={copy.sections.presetsTitle}
             presetsDescription={copy.sections.presetsDescription}
-            submitLabel={copy.sections.submitLabel}
+            submitLabel={lastSubmitted ? copy.sections.editFlowButton : copy.sections.submitLabel}
             initialTopic={selectedScenario.topic}
             initialTemplateText={selectedScenario.templateText}
             initialGoal={selectedScenario.goal}
@@ -793,6 +863,8 @@ export default function LegalDemoPage() {
             templatePlaceholder={copy.sections.templatePlaceholder}
             bestInputTips={copy.sections.bestInputTips}
             onPreviewChange={setPreview}
+            formAnchorId="legal-demo-form"
+            helperPanel={editPanel}
           />
         </section>
 
