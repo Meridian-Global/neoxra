@@ -154,7 +154,7 @@ async def run_pipeline(req: RunRequest, request: Request):
     """
     _require_anthropic_api_key()
     pipeline_runner = _get_pipeline_runner()
-    concurrency_lease = enforce_generation_limits(request, CORE_ROUTE_KEY)
+    concurrency_lease = await enforce_generation_limits(request, CORE_ROUTE_KEY)
     logger.info(
         "core pipeline request accepted %s",
         format_log_fields(
@@ -266,6 +266,6 @@ async def run_pipeline(req: RunRequest, request: Request):
             else:
                 logger.info("Core pipeline completed successfully")
         finally:
-            concurrency_lease.release()
+            await concurrency_lease.release()
 
     return StreamingResponse(stream(), media_type="text/event-stream")

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+import ipaddress
+import math
 import os
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from threading import Lock
 from typing import Deque
 
 from fastapi import HTTPException, Request
@@ -22,7 +24,9 @@ def _env_int(name: str, default: int) -> int:
         value = int(raw)
     except ValueError:
         return default
-    return max(1, value)
+    if value <= 0:
+        return default
+    return value
 
 
 def get_generation_body_limit_bytes(path: str) -> int | None:
@@ -33,14 +37,36 @@ def get_generation_body_limit_bytes(path: str) -> int | None:
     return None
 
 
+_MAX_TRACKED_CLIENTS = _env_int("GUARD_MAX_TRACKED_CLIENTS", 50_000)
+
+
+def _is_valid_ip(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
+
+
+def _get_trusted_proxies() -> set[str]:
+    raw = os.getenv("TRUSTED_PROXY_IPS", "")
+    return {ip.strip() for ip in raw.split(",") if ip.strip()}
+
+
 def get_client_ip(request: Request) -> str:
-    forwarded_for = request.headers.get("x-forwarded-for", "")
-    if forwarded_for:
-        first_ip = forwarded_for.split(",")[0].strip()
-        if first_ip:
-            return first_ip
-    if request.client and request.client.host:
-        return request.client.host
+    direct_host = request.client.host if request.client and request.client.host else None
+    trusted_proxies = _get_trusted_proxies()
+    # Only honor X-Forwarded-For when the direct connection is from a trusted
+    # proxy, or when no trusted proxies are configured (open/dev deployment).
+    # Always validate that the extracted value is a syntactically valid IP.
+    if direct_host is None or not trusted_proxies or direct_host in trusted_proxies:
+        forwarded_for = request.headers.get("x-forwarded-for", "")
+        if forwarded_for:
+            first_ip = forwarded_for.split(",")[0].strip()
+            if first_ip and _is_valid_ip(first_ip):
+                return first_ip
+    if direct_host:
+        return direct_host
     return "unknown"
 
 
@@ -97,56 +123,64 @@ class ConcurrencyLease:
     client_id: str
     released: bool = False
 
-    def release(self) -> None:
+    async def release(self) -> None:
         if self.released:
             return
         self.released = True
-        self.store.release(self.route_key, self.client_id)
+        await self.store.release(self.route_key, self.client_id)
 
 
 class GenerationGuardStore:
     def __init__(self) -> None:
-        self._lock = Lock()
+        self._lock = asyncio.Lock()
         self._request_timestamps: dict[tuple[str, str], Deque[float]] = defaultdict(deque)
         self._active_requests: dict[tuple[str, str], int] = defaultdict(int)
 
     def reset(self) -> None:
-        with self._lock:
-            self._request_timestamps.clear()
-            self._active_requests.clear()
+        """Synchronous reset for test teardown. Do not call while async requests are in-flight."""
+        self._request_timestamps.clear()
+        self._active_requests.clear()
+        self._lock = asyncio.Lock()
 
-    def check_rate_limit(self, route_key: str, client_id: str) -> tuple[bool, int]:
+    async def check_rate_limit(self, route_key: str, client_id: str) -> tuple[bool, int]:
         limit, window_seconds = get_rate_limit_config(route_key)
         now = time.monotonic()
         threshold = now - window_seconds
         key = (route_key, client_id)
-        with self._lock:
+        async with self._lock:
+            # Reject new clients once the tracking table is full to bound memory usage.
+            if key not in self._request_timestamps and len(self._request_timestamps) >= _MAX_TRACKED_CLIENTS:
+                return (False, 60)
             bucket = self._request_timestamps[key]
             while bucket and bucket[0] <= threshold:
                 bucket.popleft()
             if len(bucket) >= limit:
-                retry_after = max(1, int(bucket[0] + window_seconds - now))
+                retry_after = max(1, math.ceil(bucket[0] + window_seconds - now))
                 return (False, retry_after)
             bucket.append(now)
             return (True, 0)
 
-    def acquire(self, route_key: str, client_id: str) -> ConcurrencyLease | None:
+    async def acquire(self, route_key: str, client_id: str) -> ConcurrencyLease | None:
         limit = get_concurrency_limit(route_key)
         key = (route_key, client_id)
-        with self._lock:
+        async with self._lock:
             if self._active_requests[key] >= limit:
                 return None
             self._active_requests[key] += 1
         return ConcurrencyLease(store=self, route_key=route_key, client_id=client_id)
 
-    def release(self, route_key: str, client_id: str) -> None:
+    async def release(self, route_key: str, client_id: str) -> None:
         key = (route_key, client_id)
-        with self._lock:
+        async with self._lock:
             current = self._active_requests.get(key, 0)
             if current <= 1:
                 self._active_requests.pop(key, None)
-                return
-            self._active_requests[key] = current - 1
+                # Prune empty timestamp bucket to prevent unbounded key growth.
+                bucket = self._request_timestamps.get(key)
+                if bucket is not None and not bucket:
+                    del self._request_timestamps[key]
+            else:
+                self._active_requests[key] = current - 1
 
 
 GENERATION_GUARDS = GenerationGuardStore()
@@ -156,9 +190,9 @@ def reset_generation_guards() -> None:
     GENERATION_GUARDS.reset()
 
 
-def enforce_generation_limits(request: Request, route_key: str) -> ConcurrencyLease:
+async def enforce_generation_limits(request: Request, route_key: str) -> ConcurrencyLease:
     client_id = getattr(request.state, "client_ip", None) or get_client_ip(request)
-    allowed, retry_after = GENERATION_GUARDS.check_rate_limit(route_key, client_id)
+    allowed, retry_after = await GENERATION_GUARDS.check_rate_limit(route_key, client_id)
     if not allowed:
         raise HTTPException(
             status_code=429,
@@ -166,7 +200,7 @@ def enforce_generation_limits(request: Request, route_key: str) -> ConcurrencyLe
             headers={"Retry-After": str(retry_after)},
         )
 
-    lease = GENERATION_GUARDS.acquire(route_key, client_id)
+    lease = await GENERATION_GUARDS.acquire(route_key, client_id)
     if lease is None:
         raise HTTPException(
             status_code=429,

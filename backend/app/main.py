@@ -96,6 +96,19 @@ async def add_request_context(request: Request, call_next) -> Response:
     if request.method == "POST":
         body_limit_bytes = get_generation_body_limit_bytes(request.url.path)
     if body_limit_bytes is not None:
+        # Fast rejection: check Content-Length header before buffering the body.
+        content_length_header = request.headers.get("content-length")
+        if content_length_header is not None:
+            try:
+                if int(content_length_header) > body_limit_bytes:
+                    reset_request_id(token)
+                    return JSONResponse(
+                        status_code=413,
+                        content={"detail": "Request body too large for generation endpoint."},
+                        headers={"X-Request-ID": request_id},
+                    )
+            except ValueError:
+                pass  # malformed Content-Length; fall through to body read
         body = await request.body()
         if len(body) > body_limit_bytes:
             logger.warning(

@@ -5,7 +5,7 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from ..core.localization import (
     DEFAULT_LOCALE,
@@ -75,7 +75,7 @@ class InstagramGenerateRequest(BaseModel):
     topic: str
     template_text: str
     goal: str = "engagement"
-    style_examples: list[str] = []
+    style_examples: list[str] = Field(default_factory=list)
     locale: str = DEFAULT_LOCALE
 
     @field_validator("topic", "template_text")
@@ -184,7 +184,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    concurrency_lease = enforce_generation_limits(request, INSTAGRAM_ROUTE_KEY)
+    concurrency_lease = await enforce_generation_limits(request, INSTAGRAM_ROUTE_KEY)
 
     async def stream():
         completed = False
@@ -380,6 +380,6 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
             else:
                 logger.info("Instagram pipeline completed successfully")
         finally:
-            concurrency_lease.release()
+            await concurrency_lease.release()
 
     return StreamingResponse(stream(), media_type="text/event-stream")
