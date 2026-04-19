@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { API_BASE_URL } from '../../lib/api'
-import { streamSSE } from '../../lib/sse'
+import { APIError, streamSSE } from '../../lib/sse'
 
 type Status = 'idle' | 'running' | 'done' | 'error'
 type StepId = 'planner' | 'agents' | 'critic'
@@ -21,15 +21,15 @@ const DEFAULT_IDEA =
   'How AI tools help small teams ship faster without adding headcount.'
 
 const STAGE_COPY: Record<string, { step: StepId; message: string; platform?: PlatformKey }> = {
-  pipeline_started: { step: 'planner', message: 'Pipeline is starting.' },
-  planner_started: { step: 'planner', message: 'Planner is building the brief.' },
-  instagram_pass1_started: { step: 'agents', message: 'Instagram agent is drafting.', platform: 'instagram' },
-  threads_pass1_started: { step: 'agents', message: 'Threads agent is drafting.', platform: 'threads' },
-  linkedin_pass1_started: { step: 'agents', message: 'LinkedIn agent is drafting.', platform: 'linkedin' },
-  instagram_pass2_started: { step: 'agents', message: 'Instagram agent is refining.', platform: 'instagram' },
-  threads_pass2_started: { step: 'agents', message: 'Threads agent is refining.', platform: 'threads' },
-  linkedin_pass2_started: { step: 'agents', message: 'LinkedIn agent is refining.', platform: 'linkedin' },
-  critic_started: { step: 'critic', message: 'Critic is tightening the final outputs.' },
+  pipeline_started: { step: 'planner', message: 'Opening the live generation workflow.' },
+  planner_started: { step: 'planner', message: 'Building the core message and audience framing.' },
+  instagram_pass1_started: { step: 'agents', message: 'Drafting the visual-first Instagram version.', platform: 'instagram' },
+  threads_pass1_started: { step: 'agents', message: 'Drafting the conversational Threads version.', platform: 'threads' },
+  linkedin_pass1_started: { step: 'agents', message: 'Drafting the professional LinkedIn version.', platform: 'linkedin' },
+  instagram_pass2_started: { step: 'agents', message: 'Refining Instagram for stronger hooks and structure.', platform: 'instagram' },
+  threads_pass2_started: { step: 'agents', message: 'Refining Threads for pace and readability.', platform: 'threads' },
+  linkedin_pass2_started: { step: 'agents', message: 'Refining LinkedIn for business clarity and authority.', platform: 'linkedin' },
+  critic_started: { step: 'critic', message: 'Reviewing the final set for quality and consistency.' },
 }
 
 const PLATFORM_EVENT_MAP: Record<string, { platform: PlatformKey; status: string }> = {
@@ -41,10 +41,22 @@ const PLATFORM_EVENT_MAP: Record<string, { platform: PlatformKey; status: string
   threads_pass2_completed: { platform: 'threads', status: 'Refined' },
 }
 
-const PLATFORM_META: Array<{ key: PlatformKey; eyebrow: string }> = [
-  { key: 'linkedin', eyebrow: 'Professional narrative' },
-  { key: 'instagram', eyebrow: 'Visual-first storytelling' },
-  { key: 'threads', eyebrow: 'Fast conversational take' },
+const PLATFORM_META: Array<{ key: PlatformKey; eyebrow: string; rationale: string }> = [
+  {
+    key: 'linkedin',
+    eyebrow: 'Professional narrative',
+    rationale: 'Framed for authority, business context, and a more executive reading style.',
+  },
+  {
+    key: 'instagram',
+    eyebrow: 'Visual-first storytelling',
+    rationale: 'Structured for hooks, visual pacing, and content that works well as a carousel or post.',
+  },
+  {
+    key: 'threads',
+    eyebrow: 'Fast conversational take',
+    rationale: 'Written to feel lighter, quicker, and more discussion-friendly for fast social consumption.',
+  },
 ]
 
 const KNOWN_EVENTS = new Set([
@@ -86,6 +98,24 @@ function stepState(step: StepId, activeStep: StepId, status: Status) {
   return order.indexOf(step) < order.indexOf(activeStep) ? 'done' : 'idle'
 }
 
+function toFriendlyError(error: unknown): string {
+  if (error instanceof APIError) {
+    if (error.status === 422) {
+      return 'Please check the demo input and try again.'
+    }
+    if (error.status === 503) {
+      return 'System temporarily unavailable. Please retry in a moment.'
+    }
+    return 'Something went wrong. Please try again.'
+  }
+
+  if (error instanceof Error && error.message.includes('timed out')) {
+    return 'The demo took too long to finish. Please retry.'
+  }
+
+  return 'Something went wrong. Please try again.'
+}
+
 export function DemoSection() {
   const [idea, setIdea] = useState(DEFAULT_IDEA)
   const [status, setStatus] = useState<Status>('idle')
@@ -117,7 +147,7 @@ export function DemoSection() {
 
     setStatus('running')
     setActiveStep('planner')
-    setStageMessage('Planner is building the brief.')
+    setStageMessage('Building the core message and audience framing.')
     setOutputs(createInitialOutputs())
     setCriticNotes('')
     setError('')
@@ -134,8 +164,8 @@ export function DemoSection() {
 
         if (!KNOWN_EVENTS.has(event)) {
           setStatus('error')
-          setError(`Unexpected server event: ${event}`)
-          setStageMessage('The stream returned an unexpected event.')
+          setError('Something went wrong. Please try again.')
+          setStageMessage('The live stream returned an unexpected response.')
           setActivePlatform(null)
           failed = true
           break
@@ -200,7 +230,7 @@ export function DemoSection() {
             },
           }))
           if (typeof data?.critic_notes === 'string') setCriticNotes(data.critic_notes)
-          setStageMessage('Three platform-native outputs generated.')
+          setStageMessage('Three platform-ready outputs are ready to present.')
           completed = true
           setStatus('done')
           setActivePlatform(null)
@@ -208,8 +238,8 @@ export function DemoSection() {
 
         if (event === 'error') {
           setStatus('error')
-          setError(typeof data?.message === 'string' ? data.message : 'Pipeline failed before completion.')
-          setStageMessage('The stream failed before completion.')
+          setError('System temporarily unavailable. Please retry in a moment.')
+          setStageMessage('The run stopped before the final outputs were ready.')
           setActivePlatform(null)
           failed = true
           break
@@ -218,15 +248,15 @@ export function DemoSection() {
 
       if (!abortController.signal.aborted && !completed && !failed) {
         setStatus('error')
-        setError('Generation ended before completion. Please try again.')
-        setStageMessage('The stream ended before pipeline_completed.')
+        setError('Something went wrong. Please try again.')
+        setStageMessage('The stream ended before the final completion signal arrived.')
         setActivePlatform(null)
       }
     } catch (err) {
       if (!abortController.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
         setStatus('error')
-        setError(err instanceof Error ? err.message : 'Unable to generate right now.')
-        setStageMessage('The stream failed before completion.')
+        setError(toFriendlyError(err))
+        setStageMessage('The run stopped before the final outputs were ready.')
         setActivePlatform(null)
       }
     }
@@ -235,7 +265,7 @@ export function DemoSection() {
   const stop = useCallback(() => {
     abortRef.current?.abort()
     setStatus('idle')
-    setStageMessage('Generation stopped.')
+    setStageMessage('Demo run stopped.')
     setActivePlatform(null)
   }, [])
 
@@ -261,7 +291,7 @@ export function DemoSection() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-[var(--text)]">Try an idea</div>
-              <div className="text-sm text-[var(--subtle)]">Connected to the existing SSE pipeline</div>
+              <div className="text-sm text-[var(--subtle)]">Live multi-platform generation from the existing SSE pipeline</div>
             </div>
             <div className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--subtle)]">
               /api/run
@@ -303,12 +333,12 @@ export function DemoSection() {
               <div className="text-sm font-medium text-[var(--text)]">Pipeline status</div>
               <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">
                 {status === 'running'
-                  ? 'streaming'
+                  ? 'live'
                   : status === 'done'
-                    ? 'complete'
+                    ? 'ready'
                     : status === 'error'
-                      ? 'error'
-                      : 'idle'}
+                      ? 'needs attention'
+                      : 'ready'}
               </div>
             </div>
 
@@ -330,7 +360,9 @@ export function DemoSection() {
                       .join(' ')}
                   >
                     <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{step}</div>
-                    <div className="mt-1 font-medium capitalize">{state === 'idle' ? 'Pending' : state}</div>
+                    <div className="mt-1 font-medium capitalize">
+                      {state === 'idle' ? 'Waiting' : state === 'done' ? 'Completed' : state}
+                    </div>
                   </div>
                 )
               })}
@@ -350,7 +382,12 @@ export function DemoSection() {
               </div>
             )}
 
-            {error && <p className="mt-4 text-sm text-rose-300">{error}</p>}
+            {error && (
+              <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3">
+                <div className="text-sm font-medium text-[var(--text)]">Demo temporarily unavailable</div>
+                <p className="mt-1 text-sm text-rose-100/90">{error}</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -366,7 +403,7 @@ export function DemoSection() {
           </div>
 
           <div className="grid gap-4">
-            {PLATFORM_META.map(({ key, eyebrow }) => {
+            {PLATFORM_META.map(({ key, eyebrow, rationale }) => {
               const output = outputs[key]
               const isReady = Boolean(output.content)
               const isActive = status === 'running' && activePlatform === key
@@ -387,6 +424,7 @@ export function DemoSection() {
                     <div>
                       <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{eyebrow}</div>
                       <div className="mt-1 text-lg font-semibold text-[var(--text)]">{output.label}</div>
+                      <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">{rationale}</p>
                     </div>
                     <div
                       className={[
@@ -405,7 +443,7 @@ export function DemoSection() {
 
                   <div
                     className={[
-                      'min-h-[156px] rounded-2xl border p-4 transition',
+                      'min-h-[220px] rounded-2xl border p-5 transition',
                       isActive
                         ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
                         : 'border-[var(--border)] bg-[var(--surface-2)]',
@@ -414,32 +452,50 @@ export function DemoSection() {
                       .join(' ')}
                   >
                     {isReady ? (
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-[var(--muted)]">
-                        {output.content}
-                      </p>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">
+                            Presentation view
+                          </div>
+                          <div className="rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1 text-xs text-[var(--subtle)]">
+                            Copy-ready
+                          </div>
+                        </div>
+                        <p className="whitespace-pre-wrap text-[15px] leading-7 text-[var(--text)]">
+                          {output.content}
+                        </p>
+                      </div>
                     ) : (
                       <div className="flex h-full flex-col justify-between">
-                        <div className="space-y-2">
-                          <div className="h-3 w-2/3 rounded-full bg-white/8" />
-                          <div className="h-3 w-full rounded-full bg-white/6" />
-                          <div className="h-3 w-5/6 rounded-full bg-white/6" />
+                        <div>
+                          <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">
+                            Presentation view
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            <div className="h-3 w-2/3 rounded-full bg-white/8" />
+                            <div className="h-3 w-full rounded-full bg-white/6" />
+                            <div className="h-3 w-5/6 rounded-full bg-white/6" />
+                            <div className="h-3 w-3/4 rounded-full bg-white/6" />
+                          </div>
                         </div>
-                        <p className="text-sm text-[var(--subtle)]">
+                        <p className="text-sm leading-6 text-[var(--subtle)]">
                           {status === 'running'
-                            ? 'Waiting for this agent to complete its pass.'
-                            : 'Run the demo to generate this output.'}
+                            ? 'This platform version is still being prepared.'
+                            : 'Run the demo to generate a presentation-ready version for this platform.'}
                         </p>
                       </div>
                     )}
                   </div>
 
                   <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="text-xs text-[var(--subtle)]">
+                    <div className="text-xs leading-5 text-[var(--subtle)]">
                       {isActive
                         ? 'Receiving live output'
                         : status === 'running' && !isReady
-                          ? 'Streaming soon'
-                          : 'Ready to review'}
+                          ? 'Queued for this platform'
+                          : isReady
+                            ? 'Ready to review or copy into slides'
+                            : 'Waiting to generate'}
                     </div>
                     <button
                       type="button"
@@ -457,9 +513,9 @@ export function DemoSection() {
 
           {(criticNotes || hasAnyOutput) && (
             <div className="mt-4 rounded-[24px] border border-[color:var(--accent-soft)] bg-[var(--accent-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">Critic</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">Executive summary</div>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                {criticNotes || 'The critic review will appear here after generation completes.'}
+                {criticNotes || 'A short quality summary will appear here after the run completes.'}
               </p>
             </div>
           )}
