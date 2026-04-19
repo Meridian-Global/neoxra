@@ -3,29 +3,29 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0b0b0c;
-  --surface: #111113;
-  --surface-2: #151519;
-  --panel: rgba(255, 255, 255, 0.03);
-  --border: rgba(255, 255, 255, 0.1);
-  --text: #f5f7fb;
-  --muted: rgba(245, 247, 251, 0.66);
-  --subtle: rgba(245, 247, 251, 0.42);
-  --accent: #8b5cf6;
-  --accent-soft: rgba(139, 92, 246, 0.12);
+  --bg: #0e0b16;
+  --surface: #151120;
+  --surface-2: #1b1529;
+  --panel: rgba(255, 255, 255, 0.045);
+  --border: rgba(197, 184, 255, 0.14);
+  --text: #f6f4ff;
+  --muted: rgba(246, 244, 255, 0.7);
+  --subtle: rgba(246, 244, 255, 0.46);
+  --accent: #a78bfa;
+  --accent-soft: rgba(167, 139, 250, 0.14);
 }
 
 html[data-theme='light'] {
-  --bg: #f6f7fb;
+  --bg: #f7f4ff;
   --surface: #ffffff;
-  --surface-2: #eef1f7;
-  --panel: rgba(255, 255, 255, 0.88);
-  --border: rgba(15, 23, 42, 0.1);
-  --text: #0f172a;
-  --muted: rgba(15, 23, 42, 0.72);
-  --subtle: rgba(15, 23, 42, 0.48);
-  --accent: #6d5efc;
-  --accent-soft: rgba(109, 94, 252, 0.1);
+  --surface-2: #f1ecff;
+  --panel: rgba(255, 255, 255, 0.82);
+  --border: rgba(124, 99, 255, 0.14);
+  --text: #1b1530;
+  --muted: rgba(27, 21, 48, 0.72);
+  --subtle: rgba(27, 21, 48, 0.5);
+  --accent: #7c63ff;
+  --accent-soft: rgba(124, 99, 255, 0.1);
 }
 
 * {
@@ -57,10 +57,29 @@ body::before {
   opacity: 0.18;
 }
 
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(167, 139, 250, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 10%, rgba(124, 99, 255, 0.14), transparent 24%),
+    radial-gradient(circle at 50% 100%, rgba(139, 92, 246, 0.1), transparent 30%);
+  opacity: 1;
+}
+
 html[data-theme='light'] body::before {
   background-image:
     linear-gradient(to right, rgba(15, 23, 42, 0.03) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+}
+
+html[data-theme='light'] body::after {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(124, 99, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 82% 10%, rgba(167, 139, 250, 0.1), transparent 24%),
+    radial-gradient(circle at 50% 100%, rgba(109, 94, 252, 0.08), transparent 30%);
 }
 
 ::selection {

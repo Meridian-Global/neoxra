@@ -1,5 +1,4 @@
 import { ThemeToggle } from './ThemeToggle'
-import Link from 'next/link'
 
 export function HeroSection() {
   return (
@@ -30,20 +29,9 @@ export function HeroSection() {
             Instagram, and Threads content that feels native instead of copy-pasted.
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <a
-              href="#demo"
-              className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
-            >
-              Try Demo
-            </a>
-            <Link
-              href="/instagram"
-              className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:bg-[var(--surface)]"
-            >
-              Instagram
-            </Link>
-            <div className="text-sm text-[var(--subtle)]">Working generation, streamed live from the product</div>
+          <div className="mt-8 max-w-2xl rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-4 text-sm leading-6 text-[var(--muted)]">
+            Internal demo surface is available at <span className="font-semibold text-[var(--text)]">`/demo/legal`</span>.
+            Use that route directly when you want the legal-services walkthrough.
           </div>
         </div>
 
