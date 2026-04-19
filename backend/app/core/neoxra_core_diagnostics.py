@@ -69,23 +69,17 @@ def get_neoxra_core_diagnostics() -> dict[str, object]:
 def format_neoxra_core_diagnostics(diagnostics: dict[str, object]) -> str:
     if diagnostics.get("import_ok"):
         version = diagnostics.get("distribution_version", "unknown")
-        module_file = diagnostics.get("module_file", "unknown")
-        return (
-            f"{DIST_NAME} import OK "
-            f"(version={version}, module_file={module_file})"
-        )
+        return f"{DIST_NAME} import OK (version={version})"
 
     if not diagnostics.get("distribution_installed"):
         return (
             f"{DIST_NAME} distribution is not installed; "
-            f"import name should be '{IMPORT_NAME}'. "
-            f"Expected build source: {diagnostics.get('core_git_url')}@{diagnostics.get('core_git_ref')}."
+            f"import name should be '{IMPORT_NAME}'."
         )
 
     error_type = diagnostics.get("error_type", "UnknownError")
     error_message = diagnostics.get("error_message", "unknown error")
     missing_module = diagnostics.get("missing_module")
-    direct_url = diagnostics.get("direct_url")
     if missing_module:
         if missing_module == IMPORT_NAME:
             return (
@@ -100,14 +94,6 @@ def format_neoxra_core_diagnostics(diagnostics: dict[str, object]) -> str:
         )
 
     if error_type == "ImportError":
-        return (
-            f"{DIST_NAME} is installed but a transitive import failed "
-            f"({error_type}: {error_message}). "
-            f"Installed source: {direct_url or 'unknown'}."
-        )
+        return f"{DIST_NAME} is installed but a transitive import failed ({error_type}: {error_message})."
 
-    return (
-        f"{DIST_NAME} is installed but import failed "
-        f"({error_type}: {error_message}). "
-        f"Installed source: {direct_url or 'unknown'}."
-    )
+    return f"{DIST_NAME} is installed but import failed ({error_type}: {error_message})."

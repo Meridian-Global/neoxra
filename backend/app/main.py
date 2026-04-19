@@ -18,12 +18,15 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(BACKEND_ROOT / ".env", override=False)
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from .api.routes import router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
+from .core.error_handling import json_error_response
 from .core.generation_metrics import get_generation_metrics_snapshot
 from .core.logging_utils import (
     configure_logging,
@@ -73,6 +76,68 @@ app.include_router(integrations_router)
 app.include_router(instagram_router)
 
 
+def _default_error_code_for_status(status_code: int) -> str:
+    return {
+        401: "UNAUTHORIZED",
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        413: "REQUEST_BODY_TOO_LARGE",
+        422: "VALIDATION_ERROR",
+        429: "RATE_LIMITED",
+        500: "INTERNAL_SERVER_ERROR",
+        502: "UPSTREAM_ERROR",
+        503: "SERVICE_UNAVAILABLE",
+    }.get(status_code, "REQUEST_FAILED")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def safe_http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    detail = exc.detail
+    error_code = _default_error_code_for_status(exc.status_code)
+
+    if isinstance(detail, dict):
+        safe_detail = detail.get("detail") or detail.get("message") or "Request failed."
+        error_code = detail.get("error_code", error_code)
+    else:
+        safe_detail = str(detail)
+
+    headers = dict(exc.headers or {})
+    if request_id:
+        headers["X-Request-ID"] = request_id
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": safe_detail,
+            "error_code": error_code,
+        },
+        headers=headers,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def safe_validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    logger.warning(
+        "request validation failed %s",
+        format_log_fields(
+            {
+                "method": request.method,
+                "path": request.url.path,
+                "client": getattr(request.state, "client_ip", "-"),
+                "error_count": len(exc.errors()),
+            }
+        ),
+    )
+    return json_error_response(
+        status_code=422,
+        detail="Request validation failed.",
+        error_code="VALIDATION_ERROR",
+        request_id=request_id,
+    )
+
+
 @app.middleware("http")
 async def add_request_context(request: Request, call_next) -> Response:
     request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
@@ -102,10 +167,11 @@ async def add_request_context(request: Request, call_next) -> Response:
             try:
                 if int(content_length_header) > body_limit_bytes:
                     reset_request_id(token)
-                    return JSONResponse(
+                    return json_error_response(
                         status_code=413,
-                        content={"detail": "Request body too large for generation endpoint."},
-                        headers={"X-Request-ID": request_id},
+                        detail="Request body too large for generation endpoint.",
+                        error_code="REQUEST_BODY_TOO_LARGE",
+                        request_id=request_id,
                     )
             except ValueError:
                 pass  # malformed Content-Length; fall through to body read
@@ -125,10 +191,11 @@ async def add_request_context(request: Request, call_next) -> Response:
                 ),
             )
             reset_request_id(token)
-            return JSONResponse(
+            return json_error_response(
                 status_code=413,
-                content={"detail": "Request body too large for generation endpoint."},
-                headers={"X-Request-ID": request_id},
+                detail="Request body too large for generation endpoint.",
+                error_code="REQUEST_BODY_TOO_LARGE",
+                request_id=request_id,
             )
 
     try:
@@ -178,10 +245,15 @@ async def healthz() -> dict:
 @app.get("/health/core", tags=["health"])
 async def core_health() -> dict:
     diagnostics = get_neoxra_core_diagnostics()
+    import_ok = bool(diagnostics.get("import_ok"))
     return {
-        "status": "ok" if diagnostics.get("import_ok") else "degraded",
-        "core": diagnostics,
-        "summary": format_neoxra_core_diagnostics(diagnostics),
+        "status": "ok" if import_ok else "degraded",
+        "core": {
+            "import_ok": import_ok,
+            "distribution_installed": diagnostics.get("distribution_installed", False),
+            "distribution_version": diagnostics.get("distribution_version", "unknown"),
+        },
+        "summary": "Core dependencies available." if import_ok else "Core dependencies unavailable.",
     }
 
 
@@ -203,11 +275,8 @@ async def log_core_diagnostics_on_startup() -> None:
         os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),
     )
     logger.info(
-        "startup neoxra_core import_ok=%s version=%s source=%s verified_imports=%s",
+        "startup neoxra_core import_ok=%s version=%s",
         diagnostics.get("import_ok"),
         diagnostics.get("distribution_version", "unknown"),
-        diagnostics.get("direct_url", diagnostics.get("core_git_url", "unknown")),
-        diagnostics.get("verified_imports", []),
     )
     logger.info("neoxra_core startup status: %s", format_neoxra_core_diagnostics(diagnostics))
-    logger.info("neoxra_core startup diagnostics: %s", diagnostics)

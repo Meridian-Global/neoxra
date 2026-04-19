@@ -267,7 +267,11 @@ class TestInstagramSSERoute:
             "generation_started",
             "error",
         ]
-        assert events[-1]["data"]["stage"] == "generation"
+        assert events[-1]["data"] == {
+            "stage": "generation",
+            "message": "Generated output could not be validated.",
+            "error_code": "GENERATION_OUTPUT_INVALID",
+        }
 
     def test_style_analysis_failure_emits_error_event(self):
         reset_generation_metrics()
@@ -289,7 +293,8 @@ class TestInstagramSSERoute:
         ]
         assert events[-1]["data"] == {
             "stage": "style_analysis",
-            "message": "style boom",
+            "message": "Something went wrong while analyzing the input style.",
+            "error_code": "STYLE_ANALYSIS_FAILED",
         }
 
     def test_generation_failure_emits_error_event(self):
@@ -327,7 +332,8 @@ class TestInstagramSSERoute:
         ]
         assert events[-1]["data"] == {
             "stage": "generation",
-            "message": "generation boom",
+            "message": "Something went wrong while generating content.",
+            "error_code": "GENERATION_FAILED",
         }
 
     def test_scoring_failure_emits_error_event(self):
@@ -382,7 +388,8 @@ class TestInstagramSSERoute:
         ]
         assert events[-1]["data"] == {
             "stage": "scoring",
-            "message": "scoring boom",
+            "message": "Something went wrong while scoring the generated content.",
+            "error_code": "SCORING_FAILED",
         }
 
     def test_generation_metrics_endpoint_tracks_instagram_success_and_failure(self, mock_llm):
@@ -433,6 +440,7 @@ class TestInstagramSSERoute:
         assert first.status_code == 200
         assert second.status_code == 429
         assert second.json()["detail"] == "Rate limit exceeded for generation endpoint. Please retry shortly."
+        assert second.json()["error_code"] == "RATE_LIMITED"
 
     def test_instagram_route_rejects_concurrent_runs_from_same_ip(self, monkeypatch):
         reset_generation_metrics()
@@ -451,6 +459,7 @@ class TestInstagramSSERoute:
             assert response.json()["detail"] == (
                 "Too many concurrent generation requests from this IP. Please wait for the current run to finish."
             )
+            assert response.json()["error_code"] == "RATE_LIMITED"
         finally:
             GENERATION_GUARDS._set_active_count_for_test(INSTAGRAM_ROUTE_KEY, "203.0.113.21", 0)
 
@@ -466,3 +475,4 @@ class TestInstagramSSERoute:
 
         assert response.status_code == 413
         assert response.json()["detail"] == "Request body too large for generation endpoint."
+        assert response.json()["error_code"] == "REQUEST_BODY_TOO_LARGE"

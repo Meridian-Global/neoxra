@@ -49,6 +49,22 @@ def test_health_route_sets_request_id_header():
     assert response.headers["X-Request-ID"]
 
 
+def test_core_health_hides_internal_diagnostics():
+    client = TestClient(app)
+
+    response = client.get("/health/core")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "status" in payload
+    assert "core" in payload
+    assert "import_ok" in payload["core"]
+    assert "distribution_installed" in payload["core"]
+    assert "distribution_version" in payload["core"]
+    assert "direct_url" not in payload["core"]
+    assert "verified_imports" not in payload["core"]
+
+
 def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
     reset_generation_metrics()
     reset_generation_guards()
@@ -66,7 +82,8 @@ def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
 
     assert response.status_code == 200
     assert "event: error" in response.text
-    assert '"message": "Pipeline ended before pipeline_completed was emitted."' in response.text
+    assert '"message": "Generation could not be completed. Please try again."' in response.text
+    assert '"error_code": "PIPELINE_INCOMPLETE"' in response.text
 
 
 def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
@@ -87,7 +104,8 @@ def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
 
     assert response.status_code == 200
     assert response.text.count("event: error") == 1
-    assert '"message": "planner failed"' in response.text
+    assert '"message": "Generation could not be completed. Please try again."' in response.text
+    assert '"error_code": "GENERATION_FAILED"' in response.text
 
 
 def test_core_route_accepts_locale(monkeypatch):
@@ -145,6 +163,7 @@ def test_core_route_emits_error_when_completed_payload_is_invalid(monkeypatch):
 
     assert response.status_code == 200
     assert "event: error" in response.text
+    assert '"error_code": "PIPELINE_OUTPUT_INVALID"' in response.text
 
 
 def test_generation_metrics_endpoint_tracks_core_success_and_failure(monkeypatch):
@@ -283,6 +302,7 @@ def test_core_route_rate_limits_by_ip(monkeypatch):
     assert first.status_code == 200
     assert second.status_code == 429
     assert second.json()["detail"] == "Rate limit exceeded for generation endpoint. Please retry shortly."
+    assert second.json()["error_code"] == "RATE_LIMITED"
 
 
 def test_core_route_rejects_concurrent_runs_from_same_ip(monkeypatch):
@@ -303,6 +323,7 @@ def test_core_route_rejects_concurrent_runs_from_same_ip(monkeypatch):
         assert response.json()["detail"] == (
             "Too many concurrent generation requests from this IP. Please wait for the current run to finish."
         )
+        assert response.json()["error_code"] == "RATE_LIMITED"
     finally:
         GENERATION_GUARDS._set_active_count_for_test(CORE_ROUTE_KEY, "203.0.113.11", 0)
 
@@ -316,6 +337,7 @@ def test_core_route_rejects_oversized_request_body(monkeypatch):
 
     assert response.status_code == 413
     assert response.json()["detail"] == "Request body too large for generation endpoint."
+    assert response.json()["error_code"] == "REQUEST_BODY_TOO_LARGE"
 
 
 def test_core_route_rejects_overlong_idea():
@@ -324,7 +346,8 @@ def test_core_route_rejects_overlong_idea():
     response = client.post("/api/run", json={"idea": "x" * 401})
 
     assert response.status_code == 422
-    assert "idea must be <= 400 characters" in response.text
+    assert response.json()["detail"] == "Request validation failed."
+    assert response.json()["error_code"] == "VALIDATION_ERROR"
 
 
 def test_linkedin_publish_route_exists(monkeypatch):
