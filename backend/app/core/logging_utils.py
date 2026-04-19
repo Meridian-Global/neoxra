@@ -32,6 +32,7 @@ def get_request_id() -> str:
 def _stringify_log_value(value: Any) -> str:
     if isinstance(value, (dict, list, tuple)):
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    # JSON-encode strings so values containing spaces stay as a single key="value" token.
     if isinstance(value, str):
         return json.dumps(value)
     return str(value)
