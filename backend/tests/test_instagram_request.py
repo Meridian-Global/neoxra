@@ -14,6 +14,7 @@ class TestInstagramGenerateRequestValid:
         req = InstagramGenerateRequest(topic="x", template_text="y")
         assert req.goal == "engagement"
         assert req.style_examples == []
+        assert req.locale == "en"
 
     def test_all_fields_provided(self):
         req = InstagramGenerateRequest(
@@ -21,9 +22,11 @@ class TestInstagramGenerateRequestValid:
             template_text="Here is a template",
             goal="authority",
             style_examples=["example one"],
+            locale="zh-TW",
         )
         assert req.goal == "authority"
         assert req.style_examples == ["example one"]
+        assert req.locale == "zh-TW"
 
     def test_each_valid_goal_accepted(self):
         for goal in ("engagement", "authority", "conversion", "save", "share"):
@@ -56,6 +59,11 @@ class TestInstagramGenerateRequestInvalid:
         with pytest.raises(ValidationError) as exc_info:
             InstagramGenerateRequest(topic="x", template_text="y", goal="invalid")
         assert "goal" in str(exc_info.value)
+
+    def test_invalid_locale_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            InstagramGenerateRequest(topic="x", template_text="y", locale="zh-CN")
+        assert "locale" in str(exc_info.value)
 
     def test_extra_fields_rejected(self):
         with pytest.raises(ValidationError) as exc_info:

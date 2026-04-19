@@ -14,9 +14,10 @@ def test_app_starts():
 
 
 def test_core_route_exists(monkeypatch):
-    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default"):
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
         assert voice_profile == "default"
+        assert locale == "en"
         yield {"event": "planner_started", "data": {}}
         yield {"event": "pipeline_completed", "data": {"ok": True}}
 
@@ -40,9 +41,10 @@ def test_health_route_sets_request_id_header():
 
 
 def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
-    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default"):
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
         assert voice_profile == "default"
+        assert locale == "en"
         yield {"event": "planner_started", "data": {}}
 
     monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
@@ -56,9 +58,10 @@ def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
 
 
 def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
-    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default"):
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
         assert idea == "hello"
         assert voice_profile == "default"
+        assert locale == "en"
         yield {"event": "planner_started", "data": {}}
         yield {"event": "error", "data": {"stage": "planner", "message": "planner failed"}}
 
@@ -70,6 +73,23 @@ def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
     assert response.status_code == 200
     assert response.text.count("event: error") == 1
     assert '"message": "planner failed"' in response.text
+
+
+def test_core_route_accepts_locale(monkeypatch):
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
+        assert idea == "hello"
+        assert voice_profile == "default"
+        assert locale == "zh-TW"
+        yield {"event": "planner_started", "data": {}}
+        yield {"event": "pipeline_completed", "data": {"ok": True}}
+
+    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+
+    client = TestClient(app)
+    response = client.post("/api/run", json={"idea": "hello", "locale": "zh-TW"})
+
+    assert response.status_code == 200
+    assert '"locale": "zh-TW"' in response.text
 
 
 def test_linkedin_publish_route_exists(monkeypatch):

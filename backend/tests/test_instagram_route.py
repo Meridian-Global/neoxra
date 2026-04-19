@@ -147,6 +147,67 @@ class TestInstagramSSERoute:
         for field in ("caption", "hook_options", "hashtags", "carousel_outline", "reel_script"):
             assert field in content, f"missing content field: {field}"
 
+    def test_locale_is_included_in_pipeline_started_event(self, mock_llm):
+        resp = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template", "locale": "zh-TW"},
+        )
+        events = _parse_sse_stream(resp.text)
+        started = next(e for e in events if e["event"] == "pipeline_started")
+        assert started["data"]["locale"] == "zh-TW"
+
+    def test_generation_receives_traditional_chinese_instruction(self):
+        style_output = SkillOutput(
+            text="style ok",
+            metadata={
+                "style_analysis": {
+                    "tone_keywords": ["bold"],
+                    "structural_patterns": ["hook first"],
+                    "vocabulary_notes": "direct voice",
+                }
+            },
+        )
+        generation_output = SkillOutput(
+            text="generation ok",
+            metadata={
+                "caption": "Caption",
+                "hook_options": ["Hook A"],
+                "hashtags": ["tag1"],
+                "carousel_outline": [{"title": "Slide 1", "body": "Body 1"}],
+                "reel_script": "Reel script",
+            },
+        )
+        scoring_output = SkillOutput(
+            text="score ok",
+            metadata={
+                "scorecard": {
+                    "hook_strength": 8,
+                    "cta_clarity": 7,
+                    "hashtag_relevance": 9,
+                    "platform_fit": 8,
+                    "tone_match": 7,
+                    "originality": 6,
+                }
+            },
+        )
+        generation_mock = MagicMock(return_value=generation_output)
+
+        with (
+            patch.object(StyleAnalysisSkill, "run", return_value=style_output),
+            patch.object(InstagramGenerationSkill, "run", generation_mock),
+            patch.object(ContentScoringSkill, "run", return_value=scoring_output),
+        ):
+            resp = client.post(
+                "/api/instagram/generate",
+                json={"topic": "test", "template_text": "template", "locale": "zh-TW"},
+            )
+
+        assert resp.status_code == 200
+        assert generation_mock.call_count == 1
+        skill_input = generation_mock.call_args.args[0]
+        assert skill_input.context["locale"] == "zh-TW"
+        assert "Traditional Chinese for Taiwan" in skill_input.context["template_text"]
+
     def test_style_analysis_failure_emits_error_event(self):
         with patch.object(
             StyleAnalysisSkill,

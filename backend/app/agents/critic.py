@@ -1,5 +1,6 @@
 from .base import BaseAgent
 from ..core.brief import Brief
+from ..core.localization import DEFAULT_LOCALE, locale_instruction
 import json
 
 # Re-export from neoxra-core. Local imports (e.g. from ..agents.critic import CriticReview)
@@ -17,7 +18,15 @@ class CriticAgent(BaseAgent):
     def __init__(self):
         super().__init__(name="Critic")
 
-    def build_prompt(self, brief: Brief, instagram_output: str, threads_output: str, linkedin_output: str, voice_profile: dict) -> str:
+    def build_prompt(
+        self,
+        brief: Brief,
+        instagram_output: str,
+        threads_output: str,
+        linkedin_output: str,
+        voice_profile: dict,
+        locale: str = DEFAULT_LOCALE,
+    ) -> str:
         avoid_phrases = ", ".join(f'"{p}"' for p in voice_profile.get("content_rules", {}).get("avoid_phrases", []))
         voice_not = ", ".join(voice_profile.get("voice", {}).get("not", []))
         voice_adj = ", ".join(voice_profile.get("voice", {}).get("adjectives", []))
@@ -31,6 +40,9 @@ BRAND VOICE:
 - Never sound: {voice_not}
 - Avoid phrases: {avoid_phrases}
 - Signature moves: lead with specific observation, show the work, end with question or next step
+
+OUTPUT LANGUAGE:
+- {locale_instruction(locale)}
 
 === INSTAGRAM ===
 {instagram_output}
@@ -54,6 +66,7 @@ STEP 2 — REWRITE each post to fix the issues you found:
 - Make each post's angle distinct from the others
 - Keep hashtags specific or remove them entirely
 - Shorten by at least 15%
+- Keep all rewritten outputs in the requested output language
 
 Return ONLY valid JSON with this exact structure:
 {{
@@ -66,13 +79,22 @@ Return ONLY valid JSON with this exact structure:
 Return ONLY the JSON, no other text.
 """
 
-    def run(self, brief: Brief, instagram_output: str, threads_output: str, linkedin_output: str, voice_profile: dict) -> CriticReview:
+    def run(
+        self,
+        brief: Brief,
+        instagram_output: str,
+        threads_output: str,
+        linkedin_output: str,
+        voice_profile: dict,
+        locale: str = DEFAULT_LOCALE,
+    ) -> CriticReview:
         prompt = self.build_prompt(
             brief=brief,
             instagram_output=instagram_output,
             threads_output=threads_output,
             linkedin_output=linkedin_output,
-            voice_profile=voice_profile
+            voice_profile=voice_profile,
+            locale=locale,
         )
         response = self.generate(prompt, max_tokens=6000)
 

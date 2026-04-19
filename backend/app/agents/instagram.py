@@ -1,5 +1,6 @@
 from .base import BaseAgent, AgentOutput
 from ..core.brief import Brief
+from ..core.localization import DEFAULT_LOCALE, locale_instruction
 from typing import Optional
 
 
@@ -12,7 +13,14 @@ class InstagramAgent(BaseAgent):
     def __init__(self):
         super().__init__(name="Instagram")
 
-    def build_prompt(self, brief: Brief, threads_output: Optional[str] = None, linkedin_output: Optional[str] = None, is_refinement: bool = False) -> str:
+    def build_prompt(
+        self,
+        brief: Brief,
+        threads_output: Optional[str] = None,
+        linkedin_output: Optional[str] = None,
+        is_refinement: bool = False,
+        locale: str = DEFAULT_LOCALE,
+    ) -> str:
         prompt = f"""You are an Instagram content writer.
 
 {brief.to_string()}
@@ -25,6 +33,9 @@ Instagram prioritizes:
 - Strategic hashtags (3-5 specific ones)
 - Authentic, conversational tone
 - Emojis used sparingly
+
+OUTPUT LANGUAGE:
+- {locale_instruction(locale)}
 """
 
         if threads_output or linkedin_output:
@@ -41,11 +52,19 @@ Instagram prioritizes:
         prompt += "\nWrite the Instagram caption. Be specific and true to the brand voice."
         return prompt
 
-    def run(self, brief: Brief, threads_output: Optional[str] = None, linkedin_output: Optional[str] = None, is_refinement: bool = False) -> AgentOutput:
+    def run(
+        self,
+        brief: Brief,
+        threads_output: Optional[str] = None,
+        linkedin_output: Optional[str] = None,
+        is_refinement: bool = False,
+        locale: str = DEFAULT_LOCALE,
+    ) -> AgentOutput:
         prompt = self.build_prompt(
             brief=brief,
             threads_output=threads_output,
             linkedin_output=linkedin_output,
-            is_refinement=is_refinement
+            is_refinement=is_refinement,
+            locale=locale,
         )
         return self.generate_with_thinking(prompt)

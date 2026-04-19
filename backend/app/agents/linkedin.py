@@ -1,5 +1,6 @@
 from .base import BaseAgent, AgentOutput
 from ..core.brief import Brief
+from ..core.localization import DEFAULT_LOCALE, locale_instruction
 from typing import Optional
 
 
@@ -12,7 +13,14 @@ class LinkedInAgent(BaseAgent):
     def __init__(self):
         super().__init__(name="LinkedIn")
 
-    def build_prompt(self, brief: Brief, instagram_output: Optional[str] = None, threads_output: Optional[str] = None, is_refinement: bool = False) -> str:
+    def build_prompt(
+        self,
+        brief: Brief,
+        instagram_output: Optional[str] = None,
+        threads_output: Optional[str] = None,
+        is_refinement: bool = False,
+        locale: str = DEFAULT_LOCALE,
+    ) -> str:
         prompt = f"""You are a LinkedIn content writer.
 
 {brief.to_string()}
@@ -25,6 +33,9 @@ LinkedIn prioritizes:
 - Longer-form content accepted
 - Industry-relevant context
 - Value-driven, not self-promotional
+
+OUTPUT LANGUAGE:
+- {locale_instruction(locale)}
 """
 
         if instagram_output or threads_output:
@@ -41,11 +52,19 @@ LinkedIn prioritizes:
         prompt += "\nWrite the LinkedIn post. Be specific and true to the brand voice."
         return prompt
 
-    def run(self, brief: Brief, instagram_output: Optional[str] = None, threads_output: Optional[str] = None, is_refinement: bool = False) -> AgentOutput:
+    def run(
+        self,
+        brief: Brief,
+        instagram_output: Optional[str] = None,
+        threads_output: Optional[str] = None,
+        is_refinement: bool = False,
+        locale: str = DEFAULT_LOCALE,
+    ) -> AgentOutput:
         prompt = self.build_prompt(
             brief=brief,
             instagram_output=instagram_output,
             threads_output=threads_output,
-            is_refinement=is_refinement
+            is_refinement=is_refinement,
+            locale=locale,
         )
         return self.generate_with_thinking(prompt)
