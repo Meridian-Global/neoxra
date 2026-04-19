@@ -11,6 +11,7 @@ Today the product focuses on two demo-ready experiences:
 - Frontend: https://neoxra.com/
 - Backend: https://api.neoxra.com/
 - Instagram Studio: https://neoxra.com/instagram
+- Legal Demo: https://neoxra.com/demo/legal
 
 ## What the product does
 
@@ -22,6 +23,22 @@ The current product flow is:
 2. Generate live streamed output
 3. Review platform-ready drafts and structure
 4. Walk away with content that is easier to publish, refine, or demo
+
+## For engineers
+
+This repo is the product surface for Neoxra:
+
+- `frontend/` — Next.js app
+- `backend/` — FastAPI app
+- `docs/` — current deployment and architecture notes
+
+The AI engine lives in the private sibling repo `neoxra-core`.
+
+Useful docs:
+
+- [docs/architecture.md](./docs/architecture.md)
+- [docs/deployment.md](./docs/deployment.md)
+- [backend/.env.example](./backend/.env.example)
 
 ## Current product surfaces
 
@@ -42,17 +59,6 @@ It supports:
 - dark/light mode shared with the landing page
 - a presentation-friendly results layout
 
-## Why this repo exists
-
-This repo contains the product surface:
-- Next.js frontend
-- FastAPI backend
-- SSE streaming routes
-- app-layer integrations
-- local voice profiles
-
-The shared AI engine lives in the private sibling package `neoxra-core`.
-
 ## Quickstart
 
 ### Requirements
@@ -62,7 +68,7 @@ The shared AI engine lives in the private sibling package `neoxra-core`.
 - Anthropic API key
 - access to the private `neoxra-core` repo
 
-### Backend
+### 1. Backend
 
 ```bash
 cd backend
@@ -81,7 +87,7 @@ ANTHROPIC_API_KEY=...
 ANTHROPIC_MODEL=claude-haiku-4-5
 ```
 
-### Frontend
+### 2. Frontend
 
 ```bash
 cd frontend
@@ -103,6 +109,25 @@ npm run dev
 Open:
 - `http://localhost:3000/`
 - `http://localhost:3000/instagram`
+- `http://localhost:3000/demo/legal`
+
+## Demo walkthrough
+
+For a quick local demo:
+
+1. start the backend on `localhost:8000`
+2. start the frontend on `localhost:3000`
+3. open one of:
+   - `/`
+   - `/instagram`
+   - `/demo/legal`
+
+For backend demo readiness checks:
+
+```bash
+cd backend
+python scripts/check_demo_readiness.py --base-url http://127.0.0.1:8000
+```
 
 ## Environment
 
@@ -118,6 +143,37 @@ Most important variables:
 Frontend:
 - `NEXT_PUBLIC_API_BASE_URL`
 
+## Deployment
+
+Current production backend deployment uses Render from `backend/` with:
+
+- Root Directory: `backend`
+- Build Command: `bash render-build.sh`
+- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+For the full deployment guide, Docker build option, and environment details:
+
+- [docs/deployment.md](./docs/deployment.md)
+
+## Architecture summary
+
+Neoxra is intentionally split into two repos:
+
+- `neoxra`
+  product UI, API, deployment scripts, and app-facing integrations
+- `neoxra-core`
+  prompts, skills, structured models, and generation logic
+
+At runtime:
+
+- the frontend calls the FastAPI backend
+- the backend imports and executes `neoxra-core`
+- the backend validates and streams results back to the frontend
+
+For the fuller architecture note:
+
+- [docs/architecture.md](./docs/architecture.md)
+
 ## Production notes
 
 The backend depends on the private `neoxra-core` package. A healthy production deploy must be able to import `neoxra_core`.
@@ -125,19 +181,15 @@ The backend depends on the private `neoxra-core` package. A healthy production d
 Useful checks:
 - `GET /healthz`
 - `GET /health/core`
+- `GET /health/generation-metrics`
 
 The backend now also returns `X-Request-ID` headers and logs request IDs plus pipeline stage transitions to make production debugging easier.
-
-## Repo layout
-
-- `frontend/` — Next.js app
-- `backend/` — FastAPI app, tests, scripts, voice profiles
-- `docs/` — design and implementation notes
 
 ## Notes
 
 - `/` remains the main landing page
 - `/instagram` is a product subpage, not the default route
+- `/demo/legal` is a dedicated legal-services demo page
 - `neoxra-core` is required for meaningful backend runs
 
 ## License
