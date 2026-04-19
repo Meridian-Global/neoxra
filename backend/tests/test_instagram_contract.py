@@ -47,6 +47,11 @@ SCORING_JSON = json.dumps({
 # An empty dict means the payload must be exactly {}.
 
 EVENT_SCHEMA = {
+    "pipeline_started": {
+        "topic": str,
+        "goal": str,
+        "locale": str,
+    },
     "style_analysis_started": {},
     "style_analysis_completed": {
         "tone_keywords": list,
@@ -115,7 +120,7 @@ def _fire_pipeline() -> list[dict]:
     ):
         resp = client.post(
             "/api/instagram/generate",
-            json={"topic": "test", "template_text": "template"},
+            json={"topic": "test", "template_text": "template", "locale": "en"},
         )
     assert resp.status_code == 200
     return _parse_sse_stream(resp.text)
@@ -131,8 +136,8 @@ class TestSSEContract:
         self.events = _fire_pipeline()
 
     def test_exact_event_count(self):
-        assert len(self.events) == 7, (
-            f"Expected 7 SSE events, got {len(self.events)}: "
+        assert len(self.events) == 8, (
+            f"Expected 8 SSE events, got {len(self.events)}: "
             f"{[e['event'] for e in self.events]}"
         )
 

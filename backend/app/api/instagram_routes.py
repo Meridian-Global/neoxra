@@ -17,6 +17,11 @@ from ..core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
 )
+from ..core.output_validation import (
+    validate_instagram_generation_payload,
+    validate_scorecard_payload,
+    validate_style_analysis_payload,
+)
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 _INSTAGRAM_IMPORT_ERROR = None
@@ -176,7 +181,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     text=generation_request.template_text,
                     context={"style_examples": generation_request.style_examples},
                 ))
-                style_data = style_output.metadata["style_analysis"]
+                style_data = validate_style_analysis_payload(style_output.metadata["style_analysis"])
                 style_analysis = StyleAnalysis(
                     tone_keywords=style_data["tone_keywords"],
                     structural_patterns=style_data["structural_patterns"],
@@ -202,7 +207,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         "style_analysis": style_data,
                     },
                 ))
-                gen_meta = gen_output.metadata
+                gen_meta = validate_instagram_generation_payload(gen_output.metadata)
                 content = InstagramContent(
                     caption=gen_meta["caption"],
                     hook_options=gen_meta["hook_options"],
@@ -234,7 +239,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         "goal": generation_request.goal,
                     },
                 ))
-                score_data = score_output.metadata["scorecard"]
+                score_data = validate_scorecard_payload(score_output.metadata["scorecard"])
                 scorecard = Scorecard(**score_data)
             except Exception as exc:
                 logger.exception("Instagram flow failed during scoring")

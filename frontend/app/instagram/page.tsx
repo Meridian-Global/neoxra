@@ -296,7 +296,7 @@ export default function InstagramPage() {
       try {
         for await (const { event, data: payload } of streamSSE(
           `${API_BASE_URL}/api/instagram/generate`,
-          data,
+          { ...data, locale: language },
           { signal: abort.signal, timeoutMs: 45_000 },
         )) {
           if (abort.signal.aborted) break
@@ -376,7 +376,7 @@ export default function InstagramPage() {
         }
       }
     },
-    [copy],
+    [copy, language],
   )
 
   function handleCancel() {

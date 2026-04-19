@@ -434,6 +434,7 @@ export default function LegalDemoPage() {
             topic: data.topic,
             template_text: enrichedTemplate,
             goal: data.goal,
+            locale: language,
           },
           { signal: abort.signal, timeoutMs: 45_000 },
         )) {
@@ -512,7 +513,7 @@ export default function LegalDemoPage() {
         }
       }
     },
-    [clearResults, copy, selectedVoice],
+    [clearResults, copy, language, selectedVoice],
   )
 
   function handleCancel() {

@@ -11,6 +11,7 @@ from ..core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
 )
+from ..core.output_validation import validate_core_pipeline_event
 
 router = APIRouter()
 run_pipeline_stream = None
@@ -133,6 +134,8 @@ async def run_pipeline(req: RunRequest, request: Request):
             # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
             for event in pipeline_runner(req.idea, req.voice_profile, req.locale):
                 event_name = event.get("event", "unknown")
+                if event_name not in {"planner_started", "instagram_pass1_started", "threads_pass1_started", "linkedin_pass1_started", "instagram_pass2_started", "threads_pass2_started", "linkedin_pass2_started", "critic_started", "error"}:
+                    event["data"] = validate_core_pipeline_event(event_name, event.get("data", {}))
                 _log_pipeline_event(event_name, locale=req.locale)
                 if event_name == "pipeline_completed":
                     completed = True

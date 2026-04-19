@@ -208,6 +208,45 @@ class TestInstagramSSERoute:
         assert skill_input.context["locale"] == "zh-TW"
         assert "Traditional Chinese for Taiwan" in skill_input.context["template_text"]
 
+    def test_invalid_generation_payload_emits_error_event(self):
+        style_output = SkillOutput(
+            text="style ok",
+            metadata={
+                "style_analysis": {
+                    "tone_keywords": ["bold"],
+                    "structural_patterns": ["hook first"],
+                    "vocabulary_notes": "direct voice",
+                }
+            },
+        )
+        invalid_generation_output = SkillOutput(
+            text="generation ok",
+            metadata={
+                "caption": "",
+                "hook_options": ["Hook A"],
+                "hashtags": ["tag1"],
+                "carousel_outline": [{"title": "Slide 1", "body": "Body 1"}],
+                "reel_script": "Reel script",
+            },
+        )
+        with (
+            patch.object(StyleAnalysisSkill, "run", return_value=style_output),
+            patch.object(InstagramGenerationSkill, "run", return_value=invalid_generation_output),
+        ):
+            resp = client.post(
+                "/api/instagram/generate",
+                json={"topic": "test", "template_text": "template"},
+            )
+        events = _parse_sse_stream(resp.text)
+        assert [event["event"] for event in events] == [
+            "pipeline_started",
+            "style_analysis_started",
+            "style_analysis_completed",
+            "generation_started",
+            "error",
+        ]
+        assert events[-1]["data"]["stage"] == "generation"
+
     def test_style_analysis_failure_emits_error_event(self):
         with patch.object(
             StyleAnalysisSkill,

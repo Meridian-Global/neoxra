@@ -92,6 +92,40 @@ def test_core_route_accepts_locale(monkeypatch):
     assert '"locale": "zh-TW"' in response.text
 
 
+def test_core_route_emits_error_when_completed_payload_is_invalid(monkeypatch):
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
+        yield {"event": "planner_started", "data": {}}
+        yield {
+            "event": "pipeline_completed",
+            "data": {
+                "brief": {
+                    "original_idea": "hello",
+                    "core_angle": "angle",
+                    "target_audience": "audience",
+                    "tone": "tone",
+                    "instagram_notes": "ig",
+                    "threads_notes": "th",
+                    "linkedin_notes": "li",
+                },
+                "instagram": "",
+                "threads": "threads",
+                "linkedin": "linkedin",
+                "instagram_final": "ig final",
+                "threads_final": "th final",
+                "linkedin_final": "li final",
+                "critic_notes": "notes",
+            },
+        }
+
+    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+
+    client = TestClient(app)
+    response = client.post("/api/run", json={"idea": "hello"})
+
+    assert response.status_code == 200
+    assert "event: error" in response.text
+
+
 def test_linkedin_publish_route_exists(monkeypatch):
     def fake_publish_to_linkedin(content: str, access_token: str, person_urn: str):
         assert content == "test post"
