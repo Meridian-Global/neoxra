@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
+import { DemoAccessGate } from '../../components/DemoAccessGate'
 import { InstagramForm } from '../../components/InstagramForm'
 import { InstagramResult as InstagramResultView } from '../../components/InstagramResult'
 import { ScorecardRadar } from '../../components/ScorecardRadar'
@@ -9,6 +10,8 @@ import { CarouselPreview } from '../../components/CarouselPreview'
 import { LanguageToggle } from '../../components/LanguageToggle'
 import { useLanguage } from '../../components/LanguageProvider'
 import { API_BASE_URL } from '../../lib/api'
+import { buildDemoHeaders } from '../../lib/demo-access'
+import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { getInstagramSampleResult } from '../../lib/instagram-demo'
 import { APIError, streamSSE } from '../../lib/sse'
 import type {
@@ -79,6 +82,7 @@ function createInstagramCopy(language: 'en' | 'zh-TW') {
         unavailable: '系統暫時無法使用，請稍後再試。',
         generic: '發生了一點問題，請再試一次。',
         timeout: '生成時間過長，請重新嘗試。',
+        access: '這個 demo 需要有效的存取權限。請重新輸入 access code，或確認 signed link 尚未過期。',
       },
       header: {
         back: '返回首頁',
@@ -118,6 +122,18 @@ function createInstagramCopy(language: 'en' | 'zh-TW') {
         title: '生成已中止',
         reset: '重設',
         sample: '使用示範輸出',
+      },
+      access: {
+        eyebrow: '客戶 demo 存取',
+        title: '這個 demo 需要存取碼或已簽章的連結。',
+        body: '若你是針對客戶的展示場景，請輸入 demo access code，或直接使用已授權的 signed link 進入。',
+        inputLabel: 'Demo access code',
+        inputPlaceholder: '輸入本次 demo 使用的 access code',
+        submitLabel: '解鎖 demo',
+        loadingLabel: '驗證中…',
+        signedLinkLoaded: '如果你是透過 signed link 進入，系統會自動保留這次存取。',
+        invalidCode: 'Access code 無效，或這個連結已過期。',
+        clearAccess: '清除存取',
       },
       output: {
         eyebrow: '輸出',
@@ -177,6 +193,7 @@ function createInstagramCopy(language: 'en' | 'zh-TW') {
       unavailable: 'System temporarily unavailable. Please retry.',
       generic: 'Something went wrong. Please try again.',
       timeout: 'The generation took too long. Please retry.',
+      access: 'This demo requires valid access. Re-enter the access code or confirm the signed link is still valid.',
     },
     header: {
       back: 'Back to landing',
@@ -216,6 +233,18 @@ function createInstagramCopy(language: 'en' | 'zh-TW') {
       title: 'Generation stopped',
       reset: 'Reset',
       sample: 'Use Sample Output',
+    },
+    access: {
+      eyebrow: 'Client demo access',
+      title: 'This demo requires an access code or signed link.',
+      body: 'For client-facing meetings, enter the demo access code below or open the signed link that was shared with you.',
+      inputLabel: 'Demo access code',
+      inputPlaceholder: 'Enter the access code for this client demo',
+      submitLabel: 'Unlock demo',
+      loadingLabel: 'Checking access…',
+      signedLinkLoaded: 'If you opened a signed link, access will be preserved automatically on this device.',
+      invalidCode: 'That access code is invalid or this signed link has expired.',
+      clearAccess: 'Clear access',
     },
     output: {
       eyebrow: 'Output',
@@ -258,6 +287,7 @@ export default function InstagramPage() {
   const { language } = useLanguage()
   const copy = createInstagramCopy(language)
   const sampleResult = getInstagramSampleResult(language)
+  const demoConfig = useMemo(() => getDemoSurfaceConfig('instagram'), [])
   const [preview, setPreview] = useState<SubmitPayload>({
     topic: '',
     template_text: '',
@@ -272,6 +302,7 @@ export default function InstagramPage() {
   const [scorecard, setScorecard]         = useState<Scorecard | null>(null)
   const [critique, setCritique]           = useState<string | null>(null)
   const [resultOrigin, setResultOrigin]   = useState<'live' | 'sample' | null>(null)
+  const [demoToken, setDemoToken]         = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -297,7 +328,11 @@ export default function InstagramPage() {
         for await (const { event, data: payload } of streamSSE(
           `${API_BASE_URL}/api/instagram/generate`,
           { ...data, locale: language },
-          { signal: abort.signal, timeoutMs: 45_000 },
+          {
+            signal: abort.signal,
+            timeoutMs: 45_000,
+            headers: buildDemoHeaders(demoConfig.apiSurface, demoToken),
+          },
         )) {
           if (abort.signal.aborted) break
           if (!sawStreamEvent) {
@@ -370,13 +405,20 @@ export default function InstagramPage() {
         }
       } catch (err) {
         if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
+          if (err instanceof APIError && err.status === 401) {
+            setDemoToken(null)
+            setError(copy.errors.access)
+            setStatus('error')
+            setCurrentStage('')
+            return
+          }
           setError(toFriendlyError(err, copy))
           setStatus('error')
           setCurrentStage('')
         }
       }
     },
-    [copy, language],
+    [copy, demoConfig.apiSurface, demoToken, language],
   )
 
   function handleCancel() {
@@ -429,6 +471,7 @@ export default function InstagramPage() {
     : status === 'completed'
       ? copy.stageSequence.length
       : -1
+  const needsAccess = demoConfig.accessMode === 'gated' && !demoToken
 
   const editPanel =
     hasResults || status === 'error' ? (
@@ -476,6 +519,34 @@ export default function InstagramPage() {
     <main className="relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/10" />
       <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-10 px-5 pb-20 pt-8 sm:px-6 lg:px-8 lg:pb-28">
+        {needsAccess ? (
+          <section className="pt-12 sm:pt-16">
+            <div className="mb-8 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5">
+                <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+                Neoxra
+              </div>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/"
+                  className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5 text-sm text-[var(--subtle)] transition hover:border-white/20 hover:text-[var(--text)]"
+                >
+                  {copy.header.back}
+                </Link>
+                <LanguageToggle />
+                <ThemeToggle />
+              </div>
+            </div>
+            <DemoAccessGate
+              surface={demoConfig.apiSurface}
+              copy={copy.access}
+              onAccessReady={setDemoToken}
+            />
+          </section>
+        ) : null}
+
+        {!needsAccess ? (
+          <>
         <section className="pt-8 sm:pt-12">
           <div className="mb-12 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5">
@@ -728,6 +799,8 @@ export default function InstagramPage() {
             </div>
           </section>
         )}
+          </>
+        ) : null}
       </div>
     </main>
   )

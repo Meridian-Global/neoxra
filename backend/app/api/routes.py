@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from ..core.error_handling import generation_error_payload, public_generation_error, validation_error_for_stage
+from ..core.demo_access import require_demo_access
 from ..core.localization import DEFAULT_LOCALE, validate_locale
 from ..core.logging_utils import format_log_fields, get_request_id
 from ..core.neoxra_core_diagnostics import get_neoxra_core_diagnostics
@@ -148,6 +149,11 @@ async def run_pipeline(req: RunRequest, request: Request):
       pipeline_completed
     """
     _require_anthropic_api_key()
+    demo_surface = require_demo_access(
+        request,
+        default_surface="landing",
+        allowed_surfaces={"landing"},
+    )
     pipeline_runner = _get_pipeline_runner()
     concurrency_lease = await enforce_generation_limits(request, CORE_ROUTE_KEY)
     logger.info(
@@ -159,6 +165,8 @@ async def run_pipeline(req: RunRequest, request: Request):
                 "idea_length": len(req.idea),
                 "voice_profile": req.voice_profile,
                 "locale": req.locale,
+                "demo_surface": demo_surface,
+                "runtime_mode": getattr(request.state, "runtime_mode", "unknown"),
                 "path": request.url.path,
             }
         ),
@@ -173,10 +181,26 @@ async def run_pipeline(req: RunRequest, request: Request):
                 tracker.log_start(
                     voice_profile=req.voice_profile,
                     idea_length=len(req.idea),
+                    demo_surface=demo_surface,
                     path=request.url.path,
                 )
-                _log_pipeline_event("pipeline_started", voice_profile=req.voice_profile, locale=req.locale)
-                yield sse({"event": "pipeline_started", "data": {"idea": req.idea, "voice_profile": req.voice_profile, "locale": req.locale}})
+                _log_pipeline_event(
+                    "pipeline_started",
+                    voice_profile=req.voice_profile,
+                    locale=req.locale,
+                    demo_surface=demo_surface,
+                )
+                yield sse(
+                    {
+                        "event": "pipeline_started",
+                        "data": {
+                            "idea": req.idea,
+                            "voice_profile": req.voice_profile,
+                            "locale": req.locale,
+                            "demo_surface": demo_surface,
+                        },
+                    }
+                )
 
                 # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
                 for event in pipeline_runner(req.idea, req.voice_profile, req.locale):
@@ -209,7 +233,7 @@ async def run_pipeline(req: RunRequest, request: Request):
                             return
                     if event_name.endswith("_completed") and stage_name is not None:
                         tracker.stage_completed(stage_name)
-                    _log_pipeline_event(event_name, locale=req.locale)
+                    _log_pipeline_event(event_name, locale=req.locale, demo_surface=demo_surface)
                     if event_name == "pipeline_completed":
                         completed = True
                         tracker.complete(voice_profile=req.voice_profile)

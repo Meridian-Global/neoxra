@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from ..core.demo_access import require_demo_access
 from ..core.error_handling import generation_error_payload, public_generation_error, validation_error_for_stage
 from ..core.localization import (
     DEFAULT_LOCALE,
@@ -152,6 +153,11 @@ def _require_anthropic_api_key() -> None:
 async def instagram_generate(req: InstagramGenerateRequest, request: Request):
     _require_instagram_dependencies()
     _require_anthropic_api_key()
+    demo_surface = require_demo_access(
+        request,
+        default_surface="instagram",
+        allowed_surfaces={"instagram", "legal"},
+    )
     logger.info(
         "instagram generation request accepted %s",
         format_log_fields(
@@ -161,6 +167,8 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 "topic_length": len(req.topic),
                 "goal": req.goal,
                 "locale": req.locale,
+                "demo_surface": demo_surface,
+                "runtime_mode": getattr(request.state, "runtime_mode", "unknown"),
                 "style_examples": len(req.style_examples),
                 "path": request.url.path,
             }
@@ -200,21 +208,28 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     goal=generation_request.goal,
                     topic_length=len(generation_request.topic),
                     style_examples=len(generation_request.style_examples),
+                    demo_surface=demo_surface,
                     path=request.url.path,
                 )
-                _log_instagram_event("pipeline_started", goal=generation_request.goal, locale=req.locale)
+                _log_instagram_event(
+                    "pipeline_started",
+                    goal=generation_request.goal,
+                    locale=req.locale,
+                    demo_surface=demo_surface,
+                )
                 yield _sse(
                     "pipeline_started",
                     {
                         "topic": generation_request.topic,
                         "goal": generation_request.goal,
                         "locale": req.locale,
+                        "demo_surface": demo_surface,
                     },
                 )
 
                 # Step 1: Style analysis
                 tracker.stage_started("style_analysis")
-                _log_instagram_event("style_analysis_started", locale=req.locale)
+                _log_instagram_event("style_analysis_started", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("style_analysis_started", {})
                 try:
                     style_output = style_skill.run(SkillInput(
@@ -264,12 +279,12 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     )
                     return
                 tracker.stage_completed("style_analysis")
-                _log_instagram_event("style_analysis_completed", locale=req.locale)
+                _log_instagram_event("style_analysis_completed", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("style_analysis_completed", style_data)
 
                 # Step 2: Content generation
                 tracker.stage_started("generation")
-                _log_instagram_event("generation_started", locale=req.locale)
+                _log_instagram_event("generation_started", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("generation_started", {})
                 try:
                     gen_output = gen_skill.run(SkillInput(
@@ -329,12 +344,12 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     )
                     return
                 tracker.stage_completed("generation")
-                _log_instagram_event("generation_completed", locale=req.locale)
+                _log_instagram_event("generation_completed", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("generation_completed", gen_meta)
 
                 # Step 3: Scoring
                 tracker.stage_started("scoring")
-                _log_instagram_event("scoring_started", locale=req.locale)
+                _log_instagram_event("scoring_started", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("scoring_started", {})
                 try:
                     score_output = scoring_skill.run(SkillInput(
@@ -386,7 +401,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     )
                     return
                 tracker.stage_completed("scoring")
-                _log_instagram_event("scoring_completed", locale=req.locale)
+                _log_instagram_event("scoring_completed", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("scoring_completed", score_data)
 
                 # Final result
@@ -400,7 +415,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 result_dict["scorecard"]["average"] = scorecard.average
                 completed = True
                 tracker.complete(goal=generation_request.goal)
-                _log_instagram_event("pipeline_completed", locale=req.locale)
+                _log_instagram_event("pipeline_completed", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("pipeline_completed", result_dict)
             except Exception as exc:
                 logger.exception("Instagram flow failed before completion")

@@ -7,6 +7,7 @@ export interface SSEEvent {
 export interface StreamSSEOptions {
   signal?: AbortSignal
   timeoutMs?: number
+  headers?: Record<string, string>
 }
 
 export class APIError extends Error {
@@ -34,12 +35,19 @@ export async function* streamSSE(
 ): AsyncGenerator<SSEEvent> {
   const options =
     signalOrOptions instanceof AbortSignal
-      ? { signal: signalOrOptions, timeoutMs: 45_000 }
-      : { signal: signalOrOptions?.signal, timeoutMs: signalOrOptions?.timeoutMs ?? 45_000 }
+      ? { signal: signalOrOptions, timeoutMs: 45_000, headers: undefined }
+      : {
+          signal: signalOrOptions?.signal,
+          timeoutMs: signalOrOptions?.timeoutMs ?? 45_000,
+          headers: signalOrOptions?.headers,
+        }
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers ?? {}),
+    },
     body: JSON.stringify(body),
     signal: options.signal,
   })
