@@ -150,6 +150,9 @@ async def run_pipeline(req: RunRequest, request: Request):
                 if event_name not in _PIPELINE_NON_PAYLOAD_EVENTS:
                     try:
                         event["data"] = validate_core_pipeline_event(event_name, event.get("data", {}))
+                    # Catch both Pydantic ValidationError (schema mismatch) and ValueError
+                    # (explicit pre-checks in output_validation). Both represent bad model
+                    # output; both are logged in full server-side and hidden from the client.
                     except (ValidationError, ValueError):
                         logger.exception("Core pipeline output validation failed event=%s", event_name)
                         yield sse({

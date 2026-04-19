@@ -147,9 +147,9 @@ def validate_scorecard_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def validate_core_pipeline_event(event_name: str, payload: dict[str, Any]) -> dict[str, Any]:
     if event_name == "planner_completed":
         if not isinstance(payload, dict):
-            raise ValueError("payload must be a dict")
+            raise ValueError('payload must be a dictionary')
         if "brief" not in payload:
-            raise ValueError("brief is required")
+            raise ValueError('payload must contain a "brief" key')
         return {"brief": BriefPayload.model_validate(payload["brief"]).model_dump()}
 
     if event_name in {
