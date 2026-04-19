@@ -23,6 +23,14 @@ from ..core.output_validation import (
     validate_style_analysis_payload,
 )
 from ..core.pipeline_observability import PipelineLifecycleTracker
+from ..core.request_guards import (
+    INSTAGRAM_ROUTE_KEY,
+    enforce_generation_limits,
+    get_max_style_example_length,
+    get_max_style_examples,
+    get_max_template_text_length,
+    get_max_topic_length,
+)
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 _INSTAGRAM_IMPORT_ERROR = None
@@ -75,6 +83,12 @@ class InstagramGenerateRequest(BaseModel):
     def must_not_be_blank(cls, v: str, info) -> str:
         if not v or not v.strip():
             raise ValueError(f"{info.field_name} must not be empty or whitespace-only")
+        if info.field_name == "topic" and len(v.strip()) > get_max_topic_length():
+            raise ValueError(f"topic must be <= {get_max_topic_length()} characters")
+        if info.field_name == "template_text" and len(v.strip()) > get_max_template_text_length():
+            raise ValueError(
+                f"template_text must be <= {get_max_template_text_length()} characters"
+            )
         return v
 
     @field_validator("goal")
@@ -88,6 +102,20 @@ class InstagramGenerateRequest(BaseModel):
     @classmethod
     def must_be_supported_locale(cls, v: str) -> str:
         return validate_locale(v)
+
+    @field_validator("style_examples")
+    @classmethod
+    def style_examples_must_be_bounded(cls, v: list[str]) -> list[str]:
+        if len(v) > get_max_style_examples():
+            raise ValueError(f"style_examples must contain <= {get_max_style_examples()} items")
+        for example in v:
+            if not isinstance(example, str) or not example.strip():
+                raise ValueError("style_examples items must be non-empty strings")
+            if len(example.strip()) > get_max_style_example_length():
+                raise ValueError(
+                    f"style_examples items must be <= {get_max_style_example_length()} characters"
+                )
+        return v
 
 
 def _sse(event: str, data: dict) -> str:
@@ -156,6 +184,8 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    concurrency_lease = enforce_generation_limits(request, INSTAGRAM_ROUTE_KEY)
+
     async def stream():
         completed = False
         style_skill = StyleAnalysisSkill()
@@ -164,189 +194,192 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
         tracker = PipelineLifecycleTracker(logger=logger, pipeline_name="instagram", locale=req.locale)
 
         try:
-            localized_template_text = append_locale_instruction(
-                generation_request.template_text,
-                req.locale,
-            )
-
-            tracker.log_start(
-                goal=generation_request.goal,
-                topic_length=len(generation_request.topic),
-                style_examples=len(generation_request.style_examples),
-                path=request.url.path,
-            )
-            _log_instagram_event("pipeline_started", goal=generation_request.goal, locale=req.locale)
-            yield _sse(
-                "pipeline_started",
-                {
-                    "topic": generation_request.topic,
-                    "goal": generation_request.goal,
-                    "locale": req.locale,
-                },
-            )
-
-            # Step 1: Style analysis
-            tracker.stage_started("style_analysis")
-            _log_instagram_event("style_analysis_started", locale=req.locale)
-            yield _sse("style_analysis_started", {})
             try:
-                style_output = style_skill.run(SkillInput(
-                    text=generation_request.template_text,
-                    context={"style_examples": generation_request.style_examples},
-                ))
-                style_data = validate_style_analysis_payload(style_output.metadata["style_analysis"])
-                style_analysis = StyleAnalysis(
-                    tone_keywords=style_data["tone_keywords"],
-                    structural_patterns=style_data["structural_patterns"],
-                    vocabulary_notes=style_data["vocabulary_notes"],
+                localized_template_text = append_locale_instruction(
+                    generation_request.template_text,
+                    req.locale,
                 )
-            except ValidationError:
-                logger.exception("Instagram flow failed during style analysis")
-                tracker.fail(
-                    stage="style_analysis",
-                    failure_reason="output_validation_failed",
-                    error_type="ValidationError",
-                    message=_OUTPUT_VALIDATION_ERROR_MSG,
-                )
-                yield _sse("error", {"stage": "style_analysis", "message": _OUTPUT_VALIDATION_ERROR_MSG})
-                return
-            except Exception as exc:
-                logger.exception("Instagram flow failed during style analysis")
-                tracker.fail(
-                    stage="style_analysis",
-                    failure_reason="stage_exception",
-                    error_type=type(exc).__name__,
-                    message=str(exc),
-                )
-                yield _sse("error", {"stage": "style_analysis", "message": str(exc)})
-                return
-            tracker.stage_completed("style_analysis")
-            _log_instagram_event("style_analysis_completed", locale=req.locale)
-            yield _sse("style_analysis_completed", style_data)
 
-            # Step 2: Content generation
-            tracker.stage_started("generation")
-            _log_instagram_event("generation_started", locale=req.locale)
-            yield _sse("generation_started", {})
-            try:
-                gen_output = gen_skill.run(SkillInput(
-                    text=generation_request.topic,
-                    context={
-                        "template_text": localized_template_text,
+                tracker.log_start(
+                    goal=generation_request.goal,
+                    topic_length=len(generation_request.topic),
+                    style_examples=len(generation_request.style_examples),
+                    path=request.url.path,
+                )
+                _log_instagram_event("pipeline_started", goal=generation_request.goal, locale=req.locale)
+                yield _sse(
+                    "pipeline_started",
+                    {
+                        "topic": generation_request.topic,
                         "goal": generation_request.goal,
                         "locale": req.locale,
-                        "style_analysis": style_data,
                     },
-                ))
-                gen_meta = validate_instagram_generation_payload(gen_output.metadata)
-                content = InstagramContent(
-                    caption=gen_meta["caption"],
-                    hook_options=gen_meta["hook_options"],
-                    hashtags=gen_meta["hashtags"],
-                    carousel_outline=[
-                        CarouselSlide(title=s["title"], body=s["body"])
-                        for s in gen_meta["carousel_outline"]
-                    ],
-                    reel_script=gen_meta["reel_script"],
                 )
-            except ValidationError:
-                logger.exception("Instagram flow failed during generation")
-                tracker.fail(
-                    stage="generation",
-                    failure_reason="output_validation_failed",
-                    error_type="ValidationError",
-                    message=_OUTPUT_VALIDATION_ERROR_MSG,
+
+                # Step 1: Style analysis
+                tracker.stage_started("style_analysis")
+                _log_instagram_event("style_analysis_started", locale=req.locale)
+                yield _sse("style_analysis_started", {})
+                try:
+                    style_output = style_skill.run(SkillInput(
+                        text=generation_request.template_text,
+                        context={"style_examples": generation_request.style_examples},
+                    ))
+                    style_data = validate_style_analysis_payload(style_output.metadata["style_analysis"])
+                    style_analysis = StyleAnalysis(
+                        tone_keywords=style_data["tone_keywords"],
+                        structural_patterns=style_data["structural_patterns"],
+                        vocabulary_notes=style_data["vocabulary_notes"],
+                    )
+                except ValidationError:
+                    logger.exception("Instagram flow failed during style analysis")
+                    tracker.fail(
+                        stage="style_analysis",
+                        failure_reason="output_validation_failed",
+                        error_type="ValidationError",
+                        message=_OUTPUT_VALIDATION_ERROR_MSG,
+                    )
+                    yield _sse("error", {"stage": "style_analysis", "message": _OUTPUT_VALIDATION_ERROR_MSG})
+                    return
+                except Exception as exc:
+                    logger.exception("Instagram flow failed during style analysis")
+                    tracker.fail(
+                        stage="style_analysis",
+                        failure_reason="stage_exception",
+                        error_type=type(exc).__name__,
+                        message=str(exc),
+                    )
+                    yield _sse("error", {"stage": "style_analysis", "message": str(exc)})
+                    return
+                tracker.stage_completed("style_analysis")
+                _log_instagram_event("style_analysis_completed", locale=req.locale)
+                yield _sse("style_analysis_completed", style_data)
+
+                # Step 2: Content generation
+                tracker.stage_started("generation")
+                _log_instagram_event("generation_started", locale=req.locale)
+                yield _sse("generation_started", {})
+                try:
+                    gen_output = gen_skill.run(SkillInput(
+                        text=generation_request.topic,
+                        context={
+                            "template_text": localized_template_text,
+                            "goal": generation_request.goal,
+                            "locale": req.locale,
+                            "style_analysis": style_data,
+                        },
+                    ))
+                    gen_meta = validate_instagram_generation_payload(gen_output.metadata)
+                    content = InstagramContent(
+                        caption=gen_meta["caption"],
+                        hook_options=gen_meta["hook_options"],
+                        hashtags=gen_meta["hashtags"],
+                        carousel_outline=[
+                            CarouselSlide(title=s["title"], body=s["body"])
+                            for s in gen_meta["carousel_outline"]
+                        ],
+                        reel_script=gen_meta["reel_script"],
+                    )
+                except ValidationError:
+                    logger.exception("Instagram flow failed during generation")
+                    tracker.fail(
+                        stage="generation",
+                        failure_reason="output_validation_failed",
+                        error_type="ValidationError",
+                        message=_OUTPUT_VALIDATION_ERROR_MSG,
+                    )
+                    yield _sse("error", {"stage": "generation", "message": _OUTPUT_VALIDATION_ERROR_MSG})
+                    return
+                except Exception as exc:
+                    logger.exception("Instagram flow failed during generation")
+                    tracker.fail(
+                        stage="generation",
+                        failure_reason="stage_exception",
+                        error_type=type(exc).__name__,
+                        message=str(exc),
+                    )
+                    yield _sse("error", {"stage": "generation", "message": str(exc)})
+                    return
+                tracker.stage_completed("generation")
+                _log_instagram_event("generation_completed", locale=req.locale)
+                yield _sse("generation_completed", gen_meta)
+
+                # Step 3: Scoring
+                tracker.stage_started("scoring")
+                _log_instagram_event("scoring_started", locale=req.locale)
+                yield _sse("scoring_started", {})
+                try:
+                    score_output = scoring_skill.run(SkillInput(
+                        text=content.caption,
+                        context={
+                            "hook_options": content.hook_options,
+                            "hashtags": content.hashtags,
+                            "carousel_slide_count": len(content.carousel_outline),
+                            "reel_script": content.reel_script,
+                            "goal": generation_request.goal,
+                        },
+                    ))
+                    score_data = validate_scorecard_payload(score_output.metadata["scorecard"])
+                    scorecard = Scorecard(**score_data)
+                except ValidationError:
+                    logger.exception("Instagram flow failed during scoring")
+                    tracker.fail(
+                        stage="scoring",
+                        failure_reason="output_validation_failed",
+                        error_type="ValidationError",
+                        message=_OUTPUT_VALIDATION_ERROR_MSG,
+                    )
+                    yield _sse("error", {"stage": "scoring", "message": _OUTPUT_VALIDATION_ERROR_MSG})
+                    return
+                except Exception as exc:
+                    logger.exception("Instagram flow failed during scoring")
+                    tracker.fail(
+                        stage="scoring",
+                        failure_reason="stage_exception",
+                        error_type=type(exc).__name__,
+                        message=str(exc),
+                    )
+                    yield _sse("error", {"stage": "scoring", "message": str(exc)})
+                    return
+                tracker.stage_completed("scoring")
+                _log_instagram_event("scoring_completed", locale=req.locale)
+                yield _sse("scoring_completed", score_data)
+
+                # Final result
+                result = InstagramResult(
+                    content=content,
+                    scorecard=scorecard,
+                    critique=score_output.text,
+                    style_analysis=style_analysis,
                 )
-                yield _sse("error", {"stage": "generation", "message": _OUTPUT_VALIDATION_ERROR_MSG})
-                return
+                result_dict = asdict(result)
+                result_dict["scorecard"]["average"] = scorecard.average
+                completed = True
+                tracker.complete(goal=generation_request.goal)
+                _log_instagram_event("pipeline_completed", locale=req.locale)
+                yield _sse("pipeline_completed", result_dict)
             except Exception as exc:
-                logger.exception("Instagram flow failed during generation")
+                logger.exception("Instagram flow failed before completion")
                 tracker.fail(
-                    stage="generation",
-                    failure_reason="stage_exception",
+                    stage="pipeline",
+                    failure_reason="pipeline_exception",
                     error_type=type(exc).__name__,
-                    message=str(exc),
+                    message=str(exc) or "Pipeline failed before completion.",
                 )
-                yield _sse("error", {"stage": "generation", "message": str(exc)})
+                yield _sse("error", {"stage": "pipeline", "message": str(exc) or "Pipeline failed before completion."})
                 return
-            tracker.stage_completed("generation")
-            _log_instagram_event("generation_completed", locale=req.locale)
-            yield _sse("generation_completed", gen_meta)
 
-            # Step 3: Scoring
-            tracker.stage_started("scoring")
-            _log_instagram_event("scoring_started", locale=req.locale)
-            yield _sse("scoring_started", {})
-            try:
-                score_output = scoring_skill.run(SkillInput(
-                    text=content.caption,
-                    context={
-                        "hook_options": content.hook_options,
-                        "hashtags": content.hashtags,
-                        "carousel_slide_count": len(content.carousel_outline),
-                        "reel_script": content.reel_script,
-                        "goal": generation_request.goal,
-                    },
-                ))
-                score_data = validate_scorecard_payload(score_output.metadata["scorecard"])
-                scorecard = Scorecard(**score_data)
-            except ValidationError:
-                logger.exception("Instagram flow failed during scoring")
+            if not completed:
+                logger.error("Instagram pipeline stream ended without pipeline_completed")
                 tracker.fail(
-                    stage="scoring",
-                    failure_reason="output_validation_failed",
-                    error_type="ValidationError",
-                    message=_OUTPUT_VALIDATION_ERROR_MSG,
+                    stage="pipeline",
+                    failure_reason="stream_incomplete",
+                    message="Pipeline ended before pipeline_completed was emitted.",
                 )
-                yield _sse("error", {"stage": "scoring", "message": _OUTPUT_VALIDATION_ERROR_MSG})
-                return
-            except Exception as exc:
-                logger.exception("Instagram flow failed during scoring")
-                tracker.fail(
-                    stage="scoring",
-                    failure_reason="stage_exception",
-                    error_type=type(exc).__name__,
-                    message=str(exc),
-                )
-                yield _sse("error", {"stage": "scoring", "message": str(exc)})
-                return
-            tracker.stage_completed("scoring")
-            _log_instagram_event("scoring_completed", locale=req.locale)
-            yield _sse("scoring_completed", score_data)
-
-            # Final result
-            result = InstagramResult(
-                content=content,
-                scorecard=scorecard,
-                critique=score_output.text,
-                style_analysis=style_analysis,
-            )
-            result_dict = asdict(result)
-            result_dict["scorecard"]["average"] = scorecard.average
-            completed = True
-            tracker.complete(goal=generation_request.goal)
-            _log_instagram_event("pipeline_completed", locale=req.locale)
-            yield _sse("pipeline_completed", result_dict)
-        except Exception as exc:
-            logger.exception("Instagram flow failed before completion")
-            tracker.fail(
-                stage="pipeline",
-                failure_reason="pipeline_exception",
-                error_type=type(exc).__name__,
-                message=str(exc) or "Pipeline failed before completion.",
-            )
-            yield _sse("error", {"stage": "pipeline", "message": str(exc) or "Pipeline failed before completion."})
-            return
-
-        if not completed:
-            logger.error("Instagram pipeline stream ended without pipeline_completed")
-            tracker.fail(
-                stage="pipeline",
-                failure_reason="stream_incomplete",
-                message="Pipeline ended before pipeline_completed was emitted.",
-            )
-            yield _sse("error", {"stage": "pipeline", "message": "Pipeline ended before pipeline_completed was emitted."})
-        else:
-            logger.info("Instagram pipeline completed successfully")
+                yield _sse("error", {"stage": "pipeline", "message": "Pipeline ended before pipeline_completed was emitted."})
+            else:
+                logger.info("Instagram pipeline completed successfully")
+        finally:
+            concurrency_lease.release()
 
     return StreamingResponse(stream(), media_type="text/event-stream")

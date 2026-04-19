@@ -13,6 +13,12 @@ from ..core.neoxra_core_diagnostics import (
 )
 from ..core.output_validation import validate_core_pipeline_event
 from ..core.pipeline_observability import PipelineLifecycleTracker
+from ..core.request_guards import (
+    CORE_ROUTE_KEY,
+    enforce_generation_limits,
+    get_max_idea_length,
+    get_max_voice_profile_length,
+)
 
 router = APIRouter()
 run_pipeline_stream = None
@@ -44,6 +50,17 @@ class RunRequest(BaseModel):
     def must_not_be_blank(cls, value: str) -> str:
         if not value or not value.strip():
             raise ValueError("idea must not be empty or whitespace-only")
+        if len(value.strip()) > get_max_idea_length():
+            raise ValueError(f"idea must be <= {get_max_idea_length()} characters")
+        return value
+
+    @field_validator("voice_profile")
+    @classmethod
+    def voice_profile_must_be_reasonable_length(cls, value: str) -> str:
+        if len(value) > get_max_voice_profile_length():
+            raise ValueError(
+                f"voice_profile must be <= {get_max_voice_profile_length()} characters"
+            )
         return value
 
     @field_validator("locale")
@@ -137,6 +154,7 @@ async def run_pipeline(req: RunRequest, request: Request):
     """
     _require_anthropic_api_key()
     pipeline_runner = _get_pipeline_runner()
+    concurrency_lease = enforce_generation_limits(request, CORE_ROUTE_KEY)
     logger.info(
         "core pipeline request accepted %s",
         format_log_fields(
@@ -155,96 +173,99 @@ async def run_pipeline(req: RunRequest, request: Request):
         completed = False
         failed = False
         tracker = PipelineLifecycleTracker(logger=logger, pipeline_name="core", locale=req.locale)
-        tracker.log_start(
-            voice_profile=req.voice_profile,
-            idea_length=len(req.idea),
-            path=request.url.path,
-        )
-        _log_pipeline_event("pipeline_started", voice_profile=req.voice_profile, locale=req.locale)
-        yield sse({"event": "pipeline_started", "data": {"idea": req.idea, "voice_profile": req.voice_profile, "locale": req.locale}})
-
         try:
-            # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
-            for event in pipeline_runner(req.idea, req.voice_profile, req.locale):
-                event_name = event.get("event", "unknown")
-                stage_name = _stage_name_from_event(event_name)
-                if event_name.endswith("_started") and stage_name is not None:
-                    tracker.stage_started(stage_name)
-                if event_name not in _PIPELINE_NON_PAYLOAD_EVENTS:
-                    try:
-                        event["data"] = validate_core_pipeline_event(event_name, event.get("data", {}))
-                    # Catch both Pydantic ValidationError (schema mismatch) and ValueError
-                    # (explicit pre-checks in output_validation). Both represent bad model
-                    # output; both are logged in full server-side and hidden from the client.
-                    except (ValidationError, ValueError) as exc:
-                        logger.exception("Core pipeline output validation failed event=%s", event_name)
-                        tracker.fail(
-                            stage=stage_name or event_name,
-                            failure_reason="output_validation_failed",
-                            error_type=type(exc).__name__,
-                            message=str(exc) or f"Core pipeline output validation failed for {event_name}",
-                        )
-                        yield sse({
-                            "event": "error",
-                            "data": {
-                                "stage": event_name,
-                                "message": "Pipeline output validation failed.",
-                            },
-                        })
-                        return
-                if event_name.endswith("_completed") and stage_name is not None:
-                    tracker.stage_completed(stage_name)
-                _log_pipeline_event(event_name, locale=req.locale)
-                if event_name == "pipeline_completed":
-                    completed = True
-                    tracker.complete(voice_profile=req.voice_profile)
-                    yield sse(event)
-                    break
-                if event_name == "error":
-                    failed = True
-                    error_data = event.get("data", {})
-                    tracker.fail(
-                        stage=error_data.get("stage", "pipeline"),
-                        failure_reason="pipeline_error_event",
-                        message=error_data.get("message"),
-                    )
-                    yield sse(event)
-                    break
-                yield sse(event)
-        except Exception as exc:
-            logger.exception("Core pipeline failed before completion")
-            tracker.fail(
-                stage="pipeline",
-                failure_reason="pipeline_exception",
-                error_type=type(exc).__name__,
-                message=str(exc) or "Pipeline failed before completion.",
-            )
-            yield sse({
-                "event": "error",
-                "data": {
-                    "stage": "pipeline",
-                    "message": str(exc) or "Pipeline failed before completion.",
-                },
-            })
-            return
+            try:
+                tracker.log_start(
+                    voice_profile=req.voice_profile,
+                    idea_length=len(req.idea),
+                    path=request.url.path,
+                )
+                _log_pipeline_event("pipeline_started", voice_profile=req.voice_profile, locale=req.locale)
+                yield sse({"event": "pipeline_started", "data": {"idea": req.idea, "voice_profile": req.voice_profile, "locale": req.locale}})
 
-        if not completed and not failed:
-            logger.error("Core pipeline stream ended without pipeline_completed")
-            tracker.fail(
-                stage="pipeline",
-                failure_reason="stream_incomplete",
-                message="Pipeline ended before pipeline_completed was emitted.",
-            )
-            yield sse({
-                "event": "error",
-                "data": {
-                    "stage": "pipeline",
-                    "message": "Pipeline ended before pipeline_completed was emitted.",
-                },
-            })
-        elif failed:
-            logger.warning("Core pipeline terminated after emitting error event")
-        else:
-            logger.info("Core pipeline completed successfully")
+                # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
+                for event in pipeline_runner(req.idea, req.voice_profile, req.locale):
+                    event_name = event.get("event", "unknown")
+                    stage_name = _stage_name_from_event(event_name)
+                    if event_name.endswith("_started") and stage_name is not None:
+                        tracker.stage_started(stage_name)
+                    if event_name not in _PIPELINE_NON_PAYLOAD_EVENTS:
+                        try:
+                            event["data"] = validate_core_pipeline_event(event_name, event.get("data", {}))
+                        # Catch both Pydantic ValidationError (schema mismatch) and ValueError
+                        # (explicit pre-checks in output_validation). Both represent bad model
+                        # output; both are logged in full server-side and hidden from the client.
+                        except (ValidationError, ValueError) as exc:
+                            logger.exception("Core pipeline output validation failed event=%s", event_name)
+                            tracker.fail(
+                                stage=stage_name or event_name,
+                                failure_reason="output_validation_failed",
+                                error_type=type(exc).__name__,
+                                message=str(exc) or f"Core pipeline output validation failed for {event_name}",
+                            )
+                            yield sse({
+                                "event": "error",
+                                "data": {
+                                    "stage": event_name,
+                                    "message": "Pipeline output validation failed.",
+                                },
+                            })
+                            return
+                    if event_name.endswith("_completed") and stage_name is not None:
+                        tracker.stage_completed(stage_name)
+                    _log_pipeline_event(event_name, locale=req.locale)
+                    if event_name == "pipeline_completed":
+                        completed = True
+                        tracker.complete(voice_profile=req.voice_profile)
+                        yield sse(event)
+                        break
+                    if event_name == "error":
+                        failed = True
+                        error_data = event.get("data", {})
+                        tracker.fail(
+                            stage=error_data.get("stage", "pipeline"),
+                            failure_reason="pipeline_error_event",
+                            message=error_data.get("message"),
+                        )
+                        yield sse(event)
+                        break
+                    yield sse(event)
+            except Exception as exc:
+                logger.exception("Core pipeline failed before completion")
+                tracker.fail(
+                    stage="pipeline",
+                    failure_reason="pipeline_exception",
+                    error_type=type(exc).__name__,
+                    message=str(exc) or "Pipeline failed before completion.",
+                )
+                yield sse({
+                    "event": "error",
+                    "data": {
+                        "stage": "pipeline",
+                        "message": str(exc) or "Pipeline failed before completion.",
+                    },
+                })
+                return
+
+            if not completed and not failed:
+                logger.error("Core pipeline stream ended without pipeline_completed")
+                tracker.fail(
+                    stage="pipeline",
+                    failure_reason="stream_incomplete",
+                    message="Pipeline ended before pipeline_completed was emitted.",
+                )
+                yield sse({
+                    "event": "error",
+                    "data": {
+                        "stage": "pipeline",
+                        "message": "Pipeline ended before pipeline_completed was emitted.",
+                    },
+                })
+            elif failed:
+                logger.warning("Core pipeline terminated after emitting error event")
+            else:
+                logger.info("Core pipeline completed successfully")
+        finally:
+            concurrency_lease.release()
 
     return StreamingResponse(stream(), media_type="text/event-stream")

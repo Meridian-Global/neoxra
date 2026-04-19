@@ -8,6 +8,11 @@ from fastapi.testclient import TestClient
 from neoxra_core.skills.base import SkillOutput
 
 from app.core.generation_metrics import reset_generation_metrics
+from app.core.request_guards import (
+    GENERATION_GUARDS,
+    INSTAGRAM_ROUTE_KEY,
+    reset_generation_guards,
+)
 from app.main import app
 from app.api.instagram_routes import (
     ContentScoringSkill,
@@ -97,6 +102,7 @@ def mock_llm():
 class TestInstagramSSERoute:
     def test_content_type_is_event_stream(self, mock_llm):
         reset_generation_metrics()
+        reset_generation_guards()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -106,6 +112,7 @@ class TestInstagramSSERoute:
 
     def test_stream_contains_exactly_7_events_in_order(self, mock_llm):
         reset_generation_metrics()
+        reset_generation_guards()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -116,6 +123,7 @@ class TestInstagramSSERoute:
 
     def test_pipeline_completed_has_required_keys(self, mock_llm):
         reset_generation_metrics()
+        reset_generation_guards()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -127,6 +135,7 @@ class TestInstagramSSERoute:
 
     def test_scorecard_has_six_dimensions_plus_average(self, mock_llm):
         reset_generation_metrics()
+        reset_generation_guards()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -143,6 +152,7 @@ class TestInstagramSSERoute:
 
     def test_content_has_required_fields(self, mock_llm):
         reset_generation_metrics()
+        reset_generation_guards()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -155,6 +165,7 @@ class TestInstagramSSERoute:
 
     def test_locale_is_included_in_pipeline_started_event(self, mock_llm):
         reset_generation_metrics()
+        reset_generation_guards()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template", "locale": "zh-TW"},
@@ -165,6 +176,7 @@ class TestInstagramSSERoute:
 
     def test_generation_receives_traditional_chinese_instruction(self):
         reset_generation_metrics()
+        reset_generation_guards()
         style_output = SkillOutput(
             text="style ok",
             metadata={
@@ -218,6 +230,7 @@ class TestInstagramSSERoute:
 
     def test_invalid_generation_payload_emits_error_event(self):
         reset_generation_metrics()
+        reset_generation_guards()
         style_output = SkillOutput(
             text="style ok",
             metadata={
@@ -258,6 +271,7 @@ class TestInstagramSSERoute:
 
     def test_style_analysis_failure_emits_error_event(self):
         reset_generation_metrics()
+        reset_generation_guards()
         with patch.object(
             StyleAnalysisSkill,
             "run",
@@ -280,6 +294,7 @@ class TestInstagramSSERoute:
 
     def test_generation_failure_emits_error_event(self):
         reset_generation_metrics()
+        reset_generation_guards()
         style_output = SkillOutput(
             text="style ok",
             metadata={
@@ -317,6 +332,7 @@ class TestInstagramSSERoute:
 
     def test_scoring_failure_emits_error_event(self):
         reset_generation_metrics()
+        reset_generation_guards()
         style_output = SkillOutput(
             text="style ok",
             metadata={
@@ -371,6 +387,7 @@ class TestInstagramSSERoute:
 
     def test_generation_metrics_endpoint_tracks_instagram_success_and_failure(self, mock_llm):
         reset_generation_metrics()
+        reset_generation_guards()
         success_response = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -395,3 +412,57 @@ class TestInstagramSSERoute:
         assert metrics["by_pipeline"]["instagram"]["successful_runs"] == 1
         assert metrics["by_pipeline"]["instagram"]["failed_runs"] == 1
         assert metrics["by_pipeline"]["instagram"]["failures_by_reason"]["stage_exception"] == 1
+
+    def test_instagram_route_rate_limits_by_ip(self, mock_llm, monkeypatch):
+        reset_generation_metrics()
+        reset_generation_guards()
+        monkeypatch.setenv("INSTAGRAM_GENERATE_RATE_LIMIT_PER_MINUTE", "1")
+
+        headers = {"X-Forwarded-For": "203.0.113.20"}
+        first = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template"},
+            headers=headers,
+        )
+        second = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template"},
+            headers=headers,
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 429
+        assert second.json()["detail"] == "Rate limit exceeded for generation endpoint. Please retry shortly."
+
+    def test_instagram_route_rejects_concurrent_runs_from_same_ip(self, monkeypatch):
+        reset_generation_metrics()
+        reset_generation_guards()
+        monkeypatch.setenv("INSTAGRAM_GENERATE_MAX_CONCURRENT_PER_IP", "1")
+
+        lease = GENERATION_GUARDS.acquire(INSTAGRAM_ROUTE_KEY, "203.0.113.21")
+        assert lease is not None
+        try:
+            response = client.post(
+                "/api/instagram/generate",
+                json={"topic": "test", "template_text": "template"},
+                headers={"X-Forwarded-For": "203.0.113.21"},
+            )
+            assert response.status_code == 429
+            assert response.json()["detail"] == (
+                "Too many concurrent generation requests from this IP. Please wait for the current run to finish."
+            )
+        finally:
+            lease.release()
+
+    def test_instagram_route_rejects_oversized_request_body(self, monkeypatch):
+        reset_generation_metrics()
+        reset_generation_guards()
+        monkeypatch.setenv("INSTAGRAM_GENERATE_MAX_BODY_BYTES", "100")
+
+        response = client.post(
+            "/api/instagram/generate",
+            json={"topic": "x" * 120, "template_text": "template"},
+        )
+
+        assert response.status_code == 413
+        assert response.json()["detail"] == "Request body too large for generation endpoint."

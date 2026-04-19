@@ -19,7 +19,7 @@ load_dotenv(BACKEND_ROOT / ".env", override=False)
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from .api.routes import router
 from .api.integrations_routes import router as integrations_router
@@ -31,6 +31,7 @@ from .core.logging_utils import (
     reset_request_id,
     set_request_id,
 )
+from .core.request_guards import get_client_ip, get_generation_body_limit_bytes
 from .core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
@@ -76,6 +77,7 @@ app.include_router(instagram_router)
 async def add_request_context(request: Request, call_next) -> Response:
     request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
     request.state.request_id = request_id
+    request.state.client_ip = get_client_ip(request)
     token = set_request_id(request_id)
     start = time.perf_counter()
 
@@ -85,10 +87,36 @@ async def add_request_context(request: Request, call_next) -> Response:
             {
                 "method": request.method,
                 "path": request.url.path,
-                "client": request.client.host if request.client else "-",
+                "client": request.state.client_ip,
             }
         ),
     )
+
+    body_limit_bytes = None
+    if request.method == "POST":
+        body_limit_bytes = get_generation_body_limit_bytes(request.url.path)
+    if body_limit_bytes is not None:
+        body = await request.body()
+        if len(body) > body_limit_bytes:
+            logger.warning(
+                "request rejected %s",
+                format_log_fields(
+                    {
+                        "method": request.method,
+                        "path": request.url.path,
+                        "client": request.state.client_ip,
+                        "reason": "body_too_large",
+                        "body_bytes": len(body),
+                        "body_limit_bytes": body_limit_bytes,
+                    }
+                ),
+            )
+            reset_request_id(token)
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request body too large for generation endpoint."},
+                headers={"X-Request-ID": request_id},
+            )
 
     try:
         response = await call_next(request)
