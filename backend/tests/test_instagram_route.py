@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from neoxra_core.skills.base import SkillOutput
 
+from app.core.generation_metrics import reset_generation_metrics
 from app.main import app
 from app.api.instagram_routes import (
     ContentScoringSkill,
@@ -95,6 +96,7 @@ def mock_llm():
 
 class TestInstagramSSERoute:
     def test_content_type_is_event_stream(self, mock_llm):
+        reset_generation_metrics()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -103,6 +105,7 @@ class TestInstagramSSERoute:
         assert "text/event-stream" in resp.headers["content-type"]
 
     def test_stream_contains_exactly_7_events_in_order(self, mock_llm):
+        reset_generation_metrics()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -112,6 +115,7 @@ class TestInstagramSSERoute:
         assert event_names == EXPECTED_EVENT_ORDER
 
     def test_pipeline_completed_has_required_keys(self, mock_llm):
+        reset_generation_metrics()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -122,6 +126,7 @@ class TestInstagramSSERoute:
         assert set(data.keys()) >= {"content", "scorecard", "critique", "style_analysis"}
 
     def test_scorecard_has_six_dimensions_plus_average(self, mock_llm):
+        reset_generation_metrics()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -137,6 +142,7 @@ class TestInstagramSSERoute:
         assert "average" in scorecard
 
     def test_content_has_required_fields(self, mock_llm):
+        reset_generation_metrics()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -148,6 +154,7 @@ class TestInstagramSSERoute:
             assert field in content, f"missing content field: {field}"
 
     def test_locale_is_included_in_pipeline_started_event(self, mock_llm):
+        reset_generation_metrics()
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template", "locale": "zh-TW"},
@@ -157,6 +164,7 @@ class TestInstagramSSERoute:
         assert started["data"]["locale"] == "zh-TW"
 
     def test_generation_receives_traditional_chinese_instruction(self):
+        reset_generation_metrics()
         style_output = SkillOutput(
             text="style ok",
             metadata={
@@ -209,6 +217,7 @@ class TestInstagramSSERoute:
         assert "Traditional Chinese for Taiwan" in skill_input.context["template_text"]
 
     def test_invalid_generation_payload_emits_error_event(self):
+        reset_generation_metrics()
         style_output = SkillOutput(
             text="style ok",
             metadata={
@@ -248,6 +257,7 @@ class TestInstagramSSERoute:
         assert events[-1]["data"]["stage"] == "generation"
 
     def test_style_analysis_failure_emits_error_event(self):
+        reset_generation_metrics()
         with patch.object(
             StyleAnalysisSkill,
             "run",
@@ -269,6 +279,7 @@ class TestInstagramSSERoute:
         }
 
     def test_generation_failure_emits_error_event(self):
+        reset_generation_metrics()
         style_output = SkillOutput(
             text="style ok",
             metadata={
@@ -305,6 +316,7 @@ class TestInstagramSSERoute:
         }
 
     def test_scoring_failure_emits_error_event(self):
+        reset_generation_metrics()
         style_output = SkillOutput(
             text="style ok",
             metadata={
@@ -356,3 +368,30 @@ class TestInstagramSSERoute:
             "stage": "scoring",
             "message": "scoring boom",
         }
+
+    def test_generation_metrics_endpoint_tracks_instagram_success_and_failure(self, mock_llm):
+        reset_generation_metrics()
+        success_response = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template"},
+        )
+        assert success_response.status_code == 200
+
+        with patch.object(
+            StyleAnalysisSkill,
+            "run",
+            side_effect=ValueError("style boom"),
+        ):
+            failure_response = client.post(
+                "/api/instagram/generate",
+                json={"topic": "test", "template_text": "template"},
+            )
+        assert failure_response.status_code == 200
+
+        metrics_response = client.get("/health/generation-metrics")
+        assert metrics_response.status_code == 200
+        metrics = metrics_response.json()
+        assert metrics["by_pipeline"]["instagram"]["total_runs"] == 2
+        assert metrics["by_pipeline"]["instagram"]["successful_runs"] == 1
+        assert metrics["by_pipeline"]["instagram"]["failed_runs"] == 1
+        assert metrics["by_pipeline"]["instagram"]["failures_by_reason"]["stage_exception"] == 1
