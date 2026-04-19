@@ -171,7 +171,7 @@ If you want to propose a bigger change to product flow, system boundaries, or de
 
 Good candidates for early discussion:
 
-- frontend/backed contract changes
+- frontend/backend contract changes
 - changes to streaming lifecycle
 - deployment or build strategy changes
 - `neoxra` / `neoxra-core` responsibility shifts
