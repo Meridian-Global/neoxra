@@ -6,8 +6,10 @@ import { InstagramForm } from '../../components/InstagramForm'
 import { InstagramResult as InstagramResultView } from '../../components/InstagramResult'
 import { ScorecardRadar } from '../../components/ScorecardRadar'
 import { CarouselPreview } from '../../components/CarouselPreview'
+import { LanguageToggle } from '../../components/LanguageToggle'
+import { useLanguage } from '../../components/LanguageProvider'
 import { API_BASE_URL } from '../../lib/api'
-import { INSTAGRAM_SAMPLE_RESULT } from '../../lib/instagram-demo'
+import { getInstagramSampleResult } from '../../lib/instagram-demo'
 import { APIError, streamSSE } from '../../lib/sse'
 import type {
   StyleAnalysis,
@@ -15,19 +17,6 @@ import type {
   Scorecard,
 } from '../../lib/instagram-types'
 import { ThemeToggle } from '../../components/landing/ThemeToggle'
-
-const STAGE_LABELS: Record<string, string> = {
-  pipeline_started: 'Setting up the generation run…',
-  style_analysis_started: 'Analyzing writing style…',
-  generation_started:     'Generating Instagram content…',
-  scoring_started:        'Scoring content quality…',
-}
-
-const STAGE_SEQUENCE = [
-  { event: 'style_analysis_started', label: 'Style analysis' },
-  { event: 'generation_started', label: 'Draft generation' },
-  { event: 'scoring_started', label: 'Quality scoring' },
-] as const
 
 const SCORE_DIMS = [
   'hook_strength', 'cta_clarity', 'hashtag_relevance',
@@ -46,50 +35,206 @@ const KNOWN_EVENTS = new Set([
   'error',
 ])
 
-const STATUS_META = {
-  idle: {
-    label: 'Ready',
-    description: 'Set the input, then start a live generation run.',
-  },
-  loading: {
-    label: 'Connecting',
-    description: 'Opening the stream and preparing the pipeline.',
-  },
-  streaming: {
-    label: 'Live',
-    description: 'Partial output is arriving as the pipeline runs.',
-  },
-  completed: {
-    label: 'Completed',
-    description: 'The final pipeline completion event was received.',
-  },
-  error: {
-    label: 'Needs attention',
-    description: 'The run stopped early or the system returned an error.',
-  },
-} as const
+type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
 
-function toFriendlyError(error: unknown): string {
+function createInstagramCopy(language: 'en' | 'zh-TW') {
+  if (language === 'zh-TW') {
+    return {
+      stageLabels: {
+        pipeline_started: '正在建立這次生成流程…',
+        style_analysis_started: '正在分析語氣與寫作風格…',
+        generation_started: '正在生成 Instagram 內容…',
+        scoring_started: '正在評估內容品質…',
+      } as Record<string, string>,
+      stageSequence: [
+        { event: 'style_analysis_started', label: '風格分析' },
+        { event: 'generation_started', label: '內容生成' },
+        { event: 'scoring_started', label: '品質評分' },
+      ] as const,
+      statusMeta: {
+        idle: {
+          label: '準備完成',
+          description: '設定輸入內容後，就能開始即時生成。',
+        },
+        loading: {
+          label: '連線中',
+          description: '正在開啟串流並準備生成流程。',
+        },
+        streaming: {
+          label: '直播中',
+          description: '流程進行中，部分結果會即時出現。',
+        },
+        completed: {
+          label: '已完成',
+          description: '已收到最終 completion event，可安心展示。',
+        },
+        error: {
+          label: '需要注意',
+          description: '流程提早中止，或系統回傳了錯誤。',
+        },
+      } as const,
+      errors: {
+        validation: '請檢查輸入內容後再試一次。',
+        unavailable: '系統暫時無法使用，請稍後再試。',
+        generic: '發生了一點問題，請再試一次。',
+        timeout: '生成時間過長，請重新嘗試。',
+      },
+      header: {
+        back: '返回首頁',
+        badge: 'Instagram Studio',
+        title: '即時生成可展示的 Instagram 內容系統。',
+        body:
+          '從一個明確主題出發，觀看 Neoxra 即時生成 caption、hooks、輪播架構與評分結果，讓你在會議中直接展示。',
+        stages: '流程階段',
+        avgScore: '平均分數',
+        slides: '輪播頁數',
+        stateTitle: '生成狀態',
+        active: '進行中',
+        complete: '已完成',
+        waiting: '等待中',
+        connecting: '正在連線至生成流程…',
+        partial: '正在接收部分結果…',
+        sampleLoaded: '已載入示範輸出，可在會議中作為穩定備援。',
+        cancel: '取消本次生成',
+      },
+      formIntro: {
+        eyebrow: '輸入',
+        title: '建立一份適合展示的生成 brief。',
+        body: '可直接使用預設案例，或輸入自己的主題。流程保持簡單：輸入、生成、串流、檢視。',
+      },
+      errorBox: {
+        title: '生成已中止',
+        reset: '重設',
+        sample: '使用示範輸出',
+      },
+      output: {
+        eyebrow: '輸出',
+        title: '檢視即時生成結果。',
+        body: '流程進行中會先顯示部分結果，只有在收到最終 completion event 後才會標示成功。',
+        styleRead: '風格讀取',
+        detectedVoice: '偵測到的語氣',
+        structuralPatterns: '結構特徵',
+        vocabularyNotes: '用詞觀察',
+        preview: '預覽',
+        carouselDeck: '輪播展示',
+      },
+      completedSteps: {
+        style: '風格已鎖定',
+        draft: '內容已生成',
+        score: '評分已完成',
+      },
+    }
+  }
+
+  return {
+    stageLabels: {
+      pipeline_started: 'Setting up the generation run…',
+      style_analysis_started: 'Analyzing writing style…',
+      generation_started: 'Generating Instagram content…',
+      scoring_started: 'Scoring content quality…',
+    } as Record<string, string>,
+    stageSequence: [
+      { event: 'style_analysis_started', label: 'Style analysis' },
+      { event: 'generation_started', label: 'Draft generation' },
+      { event: 'scoring_started', label: 'Quality scoring' },
+    ] as const,
+    statusMeta: {
+      idle: {
+        label: 'Ready',
+        description: 'Set the input, then start a live generation run.',
+      },
+      loading: {
+        label: 'Connecting',
+        description: 'Opening the stream and preparing the pipeline.',
+      },
+      streaming: {
+        label: 'Live',
+        description: 'Partial output is arriving as the pipeline runs.',
+      },
+      completed: {
+        label: 'Completed',
+        description: 'The final pipeline completion event was received.',
+      },
+      error: {
+        label: 'Needs attention',
+        description: 'The run stopped early or the system returned an error.',
+      },
+    } as const,
+    errors: {
+      validation: 'Please check your inputs and try again.',
+      unavailable: 'System temporarily unavailable. Please retry.',
+      generic: 'Something went wrong. Please try again.',
+      timeout: 'The generation took too long. Please retry.',
+    },
+    header: {
+      back: 'Back to landing',
+      badge: 'Instagram Studio',
+      title: 'Generate a polished Instagram content system live.',
+      body:
+        'Start with a strong angle, watch Neoxra stream the generation in real time, and walk away with a caption, hooks, carousel structure, and scorecard you can present on the spot.',
+      stages: 'pipeline stages',
+      avgScore: 'avg score',
+      slides: 'carousel slides',
+      stateTitle: 'Generation state',
+      active: 'Connecting to the pipeline…',
+      complete: 'Completed',
+      waiting: 'Waiting',
+      partial: 'Streaming partial output…',
+      sampleLoaded:
+        'Sample output loaded for demo continuity. Use this if live generation is unavailable during a meeting.',
+      cancel: 'Cancel run',
+    },
+    formIntro: {
+      eyebrow: 'Input',
+      title: 'Build a presentation-ready generation brief.',
+      body: 'Use a preset for demo speed or bring your own topic. The flow stays simple: input, generate, stream, review.',
+    },
+    errorBox: {
+      title: 'Generation stopped',
+      reset: 'Reset',
+      sample: 'Use Sample Output',
+    },
+    output: {
+      eyebrow: 'Output',
+      title: 'Review the live output.',
+      body: 'Partial results show up while the run is still working. The page only marks success after the final completion event arrives.',
+      styleRead: 'Style Read',
+      detectedVoice: 'Detected Voice',
+      structuralPatterns: 'Structural patterns',
+      vocabularyNotes: 'Vocabulary notes',
+      preview: 'Preview',
+      carouselDeck: 'Carousel Deck',
+    },
+    completedSteps: {
+      style: 'Style locked',
+      draft: 'Draft generated',
+      score: 'Scorecard ready',
+    },
+  }
+}
+
+function toFriendlyError(error: unknown, copy: ReturnType<typeof createInstagramCopy>): string {
   if (error instanceof APIError) {
     if (error.status === 422) {
-      return 'Please check your inputs and try again.'
+      return copy.errors.validation
     }
     if (error.status === 503) {
-      return 'System temporarily unavailable. Please retry.'
+      return copy.errors.unavailable
     }
-    return 'Something went wrong. Please try again.'
+    return copy.errors.generic
   }
 
   if (error instanceof Error && error.message.includes('timed out')) {
-    return 'The generation took too long. Please retry.'
+    return copy.errors.timeout
   }
 
-  return 'Something went wrong. Please try again.'
+  return copy.errors.generic
 }
 
-type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
-
 export default function InstagramPage() {
+  const { language } = useLanguage()
+  const copy = createInstagramCopy(language)
+  const sampleResult = getInstagramSampleResult(language)
   const [status, setStatus]               = useState<PageStatus>('idle')
   const [error, setError]                 = useState<string | null>(null)
   const [currentStage, setCurrentStage]   = useState('')
@@ -131,15 +276,15 @@ export default function InstagramPage() {
           }
 
           if (!KNOWN_EVENTS.has(event)) {
-            setError('Something went wrong. Please try again.')
+            setError(copy.errors.generic)
             setStatus('error')
             failed = true
             break
           }
 
           // *_started → update stage label
-          if (event in STAGE_LABELS) {
-            setCurrentStage(STAGE_LABELS[event])
+          if (event in copy.stageLabels) {
+            setCurrentStage(copy.stageLabels[event])
             continue
           }
 
@@ -178,9 +323,9 @@ export default function InstagramPage() {
           if (event === 'error') {
             const rawMessage = typeof payload?.message === 'string' ? payload.message : ''
             if (rawMessage.includes('temporarily unavailable')) {
-              setError('System temporarily unavailable. Please retry.')
+              setError(copy.errors.unavailable)
             } else {
-              setError('Something went wrong. Please try again.')
+              setError(copy.errors.generic)
             }
             setStatus('error')
             failed = true
@@ -189,19 +334,19 @@ export default function InstagramPage() {
         }
 
         if (!abort.signal.aborted && !completed && !failed) {
-          setError('Something went wrong. Please try again.')
+          setError(copy.errors.generic)
           setStatus('error')
           setCurrentStage('')
         }
       } catch (err) {
         if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
-          setError(toFriendlyError(err))
+          setError(toFriendlyError(err, copy))
           setStatus('error')
           setCurrentStage('')
         }
       }
     },
-    [],
+    [copy],
   )
 
   function handleCancel() {
@@ -223,10 +368,10 @@ export default function InstagramPage() {
 
   function handleUseSample() {
     abortRef.current?.abort()
-    setStyleAnalysis(INSTAGRAM_SAMPLE_RESULT.style_analysis)
-    setContent(INSTAGRAM_SAMPLE_RESULT.content)
-    setScorecard(INSTAGRAM_SAMPLE_RESULT.scorecard)
-    setCritique(INSTAGRAM_SAMPLE_RESULT.critique)
+    setStyleAnalysis(sampleResult.style_analysis)
+    setContent(sampleResult.content)
+    setScorecard(sampleResult.scorecard)
+    setCritique(sampleResult.critique)
     setError(null)
     setCurrentStage('')
     setStatus('completed')
@@ -237,15 +382,15 @@ export default function InstagramPage() {
   const isLoading = status === 'loading'
   const isWorking = isLoading || isStreaming
   const completedSteps = [
-    styleAnalysis ? 'Style locked' : null,
-    content ? 'Draft generated' : null,
-    scorecard ? 'Scorecard ready' : null,
+    styleAnalysis ? copy.completedSteps.style : null,
+    content ? copy.completedSteps.draft : null,
+    scorecard ? copy.completedSteps.score : null,
   ].filter(Boolean) as string[]
-  const statusMeta = STATUS_META[status]
+  const statusMeta = copy.statusMeta[status]
   const activeStepIndex = currentStage
-    ? STAGE_SEQUENCE.findIndex((item) => STAGE_LABELS[item.event] === currentStage)
+    ? copy.stageSequence.findIndex((item) => copy.stageLabels[item.event] === currentStage)
     : status === 'completed'
-      ? STAGE_SEQUENCE.length
+      ? copy.stageSequence.length
       : -1
 
   return (
@@ -263,8 +408,9 @@ export default function InstagramPage() {
                 href="/"
                 className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5 text-sm text-[var(--subtle)] transition hover:border-white/20 hover:text-[var(--text)]"
               >
-                Back to landing
+                {copy.header.back}
               </Link>
+              <LanguageToggle />
               <ThemeToggle />
             </div>
           </div>
@@ -272,42 +418,40 @@ export default function InstagramPage() {
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_360px] lg:items-end">
             <div className="max-w-3xl">
               <div className="mb-5 inline-flex items-center rounded-full border border-[color:var(--accent-soft)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-[var(--text)]">
-                Instagram Studio
+                {copy.header.badge}
               </div>
 
               <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.075em] text-[var(--text)] sm:text-5xl lg:text-6xl">
-                Generate a polished Instagram content system live.
+                {copy.header.title}
               </h1>
 
               <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted)] sm:text-lg">
-                Start with a strong angle, watch Neoxra stream the generation in real time, and
-                walk away with a caption, hooks, carousel structure, and scorecard you can present
-                on the spot.
+                {copy.header.body}
               </p>
 
               <div className="mt-8 flex flex-wrap gap-4">
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
                   <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">3</div>
-                  <div className="text-sm text-[var(--subtle)]">pipeline stages</div>
+                  <div className="text-sm text-[var(--subtle)]">{copy.header.stages}</div>
                 </div>
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
                   <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
                     {scorecard ? scorecard.average.toFixed(1) : '--'}
                   </div>
-                  <div className="text-sm text-[var(--subtle)]">avg score</div>
+                  <div className="text-sm text-[var(--subtle)]">{copy.header.avgScore}</div>
                 </div>
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
                   <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
                     {content ? content.carousel_outline.length : '--'}
                   </div>
-                  <div className="text-sm text-[var(--subtle)]">carousel slides</div>
+                  <div className="text-sm text-[var(--subtle)]">{copy.header.slides}</div>
                 </div>
               </div>
             </div>
 
             <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur">
               <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-[var(--text)]">Generation state</div>
+                <div className="text-sm font-medium text-[var(--text)]">{copy.header.stateTitle}</div>
                 <span className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--subtle)]">
                   {statusMeta.label}
                 </span>
@@ -316,7 +460,7 @@ export default function InstagramPage() {
               <p className="mb-4 text-sm leading-6 text-[var(--muted)]">{statusMeta.description}</p>
 
               <div className="space-y-3">
-              {STAGE_SEQUENCE.map((step, index) => {
+              {copy.stageSequence.map((step, index) => {
                 const isComplete =
                   status === 'completed' || index < activeStepIndex || (index === 0 && styleAnalysis && !currentStage) ||
                   (index === 1 && content && !currentStage) || (index === 2 && scorecard && !currentStage)
@@ -337,7 +481,7 @@ export default function InstagramPage() {
                     <div>
                       <div className="text-sm font-medium text-[var(--text)]">{step.label}</div>
                       <div className="mt-1 text-sm text-[var(--muted)]">
-                        {isActive ? STAGE_LABELS[step.event] : isComplete ? 'Completed' : 'Waiting'}
+                        {isActive ? copy.stageLabels[step.event] : isComplete ? copy.header.complete : copy.header.waiting}
                       </div>
                     </div>
                   </div>
@@ -347,7 +491,7 @@ export default function InstagramPage() {
 
               {(isLoading || isStreaming) && (
                 <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
-                  {isLoading ? 'Connecting to the pipeline…' : currentStage || 'Streaming partial output…'}
+                  {isLoading ? copy.header.active : currentStage || copy.header.partial}
                 </div>
               )}
 
@@ -357,7 +501,7 @@ export default function InstagramPage() {
 
               {resultOrigin === 'sample' && (
                 <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
-                  Sample output loaded for demo continuity. Use this if live generation is unavailable during a meeting.
+                  {copy.header.sampleLoaded}
                 </div>
               )}
 
@@ -366,7 +510,7 @@ export default function InstagramPage() {
                   className="mt-5 inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)]"
                   onClick={handleCancel}
                 >
-                  Cancel run
+                  {copy.header.cancel}
                 </button>
               )}
             </div>
@@ -376,14 +520,13 @@ export default function InstagramPage() {
         <section>
           <div className="mb-6 max-w-2xl">
             <div className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">
-              Input
+              {copy.formIntro.eyebrow}
             </div>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[var(--text)] sm:text-4xl">
-              Build a presentation-ready generation brief.
+              {copy.formIntro.title}
             </h2>
             <p className="mt-3 text-base leading-7 text-[var(--muted)]">
-              Use a preset for demo speed or bring your own topic. The flow stays simple: input,
-              generate, stream, review.
+              {copy.formIntro.body}
             </p>
           </div>
 
@@ -393,7 +536,7 @@ export default function InstagramPage() {
         {status === 'error' && error && (
           <div className="rounded-3xl border border-rose-400/30 bg-rose-400/10 p-5 text-[var(--text)]">
             <div>
-              <strong className="block text-base">Generation stopped</strong>
+              <strong className="block text-base">{copy.errorBox.title}</strong>
               <p className="mt-2 text-sm leading-6 text-rose-100/90">{error}</p>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
@@ -401,13 +544,13 @@ export default function InstagramPage() {
                 className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[var(--text)] transition hover:bg-white/10"
                 onClick={handleRetry}
               >
-                Reset
+                {copy.errorBox.reset}
               </button>
               <button
                 className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
                 onClick={handleUseSample}
               >
-                Use Sample Output
+                {copy.errorBox.sample}
               </button>
             </div>
           </div>
@@ -417,14 +560,13 @@ export default function InstagramPage() {
           <section>
             <div className="mb-6 max-w-2xl">
               <div>
-                <span className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">Output</span>
+                <span className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">{copy.output.eyebrow}</span>
                 <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[var(--text)] sm:text-4xl">
-                  Review the live output.
+                  {copy.output.title}
                 </h2>
               </div>
               <p className="mt-3 text-base leading-7 text-[var(--muted)]">
-                Partial results show up while the run is still working. The page only marks success
-                after the final completion event arrives.
+                {copy.output.body}
               </p>
             </div>
 
@@ -432,8 +574,8 @@ export default function InstagramPage() {
               <section className="mb-6 rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
                 <div className="mb-4">
                   <div>
-                    <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Style Read</span>
-                    <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Detected Voice</h3>
+                    <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.output.styleRead}</span>
+                    <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">{copy.output.detectedVoice}</h3>
                   </div>
                 </div>
 
@@ -450,7 +592,7 @@ export default function InstagramPage() {
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <div>
-                    <h4 className="text-sm font-semibold text-[var(--text)]">Structural patterns</h4>
+                    <h4 className="text-sm font-semibold text-[var(--text)]">{copy.output.structuralPatterns}</h4>
                     <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--muted)]">
                       {styleAnalysis.structural_patterns.map((pattern) => (
                         <li key={pattern}>{pattern}</li>
@@ -458,7 +600,7 @@ export default function InstagramPage() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-[var(--text)]">Vocabulary notes</h4>
+                    <h4 className="text-sm font-semibold text-[var(--text)]">{copy.output.vocabularyNotes}</h4>
                     <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{styleAnalysis.vocabulary_notes}</p>
                   </div>
                 </div>
@@ -483,8 +625,8 @@ export default function InstagramPage() {
                   <section className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
                     <div className="mb-4">
                       <div>
-                        <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Preview</span>
-                        <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Carousel Deck</h3>
+                        <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.output.preview}</span>
+                        <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">{copy.output.carouselDeck}</h3>
                       </div>
                     </div>
                     <CarouselPreview slides={content.carousel_outline} />

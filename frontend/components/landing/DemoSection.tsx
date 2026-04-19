@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { useLanguage } from '../LanguageProvider'
 import { API_BASE_URL } from '../../lib/api'
 import { APIError, streamSSE } from '../../lib/sse'
 
@@ -16,48 +17,6 @@ type OutputState = Record<
     content: string
   }
 >
-
-const DEFAULT_IDEA =
-  'How AI tools help small teams ship faster without adding headcount.'
-
-const STAGE_COPY: Record<string, { step: StepId; message: string; platform?: PlatformKey }> = {
-  pipeline_started: { step: 'planner', message: 'Opening the live generation workflow.' },
-  planner_started: { step: 'planner', message: 'Building the core message and audience framing.' },
-  instagram_pass1_started: { step: 'agents', message: 'Drafting the visual-first Instagram version.', platform: 'instagram' },
-  threads_pass1_started: { step: 'agents', message: 'Drafting the conversational Threads version.', platform: 'threads' },
-  linkedin_pass1_started: { step: 'agents', message: 'Drafting the professional LinkedIn version.', platform: 'linkedin' },
-  instagram_pass2_started: { step: 'agents', message: 'Refining Instagram for stronger hooks and structure.', platform: 'instagram' },
-  threads_pass2_started: { step: 'agents', message: 'Refining Threads for pace and readability.', platform: 'threads' },
-  linkedin_pass2_started: { step: 'agents', message: 'Refining LinkedIn for business clarity and authority.', platform: 'linkedin' },
-  critic_started: { step: 'critic', message: 'Reviewing the final set for quality and consistency.' },
-}
-
-const PLATFORM_EVENT_MAP: Record<string, { platform: PlatformKey; status: string }> = {
-  linkedin_pass1_completed: { platform: 'linkedin', status: 'Drafted' },
-  linkedin_pass2_completed: { platform: 'linkedin', status: 'Refined' },
-  instagram_pass1_completed: { platform: 'instagram', status: 'Drafted' },
-  instagram_pass2_completed: { platform: 'instagram', status: 'Refined' },
-  threads_pass1_completed: { platform: 'threads', status: 'Drafted' },
-  threads_pass2_completed: { platform: 'threads', status: 'Refined' },
-}
-
-const PLATFORM_META: Array<{ key: PlatformKey; eyebrow: string; rationale: string }> = [
-  {
-    key: 'linkedin',
-    eyebrow: 'Professional narrative',
-    rationale: 'Framed for authority, business context, and a more executive reading style.',
-  },
-  {
-    key: 'instagram',
-    eyebrow: 'Visual-first storytelling',
-    rationale: 'Structured for hooks, visual pacing, and content that works well as a carousel or post.',
-  },
-  {
-    key: 'threads',
-    eyebrow: 'Fast conversational take',
-    rationale: 'Written to feel lighter, quicker, and more discussion-friendly for fast social consumption.',
-  },
-]
 
 const KNOWN_EVENTS = new Set([
   'pipeline_started',
@@ -81,11 +40,211 @@ const KNOWN_EVENTS = new Set([
   'error',
 ])
 
-function createInitialOutputs(): OutputState {
+function createDemoCopy(language: 'en' | 'zh-TW') {
+  if (language === 'zh-TW') {
+    return {
+      defaultIdea: 'AI 工具如何幫助小團隊在不增加人力的情況下更快推進。',
+      stageCopy: {
+        pipeline_started: { step: 'planner', message: '正在開啟即時生成流程。' },
+        planner_started: { step: 'planner', message: '正在建立核心訊息與受眾 framing。' },
+        instagram_pass1_started: { step: 'agents', message: '正在起草視覺導向的 Instagram 版本。', platform: 'instagram' },
+        threads_pass1_started: { step: 'agents', message: '正在起草節奏更快的 Threads 版本。', platform: 'threads' },
+        linkedin_pass1_started: { step: 'agents', message: '正在起草專業型 LinkedIn 版本。', platform: 'linkedin' },
+        instagram_pass2_started: { step: 'agents', message: '正在優化 Instagram 的 hook 與結構。', platform: 'instagram' },
+        threads_pass2_started: { step: 'agents', message: '正在優化 Threads 的節奏與可讀性。', platform: 'threads' },
+        linkedin_pass2_started: { step: 'agents', message: '正在優化 LinkedIn 的商業清晰度與權威感。', platform: 'linkedin' },
+        critic_started: { step: 'critic', message: '正在檢查整體品質與一致性。' },
+      } as Record<string, { step: StepId; message: string; platform?: PlatformKey }>,
+      platformEventMap: {
+        linkedin_pass1_completed: { platform: 'linkedin', status: '已起稿' },
+        linkedin_pass2_completed: { platform: 'linkedin', status: '已優化' },
+        instagram_pass1_completed: { platform: 'instagram', status: '已起稿' },
+        instagram_pass2_completed: { platform: 'instagram', status: '已優化' },
+        threads_pass1_completed: { platform: 'threads', status: '已起稿' },
+        threads_pass2_completed: { platform: 'threads', status: '已優化' },
+      } as Record<string, { platform: PlatformKey; status: string }>,
+      platformMeta: [
+        {
+          key: 'linkedin' as const,
+          eyebrow: '專業敘事',
+          rationale: '更強調權威感、商業背景與較成熟的高階閱讀方式。',
+        },
+        {
+          key: 'instagram' as const,
+          eyebrow: '視覺優先敘事',
+          rationale: '為 hook、視覺節奏與適合貼文或輪播的內容形式而設計。',
+        },
+        {
+          key: 'threads' as const,
+          eyebrow: '快速對話觀點',
+          rationale: '語氣更輕、更快，更適合快速滑讀與互動式討論。',
+        },
+      ],
+      outputs: {
+        linkedin: 'LinkedIn',
+        instagram: 'Instagram',
+        threads: 'Threads',
+        waiting: '等待中',
+      },
+      steps: {
+        planner: '規劃',
+        agents: '平台代理',
+        critic: '檢查',
+        waiting: '等待中',
+        completed: '已完成',
+        ready: '準備完成',
+        live: '直播中',
+        needsAttention: '需要注意',
+      },
+      errors: {
+        validation: '請檢查 demo 輸入內容後再試一次。',
+        unavailable: '系統暫時無法使用，請稍後再試。',
+        generic: '發生了一點問題，請再試一次。',
+        timeout: 'demo 執行時間過長，請重新嘗試。',
+        unexpected: '即時串流回傳了未預期的內容。',
+        stopped: '流程在最終輸出完成前就停止了。',
+        earlyEnd: '串流在收到最終 completion signal 前就結束了。',
+      },
+      section: {
+        eyebrow: '即時 demo',
+        title: '展示產品，而不是只講產品。',
+        body: '輸入一個想法，觀看 Neoxra 即時產出 planner brief、協調各平台代理，並回傳平台原生內容。',
+        tryIdea: '試一個想法',
+        helper: '用既有 SSE pipeline 做即時多平台生成',
+        input: '輸入',
+        placeholder: '輸入你想轉成內容系統的主題。',
+        generate: '開始生成',
+        generating: '生成中…',
+        stop: '停止',
+        pipelineStatus: '流程狀態',
+        plannerBrief: '規劃 brief',
+        demoUnavailable: 'Demo 暫時不可用',
+        generatedOutputs: '生成結果',
+        generatedHelper: '一次生成 LinkedIn、Instagram 與 Threads',
+        native: '平台原生',
+        presentationView: '展示檢視',
+        copyReady: '可直接複製',
+        stillPreparing: '這個平台版本仍在準備中。',
+        runToGenerate: '執行 demo 後，這裡會出現可展示的版本。',
+        receivingLive: '正在接收即時輸出',
+        queued: '這個平台正在排隊處理',
+        readyToReview: '已可檢視或複製進簡報',
+        waitingToGenerate: '等待生成',
+        copy: '複製',
+        copied: '已複製',
+        executiveSummary: '高階摘要',
+        executiveFallback: '流程完成後，這裡會顯示一段簡短的品質摘要。',
+        readyToGenerate: '準備開始生成。',
+        runStopped: 'Demo 已停止。',
+        completed: '三個平台的內容已準備好，可直接展示。',
+      },
+    }
+  }
+
   return {
-    linkedin: { label: 'LinkedIn', status: 'Waiting', content: '' },
-    instagram: { label: 'Instagram', status: 'Waiting', content: '' },
-    threads: { label: 'Threads', status: 'Waiting', content: '' },
+    defaultIdea: 'How AI tools help small teams ship faster without adding headcount.',
+    stageCopy: {
+      pipeline_started: { step: 'planner', message: 'Opening the live generation workflow.' },
+      planner_started: { step: 'planner', message: 'Building the core message and audience framing.' },
+      instagram_pass1_started: { step: 'agents', message: 'Drafting the visual-first Instagram version.', platform: 'instagram' },
+      threads_pass1_started: { step: 'agents', message: 'Drafting the conversational Threads version.', platform: 'threads' },
+      linkedin_pass1_started: { step: 'agents', message: 'Drafting the professional LinkedIn version.', platform: 'linkedin' },
+      instagram_pass2_started: { step: 'agents', message: 'Refining Instagram for stronger hooks and structure.', platform: 'instagram' },
+      threads_pass2_started: { step: 'agents', message: 'Refining Threads for pace and readability.', platform: 'threads' },
+      linkedin_pass2_started: { step: 'agents', message: 'Refining LinkedIn for business clarity and authority.', platform: 'linkedin' },
+      critic_started: { step: 'critic', message: 'Reviewing the final set for quality and consistency.' },
+    } as Record<string, { step: StepId; message: string; platform?: PlatformKey }>,
+    platformEventMap: {
+      linkedin_pass1_completed: { platform: 'linkedin', status: 'Drafted' },
+      linkedin_pass2_completed: { platform: 'linkedin', status: 'Refined' },
+      instagram_pass1_completed: { platform: 'instagram', status: 'Drafted' },
+      instagram_pass2_completed: { platform: 'instagram', status: 'Refined' },
+      threads_pass1_completed: { platform: 'threads', status: 'Drafted' },
+      threads_pass2_completed: { platform: 'threads', status: 'Refined' },
+    } as Record<string, { platform: PlatformKey; status: string }>,
+    platformMeta: [
+      {
+        key: 'linkedin' as const,
+        eyebrow: 'Professional narrative',
+        rationale: 'Framed for authority, business context, and a more executive reading style.',
+      },
+      {
+        key: 'instagram' as const,
+        eyebrow: 'Visual-first storytelling',
+        rationale: 'Structured for hooks, visual pacing, and content that works well as a carousel or post.',
+      },
+      {
+        key: 'threads' as const,
+        eyebrow: 'Fast conversational take',
+        rationale: 'Written to feel lighter, quicker, and more discussion-friendly for fast social consumption.',
+      },
+    ],
+    outputs: {
+      linkedin: 'LinkedIn',
+      instagram: 'Instagram',
+      threads: 'Threads',
+      waiting: 'Waiting',
+    },
+    steps: {
+      planner: 'planner',
+      agents: 'agents',
+      critic: 'critic',
+      waiting: 'Waiting',
+      completed: 'Completed',
+      ready: 'ready',
+      live: 'live',
+      needsAttention: 'needs attention',
+    },
+    errors: {
+      validation: 'Please check the demo input and try again.',
+      unavailable: 'System temporarily unavailable. Please retry in a moment.',
+      generic: 'Something went wrong. Please try again.',
+      timeout: 'The demo took too long to finish. Please retry.',
+      unexpected: 'The live stream returned an unexpected response.',
+      stopped: 'The run stopped before the final outputs were ready.',
+      earlyEnd: 'The stream ended before the final completion signal arrived.',
+    },
+    section: {
+      eyebrow: 'Live demo',
+      title: 'Show the product, not the pitch.',
+      body: 'Enter one idea and watch Neoxra stream a planner brief, coordinate platform agents, and return channel-specific outputs in real time.',
+      tryIdea: 'Try an idea',
+      helper: 'Live multi-platform generation from the existing SSE pipeline',
+      input: 'Input',
+      placeholder: 'Explain the idea you want to turn into content.',
+      generate: 'Generate',
+      generating: 'Generating…',
+      stop: 'Stop',
+      pipelineStatus: 'Pipeline status',
+      plannerBrief: 'Planner brief',
+      demoUnavailable: 'Demo temporarily unavailable',
+      generatedOutputs: 'Generated outputs',
+      generatedHelper: 'LinkedIn, Instagram, and Threads from one run',
+      native: 'platform-native',
+      presentationView: 'Presentation view',
+      copyReady: 'Copy-ready',
+      stillPreparing: 'This platform version is still being prepared.',
+      runToGenerate: 'Run the demo to generate a presentation-ready version for this platform.',
+      receivingLive: 'Receiving live output',
+      queued: 'Queued for this platform',
+      readyToReview: 'Ready to review or copy into slides',
+      waitingToGenerate: 'Waiting to generate',
+      copy: 'Copy',
+      copied: 'Copied',
+      executiveSummary: 'Executive summary',
+      executiveFallback: 'A short quality summary will appear here after the run completes.',
+      readyToGenerate: 'Ready to generate.',
+      runStopped: 'Demo run stopped.',
+      completed: 'Three platform-ready outputs are ready to present.',
+    },
+  }
+}
+
+function createInitialOutputs(copy: ReturnType<typeof createDemoCopy>): OutputState {
+  return {
+    linkedin: { label: copy.outputs.linkedin, status: copy.outputs.waiting, content: '' },
+    instagram: { label: copy.outputs.instagram, status: copy.outputs.waiting, content: '' },
+    threads: { label: copy.outputs.threads, status: copy.outputs.waiting, content: '' },
   }
 }
 
@@ -98,30 +257,32 @@ function stepState(step: StepId, activeStep: StepId, status: Status) {
   return order.indexOf(step) < order.indexOf(activeStep) ? 'done' : 'idle'
 }
 
-function toFriendlyError(error: unknown): string {
+function toFriendlyError(error: unknown, copy: ReturnType<typeof createDemoCopy>): string {
   if (error instanceof APIError) {
     if (error.status === 422) {
-      return 'Please check the demo input and try again.'
+      return copy.errors.validation
     }
     if (error.status === 503) {
-      return 'System temporarily unavailable. Please retry in a moment.'
+      return copy.errors.unavailable
     }
-    return 'Something went wrong. Please try again.'
+    return copy.errors.generic
   }
 
   if (error instanceof Error && error.message.includes('timed out')) {
-    return 'The demo took too long to finish. Please retry.'
+    return copy.errors.timeout
   }
 
-  return 'Something went wrong. Please try again.'
+  return copy.errors.generic
 }
 
 export function DemoSection() {
-  const [idea, setIdea] = useState(DEFAULT_IDEA)
+  const { language } = useLanguage()
+  const copy = createDemoCopy(language)
+  const [idea, setIdea] = useState(copy.defaultIdea)
   const [status, setStatus] = useState<Status>('idle')
   const [activeStep, setActiveStep] = useState<StepId>('planner')
-  const [stageMessage, setStageMessage] = useState('Ready to generate.')
-  const [outputs, setOutputs] = useState<OutputState>(createInitialOutputs)
+  const [stageMessage, setStageMessage] = useState(copy.section.readyToGenerate)
+  const [outputs, setOutputs] = useState<OutputState>(() => createInitialOutputs(copy))
   const [criticNotes, setCriticNotes] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
@@ -147,8 +308,8 @@ export function DemoSection() {
 
     setStatus('running')
     setActiveStep('planner')
-    setStageMessage('Building the core message and audience framing.')
-    setOutputs(createInitialOutputs())
+    setStageMessage(copy.stageCopy.planner_started.message)
+    setOutputs(createInitialOutputs(copy))
     setCriticNotes('')
     setError('')
     setBriefPreview([])
@@ -164,14 +325,14 @@ export function DemoSection() {
 
         if (!KNOWN_EVENTS.has(event)) {
           setStatus('error')
-          setError('Something went wrong. Please try again.')
-          setStageMessage('The live stream returned an unexpected response.')
+          setError(copy.errors.generic)
+          setStageMessage(copy.errors.unexpected)
           setActivePlatform(null)
           failed = true
           break
         }
 
-        const stage = STAGE_COPY[event]
+        const stage = copy.stageCopy[event]
         if (stage) {
           setActiveStep(stage.step)
           setStageMessage(stage.message)
@@ -186,7 +347,7 @@ export function DemoSection() {
           continue
         }
 
-        const platformEvent = PLATFORM_EVENT_MAP[event]
+        const platformEvent = copy.platformEventMap[event]
         if (platformEvent && typeof data?.output === 'string') {
           setOutputs(prev => ({
             ...prev,
@@ -210,13 +371,13 @@ export function DemoSection() {
           setOutputs(prev => ({
             linkedin: {
               ...prev.linkedin,
-              status: 'Ready',
+              status: copy.steps.completed,
               content:
                 typeof data?.linkedin_final === 'string' ? data.linkedin_final : prev.linkedin.content,
             },
             instagram: {
               ...prev.instagram,
-              status: 'Ready',
+              status: copy.steps.completed,
               content:
                 typeof data?.instagram_final === 'string'
                   ? data.instagram_final
@@ -224,13 +385,13 @@ export function DemoSection() {
             },
             threads: {
               ...prev.threads,
-              status: 'Ready',
+              status: copy.steps.completed,
               content:
                 typeof data?.threads_final === 'string' ? data.threads_final : prev.threads.content,
             },
           }))
           if (typeof data?.critic_notes === 'string') setCriticNotes(data.critic_notes)
-          setStageMessage('Three platform-ready outputs are ready to present.')
+          setStageMessage(copy.section.completed)
           completed = true
           setStatus('done')
           setActivePlatform(null)
@@ -238,8 +399,8 @@ export function DemoSection() {
 
         if (event === 'error') {
           setStatus('error')
-          setError('System temporarily unavailable. Please retry in a moment.')
-          setStageMessage('The run stopped before the final outputs were ready.')
+          setError(copy.errors.unavailable)
+          setStageMessage(copy.errors.stopped)
           setActivePlatform(null)
           failed = true
           break
@@ -248,26 +409,26 @@ export function DemoSection() {
 
       if (!abortController.signal.aborted && !completed && !failed) {
         setStatus('error')
-        setError('Something went wrong. Please try again.')
-        setStageMessage('The stream ended before the final completion signal arrived.')
+        setError(copy.errors.generic)
+        setStageMessage(copy.errors.earlyEnd)
         setActivePlatform(null)
       }
     } catch (err) {
       if (!abortController.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
         setStatus('error')
-        setError(toFriendlyError(err))
-        setStageMessage('The run stopped before the final outputs were ready.')
+        setError(toFriendlyError(err, copy))
+        setStageMessage(copy.errors.stopped)
         setActivePlatform(null)
       }
     }
-  }, [idea, status])
+  }, [copy, idea, status])
 
   const stop = useCallback(() => {
     abortRef.current?.abort()
     setStatus('idle')
-    setStageMessage('Demo run stopped.')
+    setStageMessage(copy.section.runStopped)
     setActivePlatform(null)
-  }, [])
+  }, [copy.section.runStopped])
 
   const hasAnyOutput = Object.values(outputs).some(output => output.content)
 
@@ -275,14 +436,13 @@ export function DemoSection() {
     <section id="demo" className="scroll-mt-24">
       <div className="mb-6 max-w-2xl">
         <div className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">
-          Live demo
+          {copy.section.eyebrow}
         </div>
         <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[var(--text)] sm:text-4xl">
-          Show the product, not the pitch.
+          {copy.section.title}
         </h2>
         <p className="mt-3 text-base leading-7 text-[var(--muted)]">
-          Enter one idea and watch Neoxra stream a planner brief, coordinate platform agents, and
-          return channel-specific outputs in real time.
+          {copy.section.body}
         </p>
       </div>
 
@@ -290,8 +450,8 @@ export function DemoSection() {
         <div className="rounded-[28px] border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.2)] backdrop-blur sm:p-6">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium text-[var(--text)]">Try an idea</div>
-              <div className="text-sm text-[var(--subtle)]">Live multi-platform generation from the existing SSE pipeline</div>
+              <div className="text-sm font-medium text-[var(--text)]">{copy.section.tryIdea}</div>
+              <div className="text-sm text-[var(--subtle)]">{copy.section.helper}</div>
             </div>
             <div className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--subtle)]">
               /api/run
@@ -299,13 +459,13 @@ export function DemoSection() {
           </div>
 
           <label className="mb-3 block text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">
-            Input
+            {copy.section.input}
           </label>
           <textarea
             value={idea}
             onChange={event => setIdea(event.target.value)}
             className="min-h-[180px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4 text-base leading-7 text-[var(--text)] outline-none ring-0 transition placeholder:text-[var(--subtle)] focus:border-[var(--accent)]"
-            placeholder="Explain the idea you want to turn into content."
+            placeholder={copy.section.placeholder}
           />
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -315,7 +475,7 @@ export function DemoSection() {
               disabled={status === 'running' || !idea.trim()}
               className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {status === 'running' ? 'Generating…' : 'Generate'}
+              {status === 'running' ? copy.section.generating : copy.section.generate}
             </button>
 
             <button
@@ -324,21 +484,21 @@ export function DemoSection() {
               disabled={status !== 'running'}
               className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Stop
+              {copy.section.stop}
             </button>
           </div>
 
           <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="text-sm font-medium text-[var(--text)]">Pipeline status</div>
+              <div className="text-sm font-medium text-[var(--text)]">{copy.section.pipelineStatus}</div>
               <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">
                 {status === 'running'
-                  ? 'live'
+                  ? copy.steps.live
                   : status === 'done'
-                    ? 'ready'
+                    ? copy.steps.ready
                     : status === 'error'
-                      ? 'needs attention'
-                      : 'ready'}
+                      ? copy.steps.needsAttention
+                      : copy.steps.ready}
               </div>
             </div>
 
@@ -359,9 +519,9 @@ export function DemoSection() {
                       .filter(Boolean)
                       .join(' ')}
                   >
-                    <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{step}</div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.steps[step]}</div>
                     <div className="mt-1 font-medium capitalize">
-                      {state === 'idle' ? 'Waiting' : state === 'done' ? 'Completed' : state}
+                      {state === 'idle' ? copy.steps.waiting : state === 'done' ? copy.steps.completed : state}
                     </div>
                   </div>
                 )
@@ -372,7 +532,7 @@ export function DemoSection() {
 
             {briefPreview.length > 0 && (
               <div className="mt-4 grid gap-2 rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-4">
-                <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">Planner brief</div>
+                <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.section.plannerBrief}</div>
                 {briefPreview.map(([key, value]) => (
                   <div key={key} className="grid gap-1 sm:grid-cols-[100px_minmax(0,1fr)]">
                     <div className="text-sm text-[var(--subtle)]">{key}</div>
@@ -384,7 +544,7 @@ export function DemoSection() {
 
             {error && (
               <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3">
-                <div className="text-sm font-medium text-[var(--text)]">Demo temporarily unavailable</div>
+                <div className="text-sm font-medium text-[var(--text)]">{copy.section.demoUnavailable}</div>
                 <p className="mt-1 text-sm text-rose-100/90">{error}</p>
               </div>
             )}
@@ -394,16 +554,16 @@ export function DemoSection() {
         <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-medium text-[var(--text)]">Generated outputs</div>
-              <div className="text-sm text-[var(--subtle)]">LinkedIn, Instagram, and Threads from one run</div>
+              <div className="text-sm font-medium text-[var(--text)]">{copy.section.generatedOutputs}</div>
+              <div className="text-sm text-[var(--subtle)]">{copy.section.generatedHelper}</div>
             </div>
             <div className="hidden rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--subtle)] sm:block">
-              platform-native
+              {copy.section.native}
             </div>
           </div>
 
           <div className="grid gap-4">
-            {PLATFORM_META.map(({ key, eyebrow, rationale }) => {
+            {copy.platformMeta.map(({ key, eyebrow, rationale }) => {
               const output = outputs[key]
               const isReady = Boolean(output.content)
               const isActive = status === 'running' && activePlatform === key
@@ -437,7 +597,7 @@ export function DemoSection() {
                         .join(' ')}
                     >
                       {isActive && <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />}
-                      {isActive ? 'Streaming' : output.status}
+                      {isActive ? copy.steps.live : output.status}
                     </div>
                   </div>
 
@@ -455,10 +615,10 @@ export function DemoSection() {
                       <div className="space-y-4">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">
-                            Presentation view
+                            {copy.section.presentationView}
                           </div>
                           <div className="rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1 text-xs text-[var(--subtle)]">
-                            Copy-ready
+                            {copy.section.copyReady}
                           </div>
                         </div>
                         <p className="whitespace-pre-wrap text-[15px] leading-7 text-[var(--text)]">
@@ -469,7 +629,7 @@ export function DemoSection() {
                       <div className="flex h-full flex-col justify-between">
                         <div>
                           <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">
-                            Presentation view
+                            {copy.section.presentationView}
                           </div>
                           <div className="mt-3 space-y-2">
                             <div className="h-3 w-2/3 rounded-full bg-white/8" />
@@ -480,8 +640,8 @@ export function DemoSection() {
                         </div>
                         <p className="text-sm leading-6 text-[var(--subtle)]">
                           {status === 'running'
-                            ? 'This platform version is still being prepared.'
-                            : 'Run the demo to generate a presentation-ready version for this platform.'}
+                            ? copy.section.stillPreparing
+                            : copy.section.runToGenerate}
                         </p>
                       </div>
                     )}
@@ -490,12 +650,12 @@ export function DemoSection() {
                   <div className="mt-4 flex items-center justify-between gap-3">
                     <div className="text-xs leading-5 text-[var(--subtle)]">
                       {isActive
-                        ? 'Receiving live output'
+                        ? copy.section.receivingLive
                         : status === 'running' && !isReady
-                          ? 'Queued for this platform'
+                          ? copy.section.queued
                           : isReady
-                            ? 'Ready to review or copy into slides'
-                            : 'Waiting to generate'}
+                            ? copy.section.readyToReview
+                            : copy.section.waitingToGenerate}
                     </div>
                     <button
                       type="button"
@@ -503,7 +663,7 @@ export function DemoSection() {
                       disabled={!output.content}
                       className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-35"
                     >
-                      {copied === key ? 'Copied' : 'Copy'}
+                      {copied === key ? copy.section.copied : copy.section.copy}
                     </button>
                   </div>
                 </div>
@@ -513,9 +673,9 @@ export function DemoSection() {
 
           {(criticNotes || hasAnyOutput) && (
             <div className="mt-4 rounded-[24px] border border-[color:var(--accent-soft)] bg-[var(--accent-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">Executive summary</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.section.executiveSummary}</div>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                {criticNotes || 'A short quality summary will appear here after the run completes.'}
+                {criticNotes || copy.section.executiveFallback}
               </p>
             </div>
           )}

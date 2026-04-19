@@ -1,18 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CarouselPreview } from '../../../components/CarouselPreview'
 import { InstagramForm } from '../../../components/InstagramForm'
 import { InstagramResult as InstagramResultView } from '../../../components/InstagramResult'
 import { ScorecardRadar } from '../../../components/ScorecardRadar'
+import { LanguageToggle } from '../../../components/LanguageToggle'
+import { useLanguage } from '../../../components/LanguageProvider'
 import { ThemeToggle } from '../../../components/landing/ThemeToggle'
 import { API_BASE_URL } from '../../../lib/api'
 import {
-  LEGAL_DEMO_PRESETS,
-  LEGAL_DEMO_VALUE_PROP,
-  LEGAL_GOLDEN_SCENARIO,
-  LEGAL_VOICE_PRESETS,
+  getLegalDemoPresets,
+  getLegalDemoValueProp,
+  getLegalGoldenScenario,
+  getLegalVoicePresets,
 } from '../../../lib/legal-demo'
 import { APIError, streamSSE } from '../../../lib/sse'
 import type {
@@ -20,19 +22,6 @@ import type {
   Scorecard,
   StyleAnalysis,
 } from '../../../lib/instagram-types'
-
-const STAGE_LABELS: Record<string, string> = {
-  pipeline_started: 'Setting up the generation run…',
-  style_analysis_started: 'Analyzing writing style…',
-  generation_started: 'Generating Instagram content…',
-  scoring_started: 'Scoring content quality…',
-}
-
-const STAGE_SEQUENCE = [
-  { event: 'style_analysis_started', label: 'Style analysis' },
-  { event: 'generation_started', label: 'Draft generation' },
-  { event: 'scoring_started', label: 'Quality scoring' },
-] as const
 
 const SCORE_DIMS = [
   'hook_strength',
@@ -55,57 +44,265 @@ const KNOWN_EVENTS = new Set([
   'error',
 ])
 
-const STATUS_META = {
-  idle: {
-    label: 'Ready',
-    description: 'Choose a legal scenario, then start a live generation run.',
-  },
-  loading: {
-    label: 'Connecting',
-    description: 'Opening the stream and preparing the demo workflow.',
-  },
-  streaming: {
-    label: 'Live',
-    description: 'Partial output is arriving as the legal demo runs.',
-  },
-  completed: {
-    label: 'Completed',
-    description: 'The final completion event arrived and the demo output is ready.',
-  },
-  error: {
-    label: 'Needs attention',
-    description: 'The run stopped early, so switch to the golden scenario if needed.',
-  },
-} as const
-
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
-type LegalVoicePresetId = (typeof LEGAL_VOICE_PRESETS)[number]['id']
 
-function toFriendlyError(error: unknown): string {
+function createLegalCopy(language: 'en' | 'zh-TW') {
+  if (language === 'zh-TW') {
+    return {
+      stageLabels: {
+        pipeline_started: '正在建立這次 demo 流程…',
+        style_analysis_started: '正在分析內容語氣…',
+        generation_started: '正在生成 Instagram 內容…',
+        scoring_started: '正在評估內容品質…',
+      } as Record<string, string>,
+      stageSequence: [
+        { event: 'style_analysis_started', label: '風格分析' },
+        { event: 'generation_started', label: '內容生成' },
+        { event: 'scoring_started', label: '品質評分' },
+      ] as const,
+      statusMeta: {
+        idle: {
+          label: '準備完成',
+          description: '選好法律情境後，就能開始即時 demo。',
+        },
+        loading: {
+          label: '連線中',
+          description: '正在開啟串流並準備法律 demo 流程。',
+        },
+        streaming: {
+          label: '直播中',
+          description: '法律 demo 執行中，部分結果會即時出現。',
+        },
+        completed: {
+          label: '已完成',
+          description: '已收到最終 completion event，結果已可展示。',
+        },
+        error: {
+          label: '需要注意',
+          description: '流程提早中止時，可切換到 golden scenario。',
+        },
+      } as const,
+      errors: {
+        validation: '請檢查 demo 輸入內容後再試一次。',
+        unavailable: '系統暫時無法使用，請改用 golden scenario 或稍後重試。',
+        generic: '發生了一點問題，請再試一次。',
+        timeout: '生成時間過長，請重試或改用 golden scenario。',
+      },
+      header: {
+        badge: 'Neoxra 法律 Demo',
+        workflow: '法律 demo 流程',
+        back: '返回首頁',
+        eyebrow: '法律服務 demo',
+        title: '把法律 thought leadership 展示成策略型內容系統。',
+        helper: '專為重視清楚、可信與專業感的即時會議而設計。',
+        openStudio: '開啟 Instagram Studio',
+        loadGolden: '載入 Golden Scenario',
+        scenarioCount: '法律情境',
+        voiceCount: '語氣預設',
+        mode: 'demo 模式',
+        live: '即時',
+        safe: '穩定',
+        stateTitle: 'Demo 狀態',
+        complete: '已完成',
+        waiting: '等待中',
+        connecting: '正在連線至法律 demo 流程…',
+        partial: '正在接收部分結果…',
+        goldenLoaded: '已載入 golden scenario，可作為會議中的穩定展示備援。',
+        cancel: '取消本次生成',
+      },
+      sections: {
+        scenariosEyebrow: '一鍵情境',
+        scenariosTitle: '選擇你想展示的法律敘事。',
+        voiceEyebrow: '語氣預設',
+        voiceTitle: '設定專家式口吻。',
+        beforeAfterEyebrow: 'Before → After',
+        beforeAfterTitle: '讓轉換過程看起來有策略感。',
+        originalTopic: '原始主題',
+        strategyLayer: 'Neoxra 策略層',
+        platformOutputs: '平台輸出',
+        goal: '目標',
+        voice: '語氣',
+        goldenEyebrow: 'Golden scenario',
+        goldenTitle: '適合現場會議的穩定備援。',
+        goldenBody: '若你希望會議中使用幾乎可預期的展示路徑，這個模式會直接載入一組已整理好的法律服務範例，不依賴即時模型輸出。',
+        demoBriefEyebrow: 'Demo brief',
+        demoBriefTitle: '即時生成法律導向的內容系統。',
+        demoBriefBody: '從可信的法律主題出發，保持專業且值得信任的語氣，展示 Neoxra 如何把一個敘事轉成多平台 thought leadership。',
+        presetsTitle: '法律 demo 預設',
+        presetsDescription: '為法律服務與 SMB 教育情境調整過的高品質 prompt，兼顧可信度、可收藏性與清楚度。',
+        submitLabel: '生成法律 Demo',
+        topicPlaceholder: '例如：給創辦人的合約風險、招募錯誤、或法律迷思教育貼文。',
+        templatePlaceholder: '專業、白話、可信、可執行…',
+        bestInputTips: [
+          '先點出一個常見法律誤解或創業者錯誤。',
+          '建議要具體到能讓人感覺你真的懂實務。',
+          '用 voice preset 去貼近現場受眾。',
+        ],
+        errorTitle: '生成已中止',
+        reset: '重設',
+        useGolden: '使用 Golden Scenario',
+        outputEyebrow: '輸出',
+        outputTitle: '檢視法律 demo 結果。',
+        outputBody: '讓客戶看到 Neoxra 不是單純生成文字，而是在替專業服務內容調整語氣、結構與可對外溝通的方式。',
+        styleRead: '風格讀取',
+        detectedVoice: '偵測到的法律語氣',
+        structuralPatterns: '結構特徵',
+        vocabularyNotes: '用詞觀察',
+        preview: '預覽',
+        carouselDeck: '輪播展示',
+      },
+      completedSteps: {
+        voice: '語氣分析完成',
+        draft: '內容已生成',
+        review: '品質審核完成',
+      },
+    }
+  }
+
+  return {
+    stageLabels: {
+      pipeline_started: 'Setting up the generation run…',
+      style_analysis_started: 'Analyzing writing style…',
+      generation_started: 'Generating Instagram content…',
+      scoring_started: 'Scoring content quality…',
+    } as Record<string, string>,
+    stageSequence: [
+      { event: 'style_analysis_started', label: 'Style analysis' },
+      { event: 'generation_started', label: 'Draft generation' },
+      { event: 'scoring_started', label: 'Quality scoring' },
+    ] as const,
+    statusMeta: {
+      idle: {
+        label: 'Ready',
+        description: 'Choose a legal scenario, then start a live generation run.',
+      },
+      loading: {
+        label: 'Connecting',
+        description: 'Opening the stream and preparing the demo workflow.',
+      },
+      streaming: {
+        label: 'Live',
+        description: 'Partial output is arriving as the legal demo runs.',
+      },
+      completed: {
+        label: 'Completed',
+        description: 'The final completion event arrived and the demo output is ready.',
+      },
+      error: {
+        label: 'Needs attention',
+        description: 'The run stopped early, so switch to the golden scenario if needed.',
+      },
+    } as const,
+    errors: {
+      validation: 'Please check the demo inputs and try again.',
+      unavailable: 'System temporarily unavailable. Use the golden scenario or retry.',
+      generic: 'Something went wrong. Please try again.',
+      timeout: 'The generation took too long. Please retry or switch to the golden scenario.',
+    },
+    header: {
+      badge: 'Neoxra Legal Demo',
+      workflow: 'Legal demo workflow',
+      back: 'Back to landing',
+      eyebrow: 'Legal-services demo',
+      title: 'Show legal thought leadership as a strategic content system.',
+      helper: 'Built for live meetings where clarity and trust matter more than novelty.',
+      openStudio: 'Open Instagram Studio',
+      loadGolden: 'Load Golden Scenario',
+      scenarioCount: 'legal scenarios',
+      voiceCount: 'voice presets',
+      mode: 'demo mode',
+      live: 'Live',
+      safe: 'Safe',
+      stateTitle: 'Demo state',
+      complete: 'Completed',
+      waiting: 'Waiting',
+      connecting: 'Connecting to the legal demo pipeline…',
+      partial: 'Streaming partial output…',
+      goldenLoaded: 'Golden scenario loaded. Use this path if you want a deterministic demo fallback.',
+      cancel: 'Cancel run',
+    },
+    sections: {
+      scenariosEyebrow: 'One-click scenarios',
+      scenariosTitle: 'Pick the legal narrative you want to demo.',
+      voiceEyebrow: 'Voice preset',
+      voiceTitle: 'Set the expert tone.',
+      beforeAfterEyebrow: 'Before → After',
+      beforeAfterTitle: 'Make the transformation feel strategic.',
+      originalTopic: 'Original topic',
+      strategyLayer: 'Neoxra strategy layer',
+      platformOutputs: 'Platform outputs',
+      goal: 'Goal',
+      voice: 'Voice',
+      goldenEyebrow: 'Golden scenario',
+      goldenTitle: 'Reliable fallback for live meetings.',
+      goldenBody: 'Use this if you want a near-deterministic path during the meeting. It loads a polished legal-services example instantly without depending on live model output.',
+      demoBriefEyebrow: 'Demo brief',
+      demoBriefTitle: 'Generate a legal-focused content system live.',
+      demoBriefBody: 'Start from a credible legal topic, keep the tone expert and trustworthy, and show how Neoxra turns one narrative into platform-ready thought leadership.',
+      presetsTitle: 'Legal demo presets',
+      presetsDescription: 'High-quality prompts tuned for legal and SMB education, credibility, and save-worthy content.',
+      submitLabel: 'Generate Legal Demo',
+      topicPlaceholder: 'Example: A founder-facing post on contract risk, hiring mistakes, or legal myths.',
+      templatePlaceholder: 'Professional, plain-English, credible, and practical...',
+      bestInputTips: [
+        'Lead with one legal misconception or founder mistake.',
+        'Keep the advice concrete enough to sound expert, not generic.',
+        'Use the voice preset to match the audience in the room.',
+      ],
+      errorTitle: 'Generation stopped',
+      reset: 'Reset',
+      useGolden: 'Use Golden Scenario',
+      outputEyebrow: 'Output',
+      outputTitle: 'Review the legal demo output.',
+      outputBody: 'Show the client that Neoxra is not just generating text. It is shaping tone, structure, and business-safe messaging for expert-service content.',
+      styleRead: 'Style read',
+      detectedVoice: 'Detected legal voice',
+      structuralPatterns: 'Structural patterns',
+      vocabularyNotes: 'Vocabulary notes',
+      preview: 'Preview',
+      carouselDeck: 'Carousel Deck',
+    },
+    completedSteps: {
+      voice: 'Voice read complete',
+      draft: 'Draft generated',
+      review: 'Quality review complete',
+    },
+  }
+}
+
+function toFriendlyError(error: unknown, copy: ReturnType<typeof createLegalCopy>): string {
   if (error instanceof APIError) {
     if (error.status === 422) {
-      return 'Please check the demo inputs and try again.'
+      return copy.errors.validation
     }
     if (error.status === 503) {
-      return 'System temporarily unavailable. Use the golden scenario or retry.'
+      return copy.errors.unavailable
     }
-    return 'Something went wrong. Please try again.'
+    return copy.errors.generic
   }
 
   if (error instanceof Error && error.message.includes('timed out')) {
-    return 'The generation took too long. Please retry or switch to the golden scenario.'
+    return copy.errors.timeout
   }
 
-  return 'Something went wrong. Please try again.'
+  return copy.errors.generic
 }
 
 export default function LegalDemoPage() {
-  const [selectedScenarioLabel, setSelectedScenarioLabel] = useState(LEGAL_DEMO_PRESETS[0].label)
-  const [selectedVoiceId, setSelectedVoiceId] = useState<LegalVoicePresetId>(LEGAL_VOICE_PRESETS[0].id)
+  const { language } = useLanguage()
+  const copy = createLegalCopy(language)
+  const legalDemoPresets = getLegalDemoPresets(language)
+  const legalVoicePresets = getLegalVoicePresets(language)
+  const legalGoldenScenario = getLegalGoldenScenario(language)
+  const legalDemoValueProp = getLegalDemoValueProp(language)
+  type LegalVoicePresetId = (typeof legalVoicePresets)[number]['id']
+
+  const [selectedScenarioLabel, setSelectedScenarioLabel] = useState(legalDemoPresets[0].label)
+  const [selectedVoiceId, setSelectedVoiceId] = useState<LegalVoicePresetId>(legalVoicePresets[0].id)
   const [preview, setPreview] = useState({
-    topic: LEGAL_DEMO_PRESETS[0].topic,
-    template_text: LEGAL_DEMO_PRESETS[0].templateText,
-    goal: LEGAL_DEMO_PRESETS[0].goal,
+    topic: legalDemoPresets[0].topic,
+    template_text: legalDemoPresets[0].templateText,
+    goal: legalDemoPresets[0].goal,
   })
   const [status, setStatus] = useState<PageStatus>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -119,26 +316,37 @@ export default function LegalDemoPage() {
   const abortRef = useRef<AbortController | null>(null)
 
   const selectedScenario = useMemo(
-    () => LEGAL_DEMO_PRESETS.find((preset) => preset.label === selectedScenarioLabel) ?? LEGAL_DEMO_PRESETS[0],
-    [selectedScenarioLabel],
+    () => legalDemoPresets.find((preset) => preset.label === selectedScenarioLabel) ?? legalDemoPresets[0],
+    [legalDemoPresets, selectedScenarioLabel],
   )
   const selectedVoice = useMemo(
-    () => LEGAL_VOICE_PRESETS.find((preset) => preset.id === selectedVoiceId) ?? LEGAL_VOICE_PRESETS[0],
-    [selectedVoiceId],
+    () => legalVoicePresets.find((preset) => preset.id === selectedVoiceId) ?? legalVoicePresets[0],
+    [legalVoicePresets, selectedVoiceId],
   )
+
+  useEffect(() => {
+    if (!legalDemoPresets.some((preset) => preset.label === selectedScenarioLabel)) {
+      setSelectedScenarioLabel(legalDemoPresets[0].label)
+      setPreview({
+        topic: legalDemoPresets[0].topic,
+        template_text: legalDemoPresets[0].templateText,
+        goal: legalDemoPresets[0].goal,
+      })
+    }
+  }, [legalDemoPresets, selectedScenarioLabel])
 
   const beforeAfterTopic = preview.topic.trim() || selectedScenario.topic
   const beforeAfterGoal = preview.goal || selectedScenario.goal
   const completedSteps = [
-    styleAnalysis ? 'Voice read complete' : null,
-    content ? 'Draft generated' : null,
-    scorecard ? 'Quality review complete' : null,
+    styleAnalysis ? copy.completedSteps.voice : null,
+    content ? copy.completedSteps.draft : null,
+    scorecard ? copy.completedSteps.review : null,
   ].filter(Boolean) as string[]
-  const statusMeta = STATUS_META[status]
+  const statusMeta = copy.statusMeta[status]
   const activeStepIndex = currentStage
-    ? STAGE_SEQUENCE.findIndex((item) => STAGE_LABELS[item.event] === currentStage)
+    ? copy.stageSequence.findIndex((item) => copy.stageLabels[item.event] === currentStage)
     : status === 'completed'
-      ? STAGE_SEQUENCE.length
+      ? copy.stageSequence.length
       : -1
   const isLoading = status === 'loading'
   const isStreaming = status === 'streaming'
@@ -156,22 +364,22 @@ export default function LegalDemoPage() {
 
   const applyGoldenScenario = useCallback(() => {
     abortRef.current?.abort()
-    setSelectedScenarioLabel('Contract myths')
+    setSelectedScenarioLabel(legalGoldenScenario.label)
     setSelectedVoiceId('trusted-counsel')
     setPreview({
-      topic: LEGAL_GOLDEN_SCENARIO.topic,
-      template_text: LEGAL_DEMO_PRESETS.find((preset) => preset.label === 'Contract myths')?.templateText ?? '',
-      goal: LEGAL_DEMO_PRESETS.find((preset) => preset.label === 'Contract myths')?.goal ?? 'save',
+      topic: legalGoldenScenario.topic,
+      template_text: legalDemoPresets.find((preset) => preset.label === legalGoldenScenario.label)?.templateText ?? '',
+      goal: legalDemoPresets.find((preset) => preset.label === legalGoldenScenario.label)?.goal ?? 'save',
     })
-    setStyleAnalysis(LEGAL_GOLDEN_SCENARIO.result.style_analysis)
-    setContent(LEGAL_GOLDEN_SCENARIO.result.content)
-    setScorecard(LEGAL_GOLDEN_SCENARIO.result.scorecard)
-    setCritique(LEGAL_GOLDEN_SCENARIO.result.critique)
+    setStyleAnalysis(legalGoldenScenario.result.style_analysis)
+    setContent(legalGoldenScenario.result.content)
+    setScorecard(legalGoldenScenario.result.scorecard)
+    setCritique(legalGoldenScenario.result.critique)
     setError(null)
     setCurrentStage('')
     setStatus('completed')
     setResultOrigin('golden')
-  }, [])
+  }, [legalDemoPresets, legalGoldenScenario])
 
   const handleScenarioSelect = useCallback((label: string) => {
     setSelectedScenarioLabel(label)
@@ -208,14 +416,14 @@ export default function LegalDemoPage() {
           }
 
           if (!KNOWN_EVENTS.has(event)) {
-            setError('Something went wrong. Please try again.')
+            setError(copy.errors.generic)
             setStatus('error')
             failed = true
             break
           }
 
-          if (event in STAGE_LABELS) {
-            setCurrentStage(STAGE_LABELS[event])
+          if (event in copy.stageLabels) {
+            setCurrentStage(copy.stageLabels[event])
             continue
           }
 
@@ -253,9 +461,9 @@ export default function LegalDemoPage() {
           if (event === 'error') {
             const rawMessage = typeof payload?.message === 'string' ? payload.message : ''
             if (rawMessage.includes('temporarily unavailable')) {
-              setError('System temporarily unavailable. Use the golden scenario or retry.')
+              setError(copy.errors.unavailable)
             } else {
-              setError('Something went wrong. Please try again.')
+              setError(copy.errors.generic)
             }
             setStatus('error')
             failed = true
@@ -264,19 +472,19 @@ export default function LegalDemoPage() {
         }
 
         if (!abort.signal.aborted && !completed && !failed) {
-          setError('Something went wrong. Please try again.')
+          setError(copy.errors.generic)
           setStatus('error')
           setCurrentStage('')
         }
       } catch (err) {
         if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
-          setError(toFriendlyError(err))
+          setError(toFriendlyError(err, copy))
           setStatus('error')
           setCurrentStage('')
         }
       }
     },
-    [clearResults, selectedVoice],
+    [clearResults, copy, selectedVoice],
   )
 
   function handleCancel() {
@@ -298,16 +506,17 @@ export default function LegalDemoPage() {
           <div className="mb-12 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5">
               <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
-              Neoxra Legal Demo
+              {copy.header.badge}
             </div>
             <div className="flex items-center gap-3">
-              <div className="hidden text-[var(--subtle)] sm:block">Legal demo workflow</div>
+              <div className="hidden text-[var(--subtle)] sm:block">{copy.header.workflow}</div>
               <Link
                 href="/"
                 className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5 text-sm text-[var(--subtle)] transition hover:border-white/20 hover:text-[var(--text)]"
               >
-                Back to landing
+                {copy.header.back}
               </Link>
+              <LanguageToggle />
               <ThemeToggle />
             </div>
           </div>
@@ -315,15 +524,15 @@ export default function LegalDemoPage() {
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_360px] lg:items-end">
             <div className="max-w-3xl">
               <div className="mb-5 inline-flex items-center rounded-full border border-[color:var(--accent-soft)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-[var(--text)]">
-                Legal-services demo
+                {copy.header.eyebrow}
               </div>
 
               <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.075em] text-[var(--text)] sm:text-5xl lg:text-6xl">
-                Show legal thought leadership as a strategic content system.
+                {copy.header.title}
               </h1>
 
               <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted)] sm:text-lg">
-                {LEGAL_DEMO_VALUE_PROP}
+                {legalDemoValueProp}
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -331,41 +540,41 @@ export default function LegalDemoPage() {
                   href="/instagram"
                   className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:bg-[var(--surface)]"
                 >
-                  Open Instagram Studio
+                  {copy.header.openStudio}
                 </Link>
                 <button
                   type="button"
                   onClick={applyGoldenScenario}
                   className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
                 >
-                  Load Golden Scenario
+                  {copy.header.loadGolden}
                 </button>
                 <div className="text-sm text-[var(--subtle)]">
-                  Built for live meetings where clarity and trust matter more than novelty.
+                  {copy.header.helper}
                 </div>
               </div>
 
               <div className="mt-8 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
                   <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">4</div>
-                  <div className="text-sm text-[var(--subtle)]">legal scenarios</div>
+                  <div className="text-sm text-[var(--subtle)]">{copy.header.scenarioCount}</div>
                 </div>
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
                   <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">3</div>
-                  <div className="text-sm text-[var(--subtle)]">voice presets</div>
+                  <div className="text-sm text-[var(--subtle)]">{copy.header.voiceCount}</div>
                 </div>
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
                   <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                    {resultOrigin === 'golden' ? 'Safe' : 'Live'}
+                    {resultOrigin === 'golden' ? copy.header.safe : copy.header.live}
                   </div>
-                  <div className="text-sm text-[var(--subtle)]">demo mode</div>
+                  <div className="text-sm text-[var(--subtle)]">{copy.header.mode}</div>
                 </div>
               </div>
             </div>
 
             <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur">
               <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-[var(--text)]">Demo state</div>
+                <div className="text-sm font-medium text-[var(--text)]">{copy.header.stateTitle}</div>
                 <span className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--subtle)]">
                   {statusMeta.label}
                 </span>
@@ -374,7 +583,7 @@ export default function LegalDemoPage() {
               <p className="mb-4 text-sm leading-6 text-[var(--muted)]">{statusMeta.description}</p>
 
               <div className="space-y-3">
-                {STAGE_SEQUENCE.map((step, index) => {
+                {copy.stageSequence.map((step, index) => {
                   const isComplete =
                     status === 'completed' ||
                     index < activeStepIndex ||
@@ -402,7 +611,7 @@ export default function LegalDemoPage() {
                       <div>
                         <div className="text-sm font-medium text-[var(--text)]">{step.label}</div>
                         <div className="mt-1 text-sm text-[var(--muted)]">
-                          {isActive ? STAGE_LABELS[step.event] : isComplete ? 'Completed' : 'Waiting'}
+                          {isActive ? copy.stageLabels[step.event] : isComplete ? copy.header.complete : copy.header.waiting}
                         </div>
                       </div>
                     </div>
@@ -412,7 +621,7 @@ export default function LegalDemoPage() {
 
               {(isLoading || isStreaming) && (
                 <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
-                  {isLoading ? 'Connecting to the legal demo pipeline…' : currentStage || 'Streaming partial output…'}
+                  {isLoading ? copy.header.connecting : currentStage || copy.header.partial}
                 </div>
               )}
 
@@ -422,7 +631,7 @@ export default function LegalDemoPage() {
 
               {resultOrigin === 'golden' && (
                 <div className="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-                  Golden scenario loaded. Use this path if you want a deterministic demo fallback.
+                  {copy.header.goldenLoaded}
                 </div>
               )}
 
@@ -431,7 +640,7 @@ export default function LegalDemoPage() {
                   className="mt-5 inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)]"
                   onClick={handleCancel}
                 >
-                  Cancel run
+                  {copy.header.cancel}
                 </button>
               )}
             </div>
@@ -441,13 +650,13 @@ export default function LegalDemoPage() {
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_360px]">
           <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur">
             <div className="mb-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">One-click scenarios</div>
+              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.scenariosEyebrow}</div>
               <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                Pick the legal narrative you want to demo.
+                {copy.sections.scenariosTitle}
               </h2>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {LEGAL_DEMO_PRESETS.map((preset) => {
+              {legalDemoPresets.map((preset) => {
                 const isSelected = preset.label === selectedScenarioLabel
                 return (
                   <button
@@ -470,13 +679,13 @@ export default function LegalDemoPage() {
 
           <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur">
             <div className="mb-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Voice preset</div>
+              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.voiceEyebrow}</div>
               <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                Set the expert tone.
+                {copy.sections.voiceTitle}
               </h2>
             </div>
             <div className="space-y-3">
-              {LEGAL_VOICE_PRESETS.map((preset) => {
+              {legalVoicePresets.map((preset) => {
                 const isSelected = preset.id === selectedVoiceId
                 return (
                   <button
@@ -501,28 +710,28 @@ export default function LegalDemoPage() {
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_360px]">
           <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur">
             <div className="mb-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Before → After</div>
+              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.beforeAfterEyebrow}</div>
               <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                Make the transformation feel strategic.
+                {copy.sections.beforeAfterTitle}
               </h2>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">Original topic</div>
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.originalTopic}</div>
                 <p className="mt-3 text-sm leading-6 text-[var(--text)]">{beforeAfterTopic}</p>
               </div>
 
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">Neoxra strategy layer</div>
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.strategyLayer}</div>
                 <p className="mt-3 text-sm leading-6 text-[var(--text)]">{selectedScenario.strategy}</p>
                 <p className="mt-3 text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">
-                  Goal: {beforeAfterGoal} • Voice: {selectedVoice.label}
+                  {copy.sections.goal}: {beforeAfterGoal} • {copy.sections.voice}: {selectedVoice.label}
                 </p>
               </div>
 
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">Platform outputs</div>
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.platformOutputs}</div>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--text)]">
                   {selectedScenario.platformOutcomes.map((outcome) => (
                     <li key={outcome}>{outcome}</li>
@@ -534,25 +743,24 @@ export default function LegalDemoPage() {
 
           <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur">
             <div className="mb-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Golden scenario</div>
+              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.goldenEyebrow}</div>
               <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                Reliable fallback for live meetings.
+                {copy.sections.goldenTitle}
               </h2>
             </div>
             <p className="text-sm leading-6 text-[var(--muted)]">
-              Use this if you want a near-deterministic path during the meeting. It loads a polished
-              legal-services example instantly without depending on live model output.
+              {copy.sections.goldenBody}
             </p>
             <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="text-sm font-semibold text-[var(--text)]">{LEGAL_GOLDEN_SCENARIO.label}</div>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{LEGAL_GOLDEN_SCENARIO.transformation}</p>
+              <div className="text-sm font-semibold text-[var(--text)]">{legalGoldenScenario.label}</div>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{legalGoldenScenario.transformation}</p>
             </div>
             <button
               type="button"
               onClick={applyGoldenScenario}
               className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
             >
-              Load Golden Scenario
+              {copy.header.loadGolden}
             </button>
           </div>
         </section>
@@ -560,14 +768,13 @@ export default function LegalDemoPage() {
         <section>
           <div className="mb-6 max-w-2xl">
             <div className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">
-              Demo brief
+              {copy.sections.demoBriefEyebrow}
             </div>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[var(--text)] sm:text-4xl">
-              Generate a legal-focused content system live.
+              {copy.sections.demoBriefTitle}
             </h2>
             <p className="mt-3 text-base leading-7 text-[var(--muted)]">
-              Start from a credible legal topic, keep the tone expert and trustworthy, and show how
-              Neoxra turns one narrative into platform-ready thought leadership.
+              {copy.sections.demoBriefBody}
             </p>
           </div>
 
@@ -575,20 +782,16 @@ export default function LegalDemoPage() {
             key={selectedScenarioLabel}
             onSubmit={handleSubmit}
             disabled={isWorking}
-            presets={LEGAL_DEMO_PRESETS}
-            presetsTitle="Legal demo presets"
-            presetsDescription="High-quality prompts tuned for legal and SMB education, credibility, and save-worthy content."
-            submitLabel="Generate Legal Demo"
+            presets={legalDemoPresets}
+            presetsTitle={copy.sections.presetsTitle}
+            presetsDescription={copy.sections.presetsDescription}
+            submitLabel={copy.sections.submitLabel}
             initialTopic={selectedScenario.topic}
             initialTemplateText={selectedScenario.templateText}
             initialGoal={selectedScenario.goal}
-            topicPlaceholder="Example: A founder-facing post on contract risk, hiring mistakes, or legal myths."
-            templatePlaceholder="Professional, plain-English, credible, and practical..."
-            bestInputTips={[
-              'Lead with one legal misconception or founder mistake.',
-              'Keep the advice concrete enough to sound expert, not generic.',
-              'Use the voice preset to match the audience in the room.',
-            ]}
+            topicPlaceholder={copy.sections.topicPlaceholder}
+            templatePlaceholder={copy.sections.templatePlaceholder}
+            bestInputTips={copy.sections.bestInputTips}
             onPreviewChange={setPreview}
           />
         </section>
@@ -596,7 +799,7 @@ export default function LegalDemoPage() {
         {status === 'error' && error && (
           <div className="rounded-3xl border border-rose-400/30 bg-rose-400/10 p-5 text-[var(--text)]">
             <div>
-              <strong className="block text-base">Generation stopped</strong>
+              <strong className="block text-base">{copy.sections.errorTitle}</strong>
               <p className="mt-2 text-sm leading-6 text-rose-100/90">{error}</p>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
@@ -604,13 +807,13 @@ export default function LegalDemoPage() {
                 className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[var(--text)] transition hover:bg-white/10"
                 onClick={handleRetry}
               >
-                Reset
+                {copy.sections.reset}
               </button>
               <button
                 className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
                 onClick={applyGoldenScenario}
               >
-                Use Golden Scenario
+                {copy.sections.useGolden}
               </button>
             </div>
           </div>
@@ -620,22 +823,21 @@ export default function LegalDemoPage() {
           <section>
             <div className="mb-6 max-w-2xl">
               <div>
-                <span className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">Output</span>
+                <span className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">{copy.sections.outputEyebrow}</span>
                 <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[var(--text)] sm:text-4xl">
-                  Review the legal demo output.
+                  {copy.sections.outputTitle}
                 </h2>
               </div>
               <p className="mt-3 text-base leading-7 text-[var(--muted)]">
-                Show the client that Neoxra is not just generating text. It is shaping tone,
-                structure, and business-safe messaging for expert-service content.
+                {copy.sections.outputBody}
               </p>
             </div>
 
             {styleAnalysis && (
               <section className="mb-6 rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
                 <div className="mb-4">
-                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Style read</span>
-                  <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Detected legal voice</h3>
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.styleRead}</span>
+                  <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">{copy.sections.detectedVoice}</h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {styleAnalysis.tone_keywords.map((keyword) => (
@@ -649,7 +851,7 @@ export default function LegalDemoPage() {
                 </div>
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <div>
-                    <h4 className="text-sm font-semibold text-[var(--text)]">Structural patterns</h4>
+                    <h4 className="text-sm font-semibold text-[var(--text)]">{copy.sections.structuralPatterns}</h4>
                     <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--muted)]">
                       {styleAnalysis.structural_patterns.map((pattern) => (
                         <li key={pattern}>{pattern}</li>
@@ -657,7 +859,7 @@ export default function LegalDemoPage() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-[var(--text)]">Vocabulary notes</h4>
+                    <h4 className="text-sm font-semibold text-[var(--text)]">{copy.sections.vocabularyNotes}</h4>
                     <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{styleAnalysis.vocabulary_notes}</p>
                   </div>
                 </div>
@@ -681,8 +883,8 @@ export default function LegalDemoPage() {
                 {critique !== null && content && (
                   <section className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
                     <div className="mb-4">
-                      <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">Preview</span>
-                      <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">Carousel deck</h3>
+                      <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.preview}</span>
+                      <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">{copy.sections.carouselDeck}</h3>
                     </div>
                     <CarouselPreview slides={content.carousel_outline} />
                   </section>
