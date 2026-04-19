@@ -124,7 +124,7 @@ export function InstagramForm({
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            {DEMO_PRESETS.map((preset) => (
+            {presets.map((preset) => (
               <button
                 key={preset.label}
                 type="button"
