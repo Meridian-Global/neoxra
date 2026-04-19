@@ -25,6 +25,7 @@ from ..core.output_validation import (
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 _INSTAGRAM_IMPORT_ERROR = None
+_OUTPUT_VALIDATION_ERROR_MSG = "Output validation failed."
 
 try:
     from neoxra_core.models.instagram import (
@@ -189,7 +190,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 )
             except ValidationError:
                 logger.exception("Instagram flow failed during style analysis")
-                yield _sse("error", {"stage": "style_analysis", "message": "Output validation failed."})
+                yield _sse("error", {"stage": "style_analysis", "message": _OUTPUT_VALIDATION_ERROR_MSG})
                 return
             except Exception as exc:
                 logger.exception("Instagram flow failed during style analysis")
@@ -224,7 +225,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 )
             except ValidationError:
                 logger.exception("Instagram flow failed during generation")
-                yield _sse("error", {"stage": "generation", "message": "Output validation failed."})
+                yield _sse("error", {"stage": "generation", "message": _OUTPUT_VALIDATION_ERROR_MSG})
                 return
             except Exception as exc:
                 logger.exception("Instagram flow failed during generation")
@@ -251,7 +252,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 scorecard = Scorecard(**score_data)
             except ValidationError:
                 logger.exception("Instagram flow failed during scoring")
-                yield _sse("error", {"stage": "scoring", "message": "Output validation failed."})
+                yield _sse("error", {"stage": "scoring", "message": _OUTPUT_VALIDATION_ERROR_MSG})
                 return
             except Exception as exc:
                 logger.exception("Instagram flow failed during scoring")

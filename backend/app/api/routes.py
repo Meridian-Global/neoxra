@@ -150,7 +150,7 @@ async def run_pipeline(req: RunRequest, request: Request):
                 if event_name not in _PIPELINE_NON_PAYLOAD_EVENTS:
                     try:
                         event["data"] = validate_core_pipeline_event(event_name, event.get("data", {}))
-                    except ValidationError:
+                    except (ValidationError, ValueError):
                         logger.exception("Core pipeline output validation failed event=%s", event_name)
                         yield sse({
                             "event": "error",
