@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type KeyboardEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 
 const GOALS = ['engagement', 'authority', 'conversion', 'save', 'share'] as const
 const GOAL_COPY: Record<(typeof GOALS)[number], string> = {
@@ -11,7 +11,14 @@ const GOAL_COPY: Record<(typeof GOALS)[number], string> = {
   share: 'Increase repostability with punchy, social framing.',
 }
 
-const DEMO_PRESETS = [
+export interface InstagramFormPreset {
+  label: string
+  topic: string
+  templateText: string
+  goal: string
+}
+
+const DEMO_PRESETS: readonly InstagramFormPreset[] = [
   {
     label: 'Small teams',
     topic: 'How AI tools help small teams ship faster without adding headcount',
@@ -38,14 +45,47 @@ const DEMO_PRESETS = [
 interface InstagramFormProps {
   onSubmit: (data: { topic: string; template_text: string; goal: string }) => void
   disabled: boolean
+  presets?: readonly InstagramFormPreset[]
+  presetsTitle?: string
+  presetsDescription?: string
+  submitLabel?: string
+  initialTopic?: string
+  initialTemplateText?: string
+  initialGoal?: string
+  topicPlaceholder?: string
+  templatePlaceholder?: string
+  bestInputTips?: readonly string[]
+  onPreviewChange?: (data: { topic: string; template_text: string; goal: string }) => void
 }
 
-export function InstagramForm({ onSubmit, disabled }: InstagramFormProps) {
-  const [topic, setTopic] = useState('')
-  const [templateText, setTemplateText] = useState('')
-  const [goal, setGoal] = useState<string>('engagement')
+export function InstagramForm({
+  onSubmit,
+  disabled,
+  presets = DEMO_PRESETS,
+  presetsTitle = 'Demo Presets',
+  presetsDescription = 'Start with a polished narrative that is safe to use live in a YC or client demo.',
+  submitLabel = 'Generate Post System',
+  initialTopic = '',
+  initialTemplateText = '',
+  initialGoal = 'engagement',
+  topicPlaceholder = 'Example: A founder-friendly post about using AI agents to reduce repetitive marketing work.',
+  templatePlaceholder = 'Hook-first structure, short paragraphs, confident tone, clear CTA...',
+  bestInputTips = [
+    'Describe the audience and outcome, not just the topic.',
+    'Give a strong reference structure in the template field.',
+    'Use Cmd/Ctrl + Enter to generate quickly during demos.',
+  ],
+  onPreviewChange,
+}: InstagramFormProps) {
+  const [topic, setTopic] = useState(initialTopic)
+  const [templateText, setTemplateText] = useState(initialTemplateText)
+  const [goal, setGoal] = useState<string>(initialGoal)
 
   const canSubmit = topic.trim() !== '' && templateText.trim() !== '' && !disabled
+
+  useEffect(() => {
+    onPreviewChange?.({ topic, template_text: templateText, goal })
+  }, [goal, onPreviewChange, templateText, topic])
 
   function handleSubmit() {
     if (!canSubmit) return
@@ -59,7 +99,7 @@ export function InstagramForm({ onSubmit, disabled }: InstagramFormProps) {
     }
   }
 
-  function applyPreset(preset: (typeof DEMO_PRESETS)[number]) {
+  function applyPreset(preset: InstagramFormPreset) {
     setTopic(preset.topic)
     setTemplateText(preset.templateText)
     setGoal(preset.goal)
@@ -77,10 +117,10 @@ export function InstagramForm({ onSubmit, disabled }: InstagramFormProps) {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">
-              Demo Presets
+              {presetsTitle}
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Start with a polished narrative that is safe to use live in a YC or client demo.
+              {presetsDescription}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -112,7 +152,7 @@ export function InstagramForm({ onSubmit, disabled }: InstagramFormProps) {
               <textarea
                 id="ig-topic"
                 className="mt-3 min-h-[168px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4 text-base leading-7 text-[var(--text)] outline-none transition placeholder:text-[var(--subtle)] focus:border-[var(--accent)]"
-                placeholder="Example: A founder-friendly post about using AI agents to reduce repetitive marketing work."
+                placeholder={topicPlaceholder}
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -129,7 +169,7 @@ export function InstagramForm({ onSubmit, disabled }: InstagramFormProps) {
               <textarea
                 id="ig-template"
                 className="mt-3 min-h-[180px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4 text-base leading-7 text-[var(--text)] outline-none transition placeholder:text-[var(--subtle)] focus:border-[var(--accent)]"
-                placeholder="Hook-first structure, short paragraphs, confident tone, clear CTA..."
+                placeholder={templatePlaceholder}
                 value={templateText}
                 onChange={(e) => setTemplateText(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -165,9 +205,9 @@ export function InstagramForm({ onSubmit, disabled }: InstagramFormProps) {
               Best Input
             </div>
             <ul className="mt-3 space-y-3 text-sm leading-6 text-[var(--muted)]">
-              <li>Describe the audience and outcome, not just the topic.</li>
-              <li>Give a strong reference structure in the template field.</li>
-              <li>Use Cmd/Ctrl + Enter to generate quickly during demos.</li>
+              {bestInputTips.map((tip) => (
+                <li key={tip}>{tip}</li>
+              ))}
             </ul>
           </div>
 
@@ -181,7 +221,7 @@ export function InstagramForm({ onSubmit, disabled }: InstagramFormProps) {
               type="submit"
               disabled={!canSubmit}
             >
-              {disabled ? 'Generating…' : 'Generate Post System'}
+              {disabled ? 'Generating…' : submitLabel}
             </button>
           </div>
         </aside>
