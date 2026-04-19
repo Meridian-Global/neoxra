@@ -104,8 +104,9 @@ def _log_instagram_event(event_name: str, **fields) -> None:
     logger.info("instagram pipeline event %s", format_log_fields(base_fields))
 
 
-def _require_instagram_dependencies() -> None:
-    core_client = _get_core_client()
+def _require_instagram_dependencies(core_client=None) -> None:
+    if core_client is None:
+        core_client = _get_core_client()
     try:
         core_client.ensure_instagram_available()
         return
@@ -138,7 +139,7 @@ def _require_anthropic_api_key() -> None:
 @router.post("/api/instagram/generate")
 async def instagram_generate(req: InstagramGenerateRequest, request: Request):
     core_client = _get_core_client()
-    _require_instagram_dependencies()
+    _require_instagram_dependencies(core_client)
     if core_client.requires_local_api_key:
         _require_anthropic_api_key()
     demo_surface = require_demo_access(
@@ -368,17 +369,20 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 yield _sse("scoring_completed", score_data)
 
                 # Final result
-                average = sum(
-                    score_data[key]
-                    for key in (
-                        "hook_strength",
-                        "cta_clarity",
-                        "hashtag_relevance",
-                        "platform_fit",
-                        "tone_match",
-                        "originality",
-                    )
-                ) / 6
+                average = round(
+                    sum(
+                        score_data[key]
+                        for key in (
+                            "hook_strength",
+                            "cta_clarity",
+                            "hashtag_relevance",
+                            "platform_fit",
+                            "tone_match",
+                            "originality",
+                        )
+                    ) / 6,
+                    2,
+                )
                 result_dict = {
                     "content": gen_meta,
                     "scorecard": {**score_data, "average": average},

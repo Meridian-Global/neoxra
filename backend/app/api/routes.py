@@ -14,7 +14,6 @@ from ..core_client import (
     CoreClientUnavailableError,
     get_core_client,
 )
-from ..core.neoxra_core_diagnostics import get_neoxra_core_diagnostics
 from ..core.output_validation import validate_core_pipeline_event
 from ..core.pipeline_observability import PipelineLifecycleTracker
 from ..core.request_guards import (
@@ -149,8 +148,7 @@ async def run_pipeline(req: RunRequest, request: Request):
     try:
         core_client.ensure_pipeline_available()
     except (CoreClientUnavailableError, CoreClientNotImplementedError) as exc:
-        diagnostics = get_neoxra_core_diagnostics()
-        if not diagnostics.get("import_ok") or core_client.mode == "local":
+        if core_client.mode == "local":
             raise HTTPException(
                 status_code=503,
                 detail="Core AI package 'neoxra_core' is unavailable. Generation is temporarily unavailable.",

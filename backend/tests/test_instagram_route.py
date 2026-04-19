@@ -11,6 +11,7 @@ from app.core.request_guards import (
     INSTAGRAM_ROUTE_KEY,
     reset_generation_guards,
 )
+from app.core_client import CoreInstagramGenerationRequest
 from app.main import app
 
 client = TestClient(app)
@@ -92,16 +93,12 @@ class FakeInstagramCoreClient:
         return None
 
     def build_instagram_generation_request(self, *, topic: str, template_text: str, goal: str, style_examples: list[str]):
-        return type(
-            "GenerationRequest",
-            (),
-            {
-                "topic": topic,
-                "template_text": template_text,
-                "goal": goal,
-                "style_examples": list(style_examples),
-            },
-        )()
+        return CoreInstagramGenerationRequest(
+            topic=topic,
+            template_text=template_text,
+            goal=goal,
+            style_examples=list(style_examples),
+        )
 
     def analyze_instagram_style(self, *, template_text: str, style_examples: list[str]):
         if isinstance(self.style_result, Exception):
