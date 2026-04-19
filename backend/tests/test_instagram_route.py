@@ -1,12 +1,10 @@
 """Tests for POST /api/instagram/generate SSE streaming route."""
 
 import json
-from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
-from neoxra_core.skills.base import SkillOutput
 
+import app.api.instagram_routes as instagram_routes
 from app.core.generation_metrics import reset_generation_metrics
 from app.core.request_guards import (
     GENERATION_GUARDS,
@@ -14,50 +12,34 @@ from app.core.request_guards import (
     reset_generation_guards,
 )
 from app.main import app
-from app.api.instagram_routes import (
-    ContentScoringSkill,
-    InstagramGenerationSkill,
-    StyleAnalysisSkill,
-)
 
 client = TestClient(app)
 
-# ── Canned LLM responses (one per skill call, in order) ─────────────
-
-STYLE_ANALYSIS_JSON = json.dumps({
+STYLE_ANALYSIS = {
     "tone_keywords": ["bold", "conversational"],
     "structural_patterns": ["short paragraphs", "hook first"],
     "vocabulary_notes": "casual but smart",
-})
+}
 
-GENERATION_JSON = json.dumps({
+GENERATION_CONTENT = {
     "caption": "Test caption about AI tools",
     "hook_options": ["Hook A", "Hook B"],
     "hashtags": ["#ai", "#tools", "#productivity"],
-    "carousel_outline": [
-        {"title": f"Slide {i}", "body": f"Body {i}"} for i in range(1, 6)
-    ],
-    "reel_script": "Open on a laptop screen...",
-})
+    "carousel_outline": [{"title": f"Slide {i}", "body": f"Body {i}"} for i in range(1, 6)],
+    "reel_script": "Hook: Open strong\nBody: Deliver one clear idea\nCTA: Save this",
+}
 
-SCORING_JSON = json.dumps({
+SCORECARD = {
     "hook_strength": 8,
     "cta_clarity": 7,
     "hashtag_relevance": 9,
     "platform_fit": 8,
     "tone_match": 7,
     "originality": 6,
-    "critique": "Strong hook but CTA could be sharper.",
-})
-
-
-def _mock_generate_side_effects():
-    """Return a list of canned responses for the three sequential LLM calls."""
-    return [STYLE_ANALYSIS_JSON, GENERATION_JSON, SCORING_JSON]
+}
 
 
 def _parse_sse_stream(raw: str) -> list[dict]:
-    """Parse an SSE text stream into a list of {event, data} dicts."""
     events = []
     for block in raw.split("\n\n"):
         block = block.strip()
@@ -88,24 +70,79 @@ EXPECTED_EVENT_ORDER = [
 ]
 
 
-@pytest.fixture()
-def mock_llm():
-    mock = MagicMock(side_effect=_mock_generate_side_effects())
-    with (
-        patch("neoxra_core.skills.style_analysis.generate", mock),
-        patch("neoxra_core.skills.instagram_generation.generate", mock),
-        patch("neoxra_core.skills.content_scoring.generate", mock),
+class FakeInstagramCoreClient:
+    mode = "local"
+    requires_local_api_key = False
+
+    def __init__(
+        self,
+        *,
+        style_result: dict | Exception | None = None,
+        generation_result: dict | Exception | None = None,
+        score_result: tuple[dict, str] | Exception | None = None,
     ):
-        yield mock
+        self.style_result = style_result if style_result is not None else dict(STYLE_ANALYSIS)
+        self.generation_result = generation_result if generation_result is not None else dict(GENERATION_CONTENT)
+        self.score_result = score_result if score_result is not None else (dict(SCORECARD), "Strong hook but CTA could be sharper.")
+        self.last_generation_request = None
+        self.last_localized_template_text = None
+        self.last_locale = None
+
+    def ensure_instagram_available(self):
+        return None
+
+    def build_instagram_generation_request(self, *, topic: str, template_text: str, goal: str, style_examples: list[str]):
+        return type(
+            "GenerationRequest",
+            (),
+            {
+                "topic": topic,
+                "template_text": template_text,
+                "goal": goal,
+                "style_examples": list(style_examples),
+            },
+        )()
+
+    def analyze_instagram_style(self, *, template_text: str, style_examples: list[str]):
+        if isinstance(self.style_result, Exception):
+            raise self.style_result
+        return self.style_result
+
+    def generate_instagram_content(
+        self,
+        *,
+        generation_request,
+        localized_template_text: str,
+        style_analysis: dict[str, object],
+        locale: str,
+    ):
+        self.last_generation_request = generation_request
+        self.last_localized_template_text = localized_template_text
+        self.last_locale = locale
+        if isinstance(self.generation_result, Exception):
+            raise self.generation_result
+        return self.generation_result
+
+    def score_instagram_content(self, *, content: dict[str, object], goal: str):
+        if isinstance(self.score_result, Exception):
+            raise self.score_result
+        return self.score_result
+
+
+def _use_fake_core_client(monkeypatch, fake_client: FakeInstagramCoreClient) -> FakeInstagramCoreClient:
+    monkeypatch.setattr(instagram_routes, "_get_core_client", lambda: fake_client)
+    return fake_client
 
 
 class TestInstagramSSERoute:
-    def test_legal_demo_surface_requires_access_when_gated(self, mock_llm, monkeypatch):
+    def test_legal_demo_surface_requires_access_when_gated(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
         monkeypatch.setenv("NEOXRA_ENV_MODE", "public-demo")
         monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_MODE", "gated")
         monkeypatch.setenv("NEOXRA_DEMO_SIGNING_SECRET", "demo-secret")
+
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
 
         resp = client.post(
             "/api/instagram/generate",
@@ -116,13 +153,15 @@ class TestInstagramSSERoute:
         assert resp.status_code == 401
         assert resp.json()["error_code"] == "DEMO_ACCESS_REQUIRED"
 
-    def test_legal_demo_surface_accepts_valid_demo_token(self, mock_llm, monkeypatch):
+    def test_legal_demo_surface_accepts_valid_demo_token(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
         monkeypatch.setenv("NEOXRA_ENV_MODE", "public-demo")
         monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_MODE", "gated")
         monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_CODE", "law-demo")
         monkeypatch.setenv("NEOXRA_DEMO_SIGNING_SECRET", "demo-secret")
+
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
 
         access_response = client.post(
             "/api/demo/access",
@@ -142,9 +181,10 @@ class TestInstagramSSERoute:
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers["content-type"]
 
-    def test_content_type_is_event_stream(self, mock_llm):
+    def test_content_type_is_event_stream(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -152,9 +192,10 @@ class TestInstagramSSERoute:
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers["content-type"]
 
-    def test_stream_contains_exactly_7_events_in_order(self, mock_llm):
+    def test_stream_contains_exactly_expected_events_in_order(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -163,21 +204,22 @@ class TestInstagramSSERoute:
         event_names = [e["event"] for e in events]
         assert event_names == EXPECTED_EVENT_ORDER
 
-    def test_pipeline_completed_has_required_keys(self, mock_llm):
+    def test_pipeline_completed_has_required_keys(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
         )
         events = _parse_sse_stream(resp.text)
         final = next(e for e in events if e["event"] == "pipeline_completed")
-        data = final["data"]
-        assert set(data.keys()) >= {"content", "scorecard", "critique", "style_analysis"}
+        assert set(final["data"].keys()) >= {"content", "scorecard", "critique", "style_analysis"}
 
-    def test_scorecard_has_six_dimensions_plus_average(self, mock_llm):
+    def test_scorecard_has_six_dimensions_plus_average(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -186,15 +228,20 @@ class TestInstagramSSERoute:
         final = next(e for e in events if e["event"] == "pipeline_completed")
         scorecard = final["data"]["scorecard"]
         for dim in (
-            "hook_strength", "cta_clarity", "hashtag_relevance",
-            "platform_fit", "tone_match", "originality",
+            "hook_strength",
+            "cta_clarity",
+            "hashtag_relevance",
+            "platform_fit",
+            "tone_match",
+            "originality",
         ):
-            assert dim in scorecard, f"missing scorecard dimension: {dim}"
+            assert dim in scorecard
         assert "average" in scorecard
 
-    def test_content_has_required_fields(self, mock_llm):
+    def test_content_has_required_fields(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
@@ -203,11 +250,12 @@ class TestInstagramSSERoute:
         final = next(e for e in events if e["event"] == "pipeline_completed")
         content = final["data"]["content"]
         for field in ("caption", "hook_options", "hashtags", "carousel_outline", "reel_script"):
-            assert field in content, f"missing content field: {field}"
+            assert field in content
 
-    def test_locale_is_included_in_pipeline_started_event(self, mock_llm):
+    def test_locale_is_included_in_pipeline_started_event(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
         resp = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template", "locale": "zh-TW"},
@@ -216,91 +264,36 @@ class TestInstagramSSERoute:
         started = next(e for e in events if e["event"] == "pipeline_started")
         assert started["data"]["locale"] == "zh-TW"
 
-    def test_generation_receives_traditional_chinese_instruction(self):
+    def test_generation_receives_traditional_chinese_instruction(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
-        style_output = SkillOutput(
-            text="style ok",
-            metadata={
-                "style_analysis": {
-                    "tone_keywords": ["bold"],
-                    "structural_patterns": ["hook first"],
-                    "vocabulary_notes": "direct voice",
-                }
-            },
-        )
-        generation_output = SkillOutput(
-            text="generation ok",
-            metadata={
-                "caption": "Caption",
-                "hook_options": ["Hook A"],
-                "hashtags": ["tag1"],
-                "carousel_outline": [{"title": "Slide 1", "body": "Body 1"}],
-                "reel_script": "Reel script",
-            },
-        )
-        scoring_output = SkillOutput(
-            text="score ok",
-            metadata={
-                "scorecard": {
-                    "hook_strength": 8,
-                    "cta_clarity": 7,
-                    "hashtag_relevance": 9,
-                    "platform_fit": 8,
-                    "tone_match": 7,
-                    "originality": 6,
-                }
-            },
-        )
-        generation_mock = MagicMock(return_value=generation_output)
+        fake_client = _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
 
-        with (
-            patch.object(StyleAnalysisSkill, "run", return_value=style_output),
-            patch.object(InstagramGenerationSkill, "run", generation_mock),
-            patch.object(ContentScoringSkill, "run", return_value=scoring_output),
-        ):
-            resp = client.post(
-                "/api/instagram/generate",
-                json={"topic": "test", "template_text": "template", "locale": "zh-TW"},
-            )
+        resp = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template", "locale": "zh-TW"},
+        )
 
         assert resp.status_code == 200
-        assert generation_mock.call_count == 1
-        skill_input = generation_mock.call_args.args[0]
-        assert skill_input.context["locale"] == "zh-TW"
-        assert "Traditional Chinese for Taiwan" in skill_input.context["template_text"]
+        assert fake_client.last_generation_request is not None
+        assert fake_client.last_locale == "zh-TW"
+        assert "Traditional Chinese for Taiwan" in fake_client.last_localized_template_text
 
-    def test_invalid_generation_payload_emits_error_event(self):
+    def test_invalid_generation_payload_emits_error_event(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
-        style_output = SkillOutput(
-            text="style ok",
-            metadata={
-                "style_analysis": {
-                    "tone_keywords": ["bold"],
-                    "structural_patterns": ["hook first"],
-                    "vocabulary_notes": "direct voice",
-                }
-            },
+        invalid_content = dict(GENERATION_CONTENT)
+        invalid_content["caption"] = ""
+        _use_fake_core_client(
+            monkeypatch,
+            FakeInstagramCoreClient(generation_result=invalid_content),
         )
-        invalid_generation_output = SkillOutput(
-            text="generation ok",
-            metadata={
-                "caption": "",
-                "hook_options": ["Hook A"],
-                "hashtags": ["tag1"],
-                "carousel_outline": [{"title": "Slide 1", "body": "Body 1"}],
-                "reel_script": "Reel script",
-            },
+
+        resp = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template"},
         )
-        with (
-            patch.object(StyleAnalysisSkill, "run", return_value=style_output),
-            patch.object(InstagramGenerationSkill, "run", return_value=invalid_generation_output),
-        ):
-            resp = client.post(
-                "/api/instagram/generate",
-                json={"topic": "test", "template_text": "template"},
-            )
+
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
             "pipeline_started",
@@ -315,18 +308,19 @@ class TestInstagramSSERoute:
             "error_code": "GENERATION_OUTPUT_INVALID",
         }
 
-    def test_style_analysis_failure_emits_error_event(self):
+    def test_style_analysis_failure_emits_error_event(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
-        with patch.object(
-            StyleAnalysisSkill,
-            "run",
-            side_effect=ValueError("style boom"),
-        ):
-            resp = client.post(
-                "/api/instagram/generate",
-                json={"topic": "test", "template_text": "template"},
-            )
+        _use_fake_core_client(
+            monkeypatch,
+            FakeInstagramCoreClient(style_result=ValueError("style boom")),
+        )
+
+        resp = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template"},
+        )
+
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
             "pipeline_started",
@@ -339,31 +333,19 @@ class TestInstagramSSERoute:
             "error_code": "STYLE_ANALYSIS_FAILED",
         }
 
-    def test_generation_failure_emits_error_event(self):
+    def test_generation_failure_emits_error_event(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
-        style_output = SkillOutput(
-            text="style ok",
-            metadata={
-                "style_analysis": {
-                    "tone_keywords": ["bold"],
-                    "structural_patterns": ["hook first"],
-                    "vocabulary_notes": "direct voice",
-                }
-            },
+        _use_fake_core_client(
+            monkeypatch,
+            FakeInstagramCoreClient(generation_result=ValueError("generation boom")),
         )
-        with (
-            patch.object(StyleAnalysisSkill, "run", return_value=style_output),
-            patch.object(
-                InstagramGenerationSkill,
-                "run",
-                side_effect=ValueError("generation boom"),
-            ),
-        ):
-            resp = client.post(
-                "/api/instagram/generate",
-                json={"topic": "test", "template_text": "template"},
-            )
+
+        resp = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template"},
+        )
+
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
             "pipeline_started",
@@ -378,46 +360,19 @@ class TestInstagramSSERoute:
             "error_code": "GENERATION_FAILED",
         }
 
-    def test_scoring_failure_emits_error_event(self):
+    def test_scoring_failure_emits_error_event(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
-        style_output = SkillOutput(
-            text="style ok",
-            metadata={
-                "style_analysis": {
-                    "tone_keywords": ["bold"],
-                    "structural_patterns": ["hook first"],
-                    "vocabulary_notes": "direct voice",
-                }
-            },
+        _use_fake_core_client(
+            monkeypatch,
+            FakeInstagramCoreClient(score_result=ValueError("scoring boom")),
         )
-        generation_output = SkillOutput(
-            text="generation ok",
-            metadata={
-                "caption": "Caption",
-                "hook_options": ["Hook A"],
-                "hashtags": ["tag1"],
-                "carousel_outline": [{"title": "Slide 1", "body": "Body 1"}],
-                "reel_script": "Reel script",
-            },
+
+        resp = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template"},
         )
-        with (
-            patch.object(StyleAnalysisSkill, "run", return_value=style_output),
-            patch.object(
-                InstagramGenerationSkill,
-                "run",
-                return_value=generation_output,
-            ),
-            patch.object(
-                ContentScoringSkill,
-                "run",
-                side_effect=ValueError("scoring boom"),
-            ),
-        ):
-            resp = client.post(
-                "/api/instagram/generate",
-                json={"topic": "test", "template_text": "template"},
-            )
+
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
             "pipeline_started",
@@ -434,24 +389,24 @@ class TestInstagramSSERoute:
             "error_code": "SCORING_FAILED",
         }
 
-    def test_generation_metrics_endpoint_tracks_instagram_success_and_failure(self, mock_llm):
+    def test_generation_metrics_endpoint_tracks_instagram_success_and_failure(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
         success_response = client.post(
             "/api/instagram/generate",
             json={"topic": "test", "template_text": "template"},
         )
         assert success_response.status_code == 200
 
-        with patch.object(
-            StyleAnalysisSkill,
-            "run",
-            side_effect=ValueError("style boom"),
-        ):
-            failure_response = client.post(
-                "/api/instagram/generate",
-                json={"topic": "test", "template_text": "template"},
-            )
+        _use_fake_core_client(
+            monkeypatch,
+            FakeInstagramCoreClient(style_result=ValueError("style boom")),
+        )
+        failure_response = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template"},
+        )
         assert failure_response.status_code == 200
 
         metrics_response = client.get("/health/generation-metrics")
@@ -462,10 +417,11 @@ class TestInstagramSSERoute:
         assert metrics["by_pipeline"]["instagram"]["failed_runs"] == 1
         assert metrics["by_pipeline"]["instagram"]["failures_by_reason"]["stage_exception"] == 1
 
-    def test_instagram_route_rate_limits_by_ip(self, mock_llm, monkeypatch):
+    def test_instagram_route_rate_limits_by_ip(self, monkeypatch):
         reset_generation_metrics()
         reset_generation_guards()
         monkeypatch.setenv("INSTAGRAM_GENERATE_RATE_LIMIT_PER_MINUTE", "1")
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
 
         headers = {"X-Forwarded-For": "203.0.113.20"}
         first = client.post(
@@ -488,8 +444,8 @@ class TestInstagramSSERoute:
         reset_generation_metrics()
         reset_generation_guards()
         monkeypatch.setenv("INSTAGRAM_GENERATE_MAX_CONCURRENT_PER_IP", "1")
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
 
-        # Simulate an existing concurrent request from this IP.
         GENERATION_GUARDS._set_active_count_for_test(INSTAGRAM_ROUTE_KEY, "203.0.113.21", 1)
         try:
             response = client.post(
@@ -509,6 +465,7 @@ class TestInstagramSSERoute:
         reset_generation_metrics()
         reset_generation_guards()
         monkeypatch.setenv("INSTAGRAM_GENERATE_MAX_BODY_BYTES", "100")
+        _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
 
         response = client.post(
             "/api/instagram/generate",

@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -30,37 +29,13 @@ from ..core.request_guards import (
     get_max_template_text_length,
     get_max_topic_length,
 )
+from ..core_client import (
+    CoreClientNotImplementedError,
+    CoreClientUnavailableError,
+    get_core_client,
+)
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
-_INSTAGRAM_IMPORT_ERROR = None
-try:
-    from neoxra_core.models.instagram import (
-        VALID_GOALS as CORE_VALID_GOALS,
-        CarouselSlide,
-        GenerationRequest,
-        InstagramContent,
-        InstagramResult,
-        Scorecard,
-        StyleAnalysis,
-    )
-    from neoxra_core.skills.base import SkillInput
-    from neoxra_core.skills.content_scoring import ContentScoringSkill
-    from neoxra_core.skills.instagram_generation import InstagramGenerationSkill
-    from neoxra_core.skills.style_analysis import StyleAnalysisSkill
-
-    VALID_GOALS = CORE_VALID_GOALS
-except Exception as exc:
-    CarouselSlide = None
-    GenerationRequest = None
-    InstagramContent = None
-    InstagramResult = None
-    Scorecard = None
-    StyleAnalysis = None
-    SkillInput = None
-    ContentScoringSkill = None
-    InstagramGenerationSkill = None
-    StyleAnalysisSkill = None
-    _INSTAGRAM_IMPORT_ERROR = exc
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -130,13 +105,24 @@ def _log_instagram_event(event_name: str, **fields) -> None:
 
 
 def _require_instagram_dependencies() -> None:
-    if GenerationRequest is not None:
+    core_client = _get_core_client()
+    try:
+        core_client.ensure_instagram_available()
         return
+    except (CoreClientUnavailableError, CoreClientNotImplementedError) as exc:
+        if core_client.mode == "local":
+            raise HTTPException(
+                status_code=503,
+                detail="Instagram generation is temporarily unavailable because the core AI package is not ready.",
+            ) from exc
+        raise HTTPException(
+            status_code=503,
+            detail="Instagram generation is temporarily unavailable because the selected core adapter is not ready.",
+        ) from exc
 
-    raise HTTPException(
-        status_code=503,
-        detail="Instagram generation is temporarily unavailable because the core AI package is not ready.",
-    )
+
+def _get_core_client():
+    return get_core_client()
 
 
 def _require_anthropic_api_key() -> None:
@@ -151,8 +137,10 @@ def _require_anthropic_api_key() -> None:
 
 @router.post("/api/instagram/generate")
 async def instagram_generate(req: InstagramGenerateRequest, request: Request):
+    core_client = _get_core_client()
     _require_instagram_dependencies()
-    _require_anthropic_api_key()
+    if core_client.requires_local_api_key:
+        _require_anthropic_api_key()
     demo_surface = require_demo_access(
         request,
         default_surface="instagram",
@@ -167,6 +155,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 "topic_length": len(req.topic),
                 "goal": req.goal,
                 "locale": req.locale,
+                "core_client_mode": core_client.mode,
                 "demo_surface": demo_surface,
                 "runtime_mode": getattr(request.state, "runtime_mode", "unknown"),
                 "style_examples": len(req.style_examples),
@@ -176,7 +165,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
     )
 
     try:
-        generation_request = GenerationRequest(
+        generation_request = core_client.build_instagram_generation_request(
             topic=req.topic,
             template_text=req.template_text,
             style_examples=req.style_examples,
@@ -192,9 +181,6 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
 
     async def stream():
         completed = False
-        style_skill = StyleAnalysisSkill()
-        gen_skill = InstagramGenerationSkill()
-        scoring_skill = ContentScoringSkill()
         tracker = PipelineLifecycleTracker(logger=logger, pipeline_name="instagram", locale=req.locale)
 
         try:
@@ -232,15 +218,11 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 _log_instagram_event("style_analysis_started", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("style_analysis_started", {})
                 try:
-                    style_output = style_skill.run(SkillInput(
-                        text=generation_request.template_text,
-                        context={"style_examples": generation_request.style_examples},
-                    ))
-                    style_data = validate_style_analysis_payload(style_output.metadata["style_analysis"])
-                    style_analysis = StyleAnalysis(
-                        tone_keywords=style_data["tone_keywords"],
-                        structural_patterns=style_data["structural_patterns"],
-                        vocabulary_notes=style_data["vocabulary_notes"],
+                    style_data = validate_style_analysis_payload(
+                        core_client.analyze_instagram_style(
+                            template_text=generation_request.template_text,
+                            style_examples=generation_request.style_examples,
+                        )
                     )
                 except ValidationError:
                     logger.exception("Instagram flow failed during style analysis")
@@ -287,25 +269,13 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 _log_instagram_event("generation_started", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("generation_started", {})
                 try:
-                    gen_output = gen_skill.run(SkillInput(
-                        text=generation_request.topic,
-                        context={
-                            "template_text": localized_template_text,
-                            "goal": generation_request.goal,
-                            "locale": req.locale,
-                            "style_analysis": style_data,
-                        },
-                    ))
-                    gen_meta = validate_instagram_generation_payload(gen_output.metadata)
-                    content = InstagramContent(
-                        caption=gen_meta["caption"],
-                        hook_options=gen_meta["hook_options"],
-                        hashtags=gen_meta["hashtags"],
-                        carousel_outline=[
-                            CarouselSlide(title=s["title"], body=s["body"])
-                            for s in gen_meta["carousel_outline"]
-                        ],
-                        reel_script=gen_meta["reel_script"],
+                    gen_meta = validate_instagram_generation_payload(
+                        core_client.generate_instagram_content(
+                            generation_request=generation_request,
+                            localized_template_text=localized_template_text,
+                            style_analysis=style_data,
+                            locale=req.locale,
+                        )
                     )
                 except ValidationError:
                     logger.exception("Instagram flow failed during generation")
@@ -352,18 +322,11 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 _log_instagram_event("scoring_started", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("scoring_started", {})
                 try:
-                    score_output = scoring_skill.run(SkillInput(
-                        text=content.caption,
-                        context={
-                            "hook_options": content.hook_options,
-                            "hashtags": content.hashtags,
-                            "carousel_slide_count": len(content.carousel_outline),
-                            "reel_script": content.reel_script,
-                            "goal": generation_request.goal,
-                        },
-                    ))
-                    score_data = validate_scorecard_payload(score_output.metadata["scorecard"])
-                    scorecard = Scorecard(**score_data)
+                    score_data, critique = core_client.score_instagram_content(
+                        content=gen_meta,
+                        goal=generation_request.goal,
+                    )
+                    score_data = validate_scorecard_payload(score_data)
                 except ValidationError:
                     logger.exception("Instagram flow failed during scoring")
                     error_code, safe_message = validation_error_for_stage("scoring")
@@ -405,14 +368,23 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 yield _sse("scoring_completed", score_data)
 
                 # Final result
-                result = InstagramResult(
-                    content=content,
-                    scorecard=scorecard,
-                    critique=score_output.text,
-                    style_analysis=style_analysis,
-                )
-                result_dict = asdict(result)
-                result_dict["scorecard"]["average"] = scorecard.average
+                average = sum(
+                    score_data[key]
+                    for key in (
+                        "hook_strength",
+                        "cta_clarity",
+                        "hashtag_relevance",
+                        "platform_fit",
+                        "tone_match",
+                        "originality",
+                    )
+                ) / 6
+                result_dict = {
+                    "content": gen_meta,
+                    "scorecard": {**score_data, "average": average},
+                    "critique": critique,
+                    "style_analysis": style_data,
+                }
                 completed = True
                 tracker.complete(goal=generation_request.goal)
                 _log_instagram_event("pipeline_completed", locale=req.locale, demo_surface=demo_surface)

@@ -9,6 +9,11 @@ from ..core.error_handling import generation_error_payload, public_generation_er
 from ..core.demo_access import require_demo_access
 from ..core.localization import DEFAULT_LOCALE, validate_locale
 from ..core.logging_utils import format_log_fields, get_request_id
+from ..core_client import (
+    CoreClientNotImplementedError,
+    CoreClientUnavailableError,
+    get_core_client,
+)
 from ..core.neoxra_core_diagnostics import get_neoxra_core_diagnostics
 from ..core.output_validation import validate_core_pipeline_event
 from ..core.pipeline_observability import PipelineLifecycleTracker
@@ -20,7 +25,6 @@ from ..core.request_guards import (
 )
 
 router = APIRouter()
-run_pipeline_stream = None
 logger = logging.getLogger(__name__)
 
 # Events that carry no validatable payload – skip output validation for these.
@@ -102,22 +106,8 @@ def _stage_name_from_event(event_name: str) -> str | None:
     return None
 
 
-def _get_pipeline_runner():
-    if run_pipeline_stream is not None:
-        return run_pipeline_stream
-
-    try:
-        from ..core.pipeline import run_pipeline_stream as runner
-    except Exception as exc:
-        diagnostics = get_neoxra_core_diagnostics()
-        if not diagnostics.get("import_ok"):
-            raise HTTPException(
-                status_code=503,
-                detail="Core AI package 'neoxra_core' is unavailable. Generation is temporarily unavailable.",
-            ) from exc
-        raise
-
-    return runner
+def _get_core_client():
+    return get_core_client()
 
 
 def _require_anthropic_api_key() -> None:
@@ -148,13 +138,27 @@ async def run_pipeline(req: RunRequest, request: Request):
       critic_started / critic_completed
       pipeline_completed
     """
-    _require_anthropic_api_key()
     demo_surface = require_demo_access(
         request,
         default_surface="landing",
         allowed_surfaces={"landing"},
     )
-    pipeline_runner = _get_pipeline_runner()
+    core_client = _get_core_client()
+    if core_client.requires_local_api_key:
+        _require_anthropic_api_key()
+    try:
+        core_client.ensure_pipeline_available()
+    except (CoreClientUnavailableError, CoreClientNotImplementedError) as exc:
+        diagnostics = get_neoxra_core_diagnostics()
+        if not diagnostics.get("import_ok") or core_client.mode == "local":
+            raise HTTPException(
+                status_code=503,
+                detail="Core AI package 'neoxra_core' is unavailable. Generation is temporarily unavailable.",
+            ) from exc
+        raise HTTPException(
+            status_code=503,
+            detail="Core generation service is temporarily unavailable.",
+        ) from exc
     concurrency_lease = await enforce_generation_limits(request, CORE_ROUTE_KEY)
     logger.info(
         "core pipeline request accepted %s",
@@ -165,6 +169,7 @@ async def run_pipeline(req: RunRequest, request: Request):
                 "idea_length": len(req.idea),
                 "voice_profile": req.voice_profile,
                 "locale": req.locale,
+                "core_client_mode": core_client.mode,
                 "demo_surface": demo_surface,
                 "runtime_mode": getattr(request.state, "runtime_mode", "unknown"),
                 "path": request.url.path,
@@ -203,7 +208,7 @@ async def run_pipeline(req: RunRequest, request: Request):
                 )
 
                 # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
-                for event in pipeline_runner(req.idea, req.voice_profile, req.locale):
+                for event in core_client.stream_core_pipeline(req.idea, req.voice_profile, req.locale):
                     event_name = event.get("event", "unknown")
                     stage_name = _stage_name_from_event(event_name)
                     if event_name.endswith("_started") and stage_name is not None:

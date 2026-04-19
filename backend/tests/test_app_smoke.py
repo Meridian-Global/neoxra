@@ -11,6 +11,20 @@ from app.core.request_guards import (
 from app.main import app
 
 
+def _make_fake_core_client(stream_fn):
+    class FakeCoreClient:
+        mode = "local"
+        requires_local_api_key = False
+
+        def ensure_pipeline_available(self):
+            return None
+
+        def stream_core_pipeline(self, idea: str, voice_profile_name: str = "default", locale: str = "en"):
+            return stream_fn(idea, voice_profile_name, locale)
+
+    return FakeCoreClient()
+
+
 def test_app_starts():
     client = TestClient(app)
 
@@ -30,7 +44,7 @@ def test_core_route_exists(monkeypatch):
         yield {"event": "planner_started", "data": {}}
         yield {"event": "pipeline_completed", "data": {"ok": True}}
 
-    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_run_pipeline_stream))
 
     client = TestClient(app)
     response = client.post("/api/run", json={"idea": "hello"})
@@ -112,7 +126,7 @@ def test_core_route_emits_error_when_stream_ends_early(monkeypatch):
         assert locale == "en"
         yield {"event": "planner_started", "data": {}}
 
-    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_run_pipeline_stream))
 
     client = TestClient(app)
     response = client.post("/api/run", json={"idea": "hello"})
@@ -134,7 +148,7 @@ def test_core_route_does_not_double_emit_when_pipeline_emits_error(monkeypatch):
         yield {"event": "planner_started", "data": {}}
         yield {"event": "error", "data": {"stage": "planner", "message": "planner failed"}}
 
-    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_run_pipeline_stream))
 
     client = TestClient(app)
     response = client.post("/api/run", json={"idea": "hello"})
@@ -156,7 +170,7 @@ def test_core_route_accepts_locale(monkeypatch):
         yield {"event": "planner_started", "data": {}}
         yield {"event": "pipeline_completed", "data": {"ok": True}}
 
-    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_run_pipeline_stream))
 
     client = TestClient(app)
     response = client.post("/api/run", json={"idea": "hello", "locale": "zh-TW"})
@@ -193,7 +207,7 @@ def test_core_route_emits_error_when_completed_payload_is_invalid(monkeypatch):
             },
         }
 
-    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_run_pipeline_stream))
 
     client = TestClient(app)
     response = client.post("/api/run", json={"idea": "hello"})
@@ -282,11 +296,11 @@ def test_generation_metrics_endpoint_tracks_core_success_and_failure(monkeypatch
         yield {"event": "planner_started", "data": {}}
 
     client = TestClient(app)
-    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_success)
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_success))
     success_response = client.post("/api/run", json={"idea": "hello"})
     assert success_response.status_code == 200
 
-    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_failure)
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_failure))
     failure_response = client.post("/api/run", json={"idea": "hello"})
     assert failure_response.status_code == 200
 
@@ -329,7 +343,7 @@ def test_core_route_rate_limits_by_ip(monkeypatch):
             },
         }
 
-    monkeypatch.setattr(core_routes, "run_pipeline_stream", fake_run_pipeline_stream)
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_run_pipeline_stream))
 
     client = TestClient(app)
     headers = {"X-Forwarded-For": "203.0.113.10"}
