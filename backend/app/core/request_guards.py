@@ -137,10 +137,28 @@ class GenerationGuardStore:
         self._active_requests: dict[tuple[str, str], int] = defaultdict(int)
 
     def reset(self) -> None:
-        """Synchronous reset for test teardown. Do not call while async requests are in-flight."""
+        """Synchronous reset for test teardown only.
+
+        Must only be called when no async requests are in-flight.
+        The lock is deliberately recreated so the next TestClient session gets a
+        fresh, unbound lock; the old lock is safe to discard here because tests
+        guarantee quiescence before calling this method.
+        """
         self._request_timestamps.clear()
         self._active_requests.clear()
         self._lock = asyncio.Lock()
+
+    def _set_active_count_for_test(self, route_key: str, client_id: str, count: int) -> None:
+        """Test-only helper: set the active request count for a (route, client) key.
+
+        Bypasses the async lock intentionally — tests call this from synchronous
+        setup code before any requests are in-flight, so no locking is needed.
+        """
+        key = (route_key, client_id)
+        if count <= 0:
+            self._active_requests.pop(key, None)
+        else:
+            self._active_requests[key] = count
 
     async def check_rate_limit(self, route_key: str, client_id: str) -> tuple[bool, int]:
         limit, window_seconds = get_rate_limit_config(route_key)

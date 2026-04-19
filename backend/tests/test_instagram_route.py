@@ -439,9 +439,8 @@ class TestInstagramSSERoute:
         reset_generation_guards()
         monkeypatch.setenv("INSTAGRAM_GENERATE_MAX_CONCURRENT_PER_IP", "1")
 
-        # Simulate an existing concurrent request from this IP by directly setting
-        # the active request count (avoids needing an async context for acquire()).
-        GENERATION_GUARDS._active_requests[(INSTAGRAM_ROUTE_KEY, "203.0.113.21")] = 1
+        # Simulate an existing concurrent request from this IP.
+        GENERATION_GUARDS._set_active_count_for_test(INSTAGRAM_ROUTE_KEY, "203.0.113.21", 1)
         try:
             response = client.post(
                 "/api/instagram/generate",
@@ -453,7 +452,7 @@ class TestInstagramSSERoute:
                 "Too many concurrent generation requests from this IP. Please wait for the current run to finish."
             )
         finally:
-            GENERATION_GUARDS._active_requests.pop((INSTAGRAM_ROUTE_KEY, "203.0.113.21"), None)
+            GENERATION_GUARDS._set_active_count_for_test(INSTAGRAM_ROUTE_KEY, "203.0.113.21", 0)
 
     def test_instagram_route_rejects_oversized_request_body(self, monkeypatch):
         reset_generation_metrics()

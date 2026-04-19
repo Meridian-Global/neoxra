@@ -290,9 +290,8 @@ def test_core_route_rejects_concurrent_runs_from_same_ip(monkeypatch):
     reset_generation_guards()
     monkeypatch.setenv("CORE_RUN_MAX_CONCURRENT_PER_IP", "1")
 
-    # Simulate an existing concurrent request from this IP by directly setting
-    # the active request count (avoids needing an async context for acquire()).
-    GENERATION_GUARDS._active_requests[(CORE_ROUTE_KEY, "203.0.113.11")] = 1
+    # Simulate an existing concurrent request from this IP.
+    GENERATION_GUARDS._set_active_count_for_test(CORE_ROUTE_KEY, "203.0.113.11", 1)
     try:
         client = TestClient(app)
         response = client.post(
@@ -305,7 +304,7 @@ def test_core_route_rejects_concurrent_runs_from_same_ip(monkeypatch):
             "Too many concurrent generation requests from this IP. Please wait for the current run to finish."
         )
     finally:
-        GENERATION_GUARDS._active_requests.pop((CORE_ROUTE_KEY, "203.0.113.11"), None)
+        GENERATION_GUARDS._set_active_count_for_test(CORE_ROUTE_KEY, "203.0.113.11", 0)
 
 
 def test_core_route_rejects_oversized_request_body(monkeypatch):
