@@ -10,7 +10,7 @@ import { CarouselPreview } from '../../components/CarouselPreview'
 import { LanguageToggle } from '../../components/LanguageToggle'
 import { useLanguage } from '../../components/LanguageProvider'
 import { API_BASE_URL } from '../../lib/api'
-import { buildDemoHeaders } from '../../lib/demo-access'
+import { buildDemoHeaders, clearStoredDemoToken } from '../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { getInstagramSampleResult } from '../../lib/instagram-demo'
 import { APIError, streamSSE } from '../../lib/sse'
@@ -406,6 +406,7 @@ export default function InstagramPage() {
       } catch (err) {
         if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
           if (err instanceof APIError && err.status === 401) {
+            clearStoredDemoToken(demoConfig.apiSurface)
             setDemoToken(null)
             setError(copy.errors.access)
             setStatus('error')

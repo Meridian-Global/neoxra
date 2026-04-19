@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { DemoSurfaceId } from '../lib/demo-config'
 import {
   clearStoredDemoToken,
@@ -41,7 +41,7 @@ export function DemoAccessGate({ surface, copy, onAccessReady }: DemoAccessGateP
     }
   }, [onAccessReady, surface])
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!accessCode.trim()) return
     setIsSubmitting(true)

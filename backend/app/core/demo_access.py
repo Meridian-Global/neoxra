@@ -22,12 +22,19 @@ def _env(name: str, default: str) -> str:
     return value.strip() or default
 
 
+_DEV_MODE_ALIASES = {"development", "dev"}
+
+
 def _normalize_env_mode(value: str) -> str:
-    return value if value in SUPPORTED_ENV_MODES else "production"
+    if value in SUPPORTED_ENV_MODES:
+        return value
+    if value in _DEV_MODE_ALIASES:
+        return "local"
+    return "production"
 
 
 def get_runtime_mode() -> str:
-    return _normalize_env_mode(_env("NEOXRA_ENV_MODE", _env("ENVIRONMENT", "production")))
+    return _normalize_env_mode(_env("NEOXRA_ENV_MODE", _env("ENVIRONMENT", "local")))
 
 
 def _default_access_mode(surface: str, runtime_mode: str) -> str:
@@ -61,8 +68,25 @@ def _get_surface_access_code(surface: str) -> str | None:
     return value or None
 
 
+def _requires_explicit_signing_secret(runtime_mode: str | None = None) -> bool:
+    mode = runtime_mode or get_runtime_mode()
+    return any(
+        get_surface_access_mode(surface, mode) == "gated"
+        for surface in SUPPORTED_DEMO_SURFACES
+    )
+
+
 def _get_signing_secret() -> str:
-    return _env("NEOXRA_DEMO_SIGNING_SECRET", _env("ANTHROPIC_API_KEY", "neoxra-demo-secret"))
+    signing_secret = os.getenv("NEOXRA_DEMO_SIGNING_SECRET", "").strip()
+    if signing_secret:
+        return signing_secret
+
+    if _requires_explicit_signing_secret():
+        raise RuntimeError(
+            "NEOXRA_DEMO_SIGNING_SECRET must be set when any demo surface uses gated access."
+        )
+
+    return _env("ANTHROPIC_API_KEY", "neoxra-demo-secret")
 
 
 def _token_ttl_seconds() -> int:
@@ -144,7 +168,12 @@ def verify_demo_token(surface: str, token: str, runtime_mode: str | None = None)
 def create_demo_access_response(surface: str) -> dict[str, object]:
     mode = get_runtime_mode()
     token = issue_demo_token(surface, mode)
-    expires_at = int(time.time()) + _token_ttl_seconds()
+    try:
+        encoded_payload = token.split(".")[0]
+        payload = _b64url_decode(encoded_payload).decode("utf-8")
+        expires_at = int(payload.split(":")[2])
+    except Exception:
+        expires_at = int(time.time()) + _token_ttl_seconds()
     return {
         "surface": surface,
         "access_mode": get_surface_access_mode(surface, mode),

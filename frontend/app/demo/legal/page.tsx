@@ -11,7 +11,7 @@ import { LanguageToggle } from '../../../components/LanguageToggle'
 import { useLanguage } from '../../../components/LanguageProvider'
 import { ThemeToggle } from '../../../components/landing/ThemeToggle'
 import { API_BASE_URL } from '../../../lib/api'
-import { buildDemoHeaders } from '../../../lib/demo-access'
+import { buildDemoHeaders, clearStoredDemoToken } from '../../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../../lib/demo-config'
 import {
   getLegalDemoPresets,
@@ -542,6 +542,7 @@ export default function LegalDemoPage() {
       } catch (err) {
         if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
           if (err instanceof APIError && err.status === 401) {
+            clearStoredDemoToken(demoConfig.apiSurface)
             setDemoToken(null)
             setError(copy.access.invalidCode)
           } else {
