@@ -37,6 +37,7 @@ from .core.logging_utils import (
     set_request_id,
 )
 from .core.request_guards import get_client_ip, get_generation_body_limit_bytes
+from .core_client import get_core_client_mode
 from .core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
@@ -271,9 +272,10 @@ async def generation_metrics_health() -> dict:
 async def log_core_diagnostics_on_startup() -> None:
     diagnostics = get_neoxra_core_diagnostics()
     logger.info(
-        "startup configuration environment=%s runtime_mode=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s demo_surfaces=%s",
+        "startup configuration environment=%s runtime_mode=%s core_client_mode=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s demo_surfaces=%s",
         os.getenv("ENVIRONMENT", "development"),
         get_runtime_mode(),
+        get_core_client_mode(),
         os.getenv("LOG_LEVEL", "INFO"),
         ",".join(_get_allowed_origins()),
         os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),
