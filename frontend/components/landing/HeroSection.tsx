@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { ThemeToggle } from './ThemeToggle'
 
 export function HeroSection() {
@@ -32,6 +33,15 @@ export function HeroSection() {
           <div className="mt-8 max-w-2xl rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-4 text-sm leading-6 text-[var(--muted)]">
             Internal demo surface is available at <span className="font-semibold text-[var(--text)]">`/demo/legal`</span>.
             Use that route directly when you want the legal-services walkthrough.
+          </div>
+
+          <div className="mt-4">
+            <Link
+              href="/instagram"
+              className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:bg-[var(--surface)]"
+            >
+              Instagram
+            </Link>
           </div>
         </div>
 

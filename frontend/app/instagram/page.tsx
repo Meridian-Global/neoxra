@@ -7,6 +7,7 @@ import { InstagramResult as InstagramResultView } from '../../components/Instagr
 import { ScorecardRadar } from '../../components/ScorecardRadar'
 import { CarouselPreview } from '../../components/CarouselPreview'
 import { API_BASE_URL } from '../../lib/api'
+import { INSTAGRAM_SAMPLE_RESULT } from '../../lib/instagram-demo'
 import { APIError, streamSSE } from '../../lib/sse'
 import type {
   StyleAnalysis,
@@ -96,6 +97,7 @@ export default function InstagramPage() {
   const [content, setContent]             = useState<InstagramContent | null>(null)
   const [scorecard, setScorecard]         = useState<Scorecard | null>(null)
   const [critique, setCritique]           = useState<string | null>(null)
+  const [resultOrigin, setResultOrigin]   = useState<'live' | 'sample' | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -108,6 +110,7 @@ export default function InstagramPage() {
       setCritique(null)
       setError(null)
       setCurrentStage('')
+      setResultOrigin(null)
 
       const abort = new AbortController()
       abortRef.current = abort
@@ -165,6 +168,7 @@ export default function InstagramPage() {
             setCritique(payload.critique)
             setStyleAnalysis(payload.style_analysis)
             setCurrentStage('')
+            setResultOrigin('live')
             completed = true
             setStatus('completed')
             continue
@@ -214,6 +218,19 @@ export default function InstagramPage() {
     setCritique(null)
     setError(null)
     setCurrentStage('')
+    setResultOrigin(null)
+  }
+
+  function handleUseSample() {
+    abortRef.current?.abort()
+    setStyleAnalysis(INSTAGRAM_SAMPLE_RESULT.style_analysis)
+    setContent(INSTAGRAM_SAMPLE_RESULT.content)
+    setScorecard(INSTAGRAM_SAMPLE_RESULT.scorecard)
+    setCritique(INSTAGRAM_SAMPLE_RESULT.critique)
+    setError(null)
+    setCurrentStage('')
+    setStatus('completed')
+    setResultOrigin('sample')
   }
 
   const isStreaming = status === 'streaming'
@@ -338,6 +355,12 @@ export default function InstagramPage() {
                 <div className="mt-4 text-sm text-[var(--subtle)]">{completedSteps.join(' • ')}</div>
               )}
 
+              {resultOrigin === 'sample' && (
+                <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+                  Sample output loaded for demo continuity. Use this if live generation is unavailable during a meeting.
+                </div>
+              )}
+
               {isWorking && (
                 <button
                   className="mt-5 inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)]"
@@ -373,12 +396,20 @@ export default function InstagramPage() {
               <strong className="block text-base">Generation stopped</strong>
               <p className="mt-2 text-sm leading-6 text-rose-100/90">{error}</p>
             </div>
-            <button
-              className="mt-4 inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[var(--text)] transition hover:bg-white/10"
-              onClick={handleRetry}
-            >
-              Reset
-            </button>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[var(--text)] transition hover:bg-white/10"
+                onClick={handleRetry}
+              >
+                Reset
+              </button>
+              <button
+                className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
+                onClick={handleUseSample}
+              >
+                Use Sample Output
+              </button>
+            </div>
           </div>
         )}
 
