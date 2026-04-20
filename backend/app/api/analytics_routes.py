@@ -21,6 +21,18 @@ _SOURCE_MAX_LENGTH = 64
 _LOCALE_MAX_LENGTH = 16
 
 
+def _trim_to(value: str | None, max_length: int) -> str | None:
+    """Strip and cap a nullable string field to match DB column constraints."""
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if len(cleaned) > max_length:
+        raise ValueError(f"value must not exceed {max_length} characters")
+    return cleaned
+
+
 class AnalyticsEventRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -49,26 +61,17 @@ class AnalyticsEventRequest(BaseModel):
     @field_validator("surface")
     @classmethod
     def surface_max_length(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = value.strip()
-        return cleaned[:_SURFACE_MAX_LENGTH] if cleaned else None
+        return _trim_to(value, _SURFACE_MAX_LENGTH)
 
     @field_validator("source")
     @classmethod
     def source_max_length(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = value.strip()
-        return cleaned[:_SOURCE_MAX_LENGTH] if cleaned else None
+        return _trim_to(value, _SOURCE_MAX_LENGTH)
 
     @field_validator("locale")
     @classmethod
     def locale_max_length(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = value.strip()
-        return cleaned[:_LOCALE_MAX_LENGTH] if cleaned else None
+        return _trim_to(value, _LOCALE_MAX_LENGTH)
 
 
 @router.post("/api/analytics/events")
