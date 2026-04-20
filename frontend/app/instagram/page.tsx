@@ -305,7 +305,11 @@ export default function InstagramPage() {
 
   const abortRef = useRef<AbortController | null>(null)
   const latestPreviewRef = useRef(preview)
-  const source = getStoredDemoSource(demoConfig.apiSurface)
+  const [source, setSource] = useState(() => getStoredDemoSource(demoConfig.apiSurface))
+
+  useEffect(() => {
+    setSource(getStoredDemoSource(demoConfig.apiSurface))
+  }, [demoConfig.apiSurface, demoToken])
 
   useEffect(() => {
     latestPreviewRef.current = preview

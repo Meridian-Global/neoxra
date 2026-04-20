@@ -59,17 +59,14 @@ export function trackPlausibleEvent(eventName: string, props?: Record<string, un
   window.plausible?.(eventName, props ? { props } : undefined)
 }
 
-type AnalyticsEventName =
+type BackendAnalyticsEventName =
   | 'page_view'
   | 'demo_viewed'
-  | 'demo_started'
-  | 'demo_completed'
-  | 'demo_failed'
   | 'demo_abandoned'
   | 'demo_access_unlocked'
 
 interface BackendAnalyticsEvent {
-  eventName: AnalyticsEventName
+  eventName: BackendAnalyticsEventName
   route: string
   surface?: DemoSurfaceId | 'public'
   source?: string | null
@@ -87,7 +84,6 @@ export async function trackBackendAnalyticsEvent(event: BackendAnalyticsEvent): 
     body: JSON.stringify({
       event_name: event.eventName,
       route: event.route,
-      pipeline: 'frontend',
       surface: event.surface,
       source: event.source,
       locale: event.locale,
@@ -103,7 +99,6 @@ export function sendBeaconAnalyticsEvent(event: BackendAnalyticsEvent): void {
   const payload = JSON.stringify({
     event_name: event.eventName,
     route: event.route,
-    pipeline: 'frontend',
     surface: event.surface,
     source: event.source,
     locale: event.locale,

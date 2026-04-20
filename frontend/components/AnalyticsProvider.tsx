@@ -17,18 +17,27 @@ export function AnalyticsProvider() {
     if (!pathname || lastTrackedPath.current === pathname) return
     lastTrackedPath.current = pathname
 
-    const surface = getSurfaceForPath(pathname)
-    const source =
-      surface === 'legal' || surface === 'instagram' || surface === 'landing'
-        ? getStoredDemoSource(surface)
-        : 'public'
+    let cancelled = false
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return
+      const surface = getSurfaceForPath(pathname)
+      const source =
+        surface === 'legal' || surface === 'instagram' || surface === 'landing'
+          ? getStoredDemoSource(surface)
+          : 'public'
 
-    void trackBackendAnalyticsEvent({
-      eventName: 'page_view',
-      route: pathname,
-      surface,
-      source,
-    })
+      void trackBackendAnalyticsEvent({
+        eventName: 'page_view',
+        route: pathname,
+        surface,
+        source,
+      })
+    }, 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
   }, [pathname])
 
   if (!PLAUSIBLE_DOMAIN) {

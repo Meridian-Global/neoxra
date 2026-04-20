@@ -14,6 +14,7 @@ from fastapi import HTTPException, Request
 
 CORE_ROUTE_KEY = "core"
 INSTAGRAM_ROUTE_KEY = "instagram"
+ANALYTICS_ROUTE_KEY = "analytics"
 
 
 def _env_int(name: str, default: int) -> int:
@@ -34,6 +35,8 @@ def get_generation_body_limit_bytes(path: str) -> int | None:
         return _env_int("CORE_RUN_MAX_BODY_BYTES", 8_192)
     if path == "/api/instagram/generate":
         return _env_int("INSTAGRAM_GENERATE_MAX_BODY_BYTES", 16_384)
+    if path == "/api/analytics/events":
+        return _env_int("ANALYTICS_EVENT_MAX_BODY_BYTES", 4_096)
     return None
 
 
@@ -105,6 +108,11 @@ def get_rate_limit_config(route_key: str) -> tuple[int, int]:
             _env_int("INSTAGRAM_GENERATE_RATE_LIMIT_PER_MINUTE", 20),
             60,
         )
+    if route_key == ANALYTICS_ROUTE_KEY:
+        return (
+            _env_int("ANALYTICS_EVENT_RATE_LIMIT_PER_MINUTE", 60),
+            60,
+        )
     return (10, 60)
 
 
@@ -113,6 +121,8 @@ def get_concurrency_limit(route_key: str) -> int:
         return _env_int("CORE_RUN_MAX_CONCURRENT_PER_IP", 1)
     if route_key == INSTAGRAM_ROUTE_KEY:
         return _env_int("INSTAGRAM_GENERATE_MAX_CONCURRENT_PER_IP", 2)
+    if route_key == ANALYTICS_ROUTE_KEY:
+        return _env_int("ANALYTICS_EVENT_MAX_CONCURRENT_PER_IP", 20)
     return 1
 
 
