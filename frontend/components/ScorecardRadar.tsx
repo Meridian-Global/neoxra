@@ -43,7 +43,7 @@ export function ScorecardRadar({ scorecard }: ScorecardRadarProps) {
                 className="scorecard-fill"
                 style={{
                   width: `${(value / 10) * 100}%`,
-                  background: `linear-gradient(90deg, rgba(250, 126, 30, ${0.45 + value * 0.04}), rgba(214, 41, 118, ${0.5 + value * 0.04}), rgba(150, 47, 191, ${0.44 + value * 0.04}))`,
+                  background: 'linear-gradient(90deg, var(--accent), var(--accent-hover))',
                 }}
               />
             </div>
