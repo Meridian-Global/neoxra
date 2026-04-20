@@ -108,7 +108,7 @@ export function InstagramResult({ content, critique }: InstagramResultProps) {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-[32px] border border-[color:var(--accent-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)] backdrop-blur sm:p-6">
+      <section className="rounded-[32px] border border-[color:var(--accent-soft)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)] sm:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="max-w-2xl">
             <span className="inline-flex items-center rounded-full border border-[color:var(--accent-soft)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-[var(--text)]">

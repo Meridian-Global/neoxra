@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { GlobalNav } from '../../../components/GlobalNav'
 import { API_BASE_URL } from '../../../lib/api'
 import { normalizeLegalLivePayload } from '../../../lib/legal-live-parser'
 import { APIError, streamSSE } from '../../../lib/sse'
@@ -28,11 +29,12 @@ interface SampleCase {
   instagram: ShowcaseContent
 }
 
-const PRIMARY = '#3B4F7A'
-const PAGE_TEXT = '#1A1A1A'
-const PAGE_MUTED = '#6B7280'
-const PAGE_BORDER = 'rgba(59, 79, 122, 0.12)'
-const PAGE_SHADOW = '0 1px 3px rgba(0,0,0,0.08)'
+const PRIMARY = 'var(--bg-accent)'
+const PRIMARY_HOVER = 'var(--accent-hover)'
+const PAGE_TEXT = 'var(--text-primary)'
+const PAGE_MUTED = 'var(--text-secondary)'
+const PAGE_BORDER = 'var(--border)'
+const PAGE_SHADOW = 'var(--shadow-sm)'
 
 const SAMPLE_CASES: SampleCase[] = [
   {
@@ -197,36 +199,66 @@ function createLegalTemplate(topic: string) {
   return `請以法律事務所對外教育內容的口吻，為主題「${topic}」生成內容。語氣要專業、親民、可信，先講結論，再拆解 3 到 4 個實際重點，最後提醒何時應該尋求專業法律協助。請讓內容適合台灣法律事務所用於 Instagram 圖文與網站文章。`
 }
 
+const DEFAULT_LIVE_TOPIC = '遺產繼承程序'
+
+const DEFAULT_LIVE_CONTENT: ShowcaseContent = {
+  caption:
+    '遺產繼承往往不是卡在誰有權利，而是卡在大家不知道程序先後。從死亡登記、遺產清冊、繼承人範圍，到不動產、存款與稅務申報，每一步都會影響後續能不能順利辦完。如果一開始就把文件、時程與分配方式整理清楚，不只家人之間比較不容易失焦，整個流程也會快很多。以下先用五張輪播，把最重要的繼承程序整理給你。',
+  slides: [
+    { title: '先確認誰是繼承人', body: '配偶、子女、父母與其他順位不同，第一步先把繼承範圍釐清。' },
+    { title: '文件先準備齊', body: '戶籍、除戶、財產資料與關係證明，缺一項都可能拖慢整體流程。' },
+    { title: '遺產內容要盤點', body: '不動產、存款、保單、債務都要一起看，不能只看表面資產。' },
+    { title: '稅務申報別延誤', body: '遺產稅申報有時程壓力，越晚整理，越容易讓後面流程卡住。' },
+    { title: '分配爭議先談清楚', body: '涉及特留分、代位繼承或家族分配時，提早釐清最省時間。' },
+  ],
+  article: {
+    seoTitle: '遺產繼承程序怎麼跑？文件、時程與常見爭議一次看懂',
+    outline: ['先確認繼承人與繼承順位', '辦理繼承前需要準備哪些文件', '遺產稅申報與財產移轉怎麼安排', '什麼情況下應該提早請律師協助'],
+    summary:
+      '遺產繼承不是單純辦文件，而是同時處理身份、財產、稅務與家族協調。只要程序順序搞錯，後面的移轉、申報與分配都可能一起延誤。這篇先帶你快速看懂實務上最常卡住的環節。',
+  },
+}
+
 function LegalSection({
   id,
   eyebrow,
   title,
   description,
   children,
+  titleClassName = '',
 }: {
   id?: string
   eyebrow: string
   title: string
   description?: string
   children: React.ReactNode
+  titleClassName?: string
 }) {
   return (
     <section id={id} className="space-y-4">
       <div className="space-y-2">
-        <p className="text-sm font-semibold tracking-[0.18em] text-[#3B4F7A]">{eyebrow}</p>
-        <h2 className="text-2xl font-black leading-tight text-[#1A1A1A] md:text-4xl">{title}</h2>
-        {description ? <p className="max-w-3xl text-base leading-7 text-[#5B6472] md:text-lg">{description}</p> : null}
+        <p className="text-sm font-semibold tracking-[0.18em] text-[var(--accent)]">{eyebrow}</p>
+        <h2 className={`text-2xl font-black leading-tight text-[var(--text-primary)] md:text-4xl ${titleClassName}`}>{title}</h2>
+        {description ? <p className="max-w-3xl text-base leading-7 text-[var(--text-secondary)] md:text-lg">{description}</p> : null}
       </div>
       {children}
     </section>
   )
 }
 
-function SurfaceCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function SurfaceCard({
+  children,
+  className = '',
+  style,
+}: {
+  children: React.ReactNode
+  className?: string
+  style?: React.CSSProperties
+}) {
   return (
     <div
-      className={`rounded-[12px] border border-[rgba(59,79,122,0.12)] bg-white ${className}`}
-      style={{ boxShadow: PAGE_SHADOW }}
+      className={`rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] ${className}`}
+      style={{ boxShadow: PAGE_SHADOW, ...style }}
     >
       {children}
     </div>
@@ -235,19 +267,22 @@ function SurfaceCard({ children, className = '' }: { children: React.ReactNode; 
 
 function CarouselDeck({ slides }: { slides: CarouselSlide[] }) {
   return (
-    <div className="flex gap-4 overflow-x-auto pb-2">
+    <div className="grid grid-flow-col auto-cols-[200px] gap-4 overflow-x-auto pb-2 md:auto-cols-[220px]">
       {slides.map((slide, index) => (
         <SurfaceCard
           key={`${slide.title}-${index}`}
-          className="flex aspect-square min-w-[220px] max-w-[220px] flex-col justify-between p-5 md:min-w-[240px] md:max-w-[240px]"
+          className="flex min-h-[200px] flex-col justify-between p-5"
+          style={{
+            background: index % 2 === 0 ? 'var(--bg-sunken)' : 'var(--bg-elevated)',
+          }}
         >
           <div className="space-y-4">
-            <div className="text-xs font-medium tracking-[0.08em] text-[#6B7280]">
+            <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">
               {index + 1}/{slides.length}
             </div>
-            <h4 className="text-lg font-medium leading-snug text-[#1A1A1A] md:text-xl">{slide.title}</h4>
+            <h4 className="text-lg font-bold leading-snug text-[var(--text-primary)] md:text-xl">{slide.title}</h4>
           </div>
-          <p className="text-sm font-normal leading-7 text-[#4B5563]">{slide.body}</p>
+          <p className="line-clamp-2 text-[15px] font-normal leading-6 text-[var(--text-secondary)]">{slide.body}</p>
         </SurfaceCard>
       ))}
     </div>
@@ -265,7 +300,7 @@ function ShowcaseTabs({
 }) {
   return (
     <div className="space-y-6">
-      <div className="inline-flex gap-2 rounded-xl border border-[rgba(59,79,122,0.12)] bg-[#F7F8FB] p-1.5">
+      <div className="inline-flex gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-sunken)] p-1.5">
         {([
           ['instagram', 'Instagram'],
           ['article', '文章'],
@@ -275,13 +310,13 @@ function ShowcaseTabs({
             type="button"
             onClick={() => onChange(key)}
             className={`rounded-lg px-5 py-2.5 text-sm font-medium transition ${
-              activeTab === key ? 'bg-white text-[#1A1A1A]' : 'text-[#6B7280]'
+              activeTab === key ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
             }`}
             style={
               activeTab === key
                 ? {
                     boxShadow: PAGE_SHADOW,
-                    borderBottom: `2px solid ${PRIMARY}`,
+                    borderBottom: '2px solid var(--accent)',
                   }
                 : undefined
             }
@@ -294,34 +329,34 @@ function ShowcaseTabs({
       {activeTab === 'instagram' ? (
         <div className="space-y-6">
           <SurfaceCard className="p-6">
-            <p className="mb-3 text-sm font-semibold text-[#3B4F7A]">貼文說明</p>
-            <p className="whitespace-pre-line text-base leading-8 text-[#2A3446]">{content.caption}</p>
+            <p className="mb-3 text-sm font-semibold text-[var(--accent)]">貼文說明</p>
+            <p className="whitespace-pre-line text-base leading-8 text-[var(--text-primary)]">{content.caption}</p>
           </SurfaceCard>
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-[#3B4F7A]">輪播卡片</p>
+            <p className="text-sm font-semibold text-[var(--accent)]">輪播卡片</p>
             <CarouselDeck slides={content.slides} />
           </div>
         </div>
       ) : (
         <div className="space-y-5">
           <SurfaceCard className="p-6">
-            <p className="mb-2 text-sm font-semibold text-[#3B4F7A]">SEO 標題</p>
-            <h3 className="text-xl font-black leading-snug text-[#1A1A1A]">{content.article.seoTitle}</h3>
+            <p className="mb-2 text-sm font-semibold text-[var(--accent)]">SEO 標題</p>
+            <h3 className="text-xl font-black leading-snug text-[var(--text-primary)]">{content.article.seoTitle}</h3>
           </SurfaceCard>
           <div className="grid gap-5 lg:grid-cols-[1.1fr,0.9fr]">
             <SurfaceCard className="p-6">
-              <p className="mb-3 text-sm font-semibold text-[#3B4F7A]">文章大綱</p>
+              <p className="mb-3 text-sm font-semibold text-[var(--accent)]">文章大綱</p>
               <div className="space-y-3">
                 {content.article.outline.map((item, index) => (
-                  <div key={`${item}-${index}`} className="rounded-xl bg-[#F7F8FB] px-4 py-3 text-sm font-medium text-[#2A3446]">
+                  <div key={`${item}-${index}`} className="rounded-xl bg-[var(--bg-sunken)] px-4 py-3 text-sm font-medium text-[var(--text-primary)]">
                     H2 {index + 1}｜{item}
                   </div>
                 ))}
               </div>
             </SurfaceCard>
             <SurfaceCard className="p-6">
-              <p className="mb-3 text-sm font-semibold text-[#3B4F7A]">首段摘要</p>
-              <p className="text-sm leading-8 text-[#425066]">{content.article.summary}</p>
+              <p className="mb-3 text-sm font-semibold text-[var(--accent)]">首段摘要</p>
+              <p className="text-sm leading-8 text-[var(--text-secondary)]">{content.article.summary}</p>
             </SurfaceCard>
           </div>
         </div>
@@ -334,10 +369,10 @@ export default function LegalLandingPage() {
   const [activeCaseKey, setActiveCaseKey] = useState<string>(SAMPLE_CASES[0].key)
   const [activeSampleTab, setActiveSampleTab] = useState<ContentTab>('instagram')
   const [activeLiveTab, setActiveLiveTab] = useState<ContentTab>('instagram')
-  const [topic, setTopic] = useState('')
+  const [topic, setTopic] = useState(DEFAULT_LIVE_TOPIC)
   const [status, setStatus] = useState<DemoStatus>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [liveContent, setLiveContent] = useState<ShowcaseContent | null>(null)
+  const [liveContent, setLiveContent] = useState<ShowcaseContent | null>(DEFAULT_LIVE_CONTENT)
 
   useEffect(() => {
     const previousTheme = document.documentElement.dataset.theme
@@ -413,22 +448,27 @@ export default function LegalLandingPage() {
 
   return (
     <main
-      className="min-h-screen bg-[var(--bg)]"
+      className="min-h-screen bg-transparent"
       style={{ color: PAGE_TEXT }}
       lang="zh-Hant"
     >
       <div className="mx-auto flex max-w-7xl flex-col gap-20 px-6 py-10 md:px-10 md:py-14">
-        <section className="grid gap-10 rounded-[28px] border border-[rgba(59,79,122,0.12)] bg-white px-8 py-10 md:grid-cols-[1.05fr,0.95fr] md:px-12 md:py-14" style={{ boxShadow: '0 16px 40px rgba(59,79,122,0.08)' }}>
+        <GlobalNav />
+
+        <section className="grid gap-10 rounded-[28px] border border-[var(--border)] bg-[var(--bg-elevated)] px-8 py-10 md:grid-cols-[1.05fr,0.95fr] md:px-12 md:py-14" style={{ boxShadow: 'var(--shadow-lg)' }}>
           <div className="space-y-8">
             <div className="space-y-5">
-              <div className="inline-flex rounded-full bg-[#EEF2F8] px-4 py-2 text-sm font-semibold text-[#3B4F7A]">
-                Neoxra｜法律事務所的 AI 內容系統
+              <div className="inline-flex rounded-full bg-[var(--accent-subtle)] px-4 py-2 text-sm font-semibold text-[var(--accent)]">
+                Neoxra › Use Cases › 法律事務所
               </div>
               <div className="space-y-4">
-                <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-[-0.03em] text-[#1A1A1A] md:text-6xl">
+                <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-[-0.03em] text-[var(--text-primary)] md:text-6xl">
                   法律事務所的 AI 內容系統
                 </h1>
-                <p className="max-w-2xl text-lg leading-8 text-[#425066] md:text-2xl">
+                <p className="text-sm font-medium tracking-[0.04em] text-[var(--text-secondary)]">
+                  Powered by Neoxra — AI 內容引擎
+                </p>
+                <p className="max-w-2xl text-lg leading-8 text-[var(--text-secondary)] md:text-2xl">
                   一個主題，自動產出 Instagram 圖文 + SEO 文章。每篇省下 2–3 小時。
                 </p>
               </div>
@@ -441,8 +481,8 @@ export default function LegalLandingPage() {
                 ['審稿方式', '律師最後把關'],
               ].map(([label, value]) => (
                 <SurfaceCard key={label} className="p-5">
-                  <p className="text-sm font-medium text-[#5B6472]">{label}</p>
-                  <p className="mt-3 text-2xl font-black text-[#1A1A1A]">{value}</p>
+                  <p className="text-sm font-medium text-[var(--text-secondary)]">{label}</p>
+                  <p className="mt-3 text-2xl font-black text-[var(--text-primary)]">{value}</p>
                 </SurfaceCard>
               ))}
             </div>
@@ -450,10 +490,10 @@ export default function LegalLandingPage() {
             <div className="flex flex-wrap gap-4">
               <a
                 href="#cta"
-                className="inline-flex items-center justify-center rounded-[8px] px-6 py-3 text-base font-semibold text-white transition"
+                className="inline-flex items-center justify-center rounded-[8px] px-6 py-3 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90"
                 style={{ background: PRIMARY }}
                 onMouseEnter={(event) => {
-                  event.currentTarget.style.background = '#324468'
+                  event.currentTarget.style.background = PRIMARY_HOVER
                 }}
                 onMouseLeave={(event) => {
                   event.currentTarget.style.background = PRIMARY
@@ -463,8 +503,8 @@ export default function LegalLandingPage() {
               </a>
               <a
                 href="#live-demo"
-                className="inline-flex items-center justify-center rounded-full border px-6 py-3 text-base font-semibold text-[#1A1A1A]"
-                style={{ borderColor: PAGE_BORDER, background: '#F7F8FB' }}
+                className="inline-flex items-center justify-center rounded-full border px-6 py-3 text-base font-semibold text-[var(--text-primary)]"
+                style={{ borderColor: PAGE_BORDER, background: 'var(--bg-sunken)' }}
               >
                 直接試一個主題
               </a>
@@ -472,27 +512,27 @@ export default function LegalLandingPage() {
           </div>
 
           <SurfaceCard className="overflow-hidden">
-            <div className="border-b border-[rgba(59,79,122,0.08)] bg-[#F7F8FB] px-6 py-5">
-              <p className="text-sm font-semibold text-[#3B4F7A]">你會展示給客戶看的，不只是貼文，而是一套穩定內容流程</p>
+            <div className="border-b border-[var(--border)] bg-[var(--bg-sunken)] px-6 py-5">
+              <p className="text-sm font-semibold text-[var(--accent)]">不只是貼文，而是一套穩定內容流程</p>
             </div>
             <div className="grid gap-4 p-6">
               {[
                 {
                   title: 'Instagram 圖文',
-                  body: '先用一組有說服力的輪播圖文，快速抓住潛在客戶的注意力與信任感。',
+                  body: '自動產出 5 張輪播 + caption，直接可發布。',
                 },
                 {
-                  title: 'SEO 文章骨架',
-                  body: '同一個主題同步整理成文章標題、大綱與首段摘要，直接交給網站或內容編輯延伸。',
+                  title: 'SEO 文章',
+                  body: '標題、大綱、全文初稿，SEO 結構自動內建。',
                 },
                 {
-                  title: '律師最後審稿',
-                  body: '內容生成不是取代專業，而是把律師的時間集中在最有價值的最後確認。',
+                  title: '律師最後把關',
+                  body: 'AI 寫初稿，你只需 10 分鐘審稿。',
                 },
               ].map((item) => (
-                <div key={item.title} className="rounded-2xl bg-[#F7F8FB] p-5">
-                  <h3 className="text-lg font-black text-[#1A1A1A]">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[#425066]">{item.body}</p>
+                <div key={item.title} className="rounded-2xl bg-[var(--bg-sunken)] p-5">
+                  <h3 className="text-lg font-black text-[var(--text-primary)]">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{item.body}</p>
                 </div>
               ))}
             </div>
@@ -514,10 +554,10 @@ export default function LegalLandingPage() {
                   setActiveSampleTab('instagram')
                 }}
                 className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                  activeCase.key === item.key ? 'text-white' : 'text-[#1A1A1A]'
+                  activeCase.key === item.key ? 'text-[var(--text-on-accent)]' : 'text-[var(--text-primary)]'
                 }`}
                 style={{
-                  background: activeCase.key === item.key ? PRIMARY : '#EEF2F8',
+                  background: activeCase.key === item.key ? PRIMARY : 'var(--accent-subtle)',
                 }}
               >
                 {item.label}
@@ -527,8 +567,8 @@ export default function LegalLandingPage() {
 
           <SurfaceCard className="p-6 md:p-8">
             <div className="mb-6 space-y-2">
-              <p className="text-sm font-semibold text-[#3B4F7A]">範例主題</p>
-              <h3 className="text-2xl font-black text-[#1A1A1A]">{activeCase.label}</h3>
+              <p className="text-sm font-semibold text-[var(--accent)]">範例主題</p>
+              <h3 className="text-2xl font-black text-[var(--text-primary)]">{activeCase.label}</h3>
             </div>
             <ShowcaseTabs content={activeCase.instagram} activeTab={activeSampleTab} onChange={setActiveSampleTab} />
           </SurfaceCard>
@@ -539,6 +579,7 @@ export default function LegalLandingPage() {
           eyebrow="即時體驗區"
           title="試試你的主題"
           description="直接輸入你想推廣的法律主題，頁面會即時整理成可展示的 Instagram 圖文與文章骨架。"
+          titleClassName="text-3xl font-bold md:text-5xl"
         >
           <SurfaceCard className="p-6 md:p-8">
             <div className="grid gap-4 md:grid-cols-[1fr,160px]">
@@ -546,18 +587,18 @@ export default function LegalLandingPage() {
                 value={topic}
                 onChange={(event) => setTopic(event.target.value)}
                 placeholder="輸入法律主題，例如：遺產繼承程序"
-                className="rounded-2xl border bg-[#FCFCFB] px-5 py-4 text-base text-[#1A1A1A] outline-none transition placeholder:text-[#8A93A3] focus:border-[#3B4F7A]"
+                className="h-14 rounded-2xl border bg-[var(--bg-elevated)] px-5 text-base text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
                 style={{ borderColor: PAGE_BORDER }}
               />
               <button
                 type="button"
                 onClick={() => void handleGenerate()}
                 disabled={status === 'loading'}
-                className="rounded-[8px] px-5 py-4 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
+                className="h-14 rounded-[8px] px-5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
                 style={{ background: PRIMARY }}
                 onMouseEnter={(event) => {
                   if (!event.currentTarget.disabled) {
-                    event.currentTarget.style.background = '#324468'
+                    event.currentTarget.style.background = PRIMARY_HOVER
                   }
                 }}
                 onMouseLeave={(event) => {
@@ -574,7 +615,7 @@ export default function LegalLandingPage() {
                   key={preset}
                   type="button"
                   onClick={() => setTopic(preset)}
-                  className="rounded-full bg-[#EEF2F8] px-4 py-2 font-medium text-[#425066]"
+                  className="rounded-full bg-[var(--accent-subtle)] px-5 py-2.5 text-[15px] font-medium text-[var(--text-secondary)] transition hover:opacity-90"
                 >
                   {preset}
                 </button>
@@ -582,7 +623,7 @@ export default function LegalLandingPage() {
             </div>
 
             {error ? (
-              <div className="mt-5 rounded-2xl border border-[#E5C7C7] bg-[#FFF7F7] px-5 py-4 text-sm leading-7 text-[#7A2F2F]">
+              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4 text-sm leading-7 text-[var(--text-secondary)]">
                 {error}
               </div>
             ) : null}
@@ -591,21 +632,17 @@ export default function LegalLandingPage() {
               <div className="mt-8 space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-[#3B4F7A]">最新主題</p>
-                    <h3 className="text-2xl font-black text-[#1A1A1A]">{topic.trim()}</h3>
+                    <p className="text-sm font-semibold text-[var(--accent)]">最新主題</p>
+                    <h3 className="text-2xl font-black text-[var(--text-primary)]">{topic.trim() || DEFAULT_LIVE_TOPIC}</h3>
                   </div>
-                  <div className="rounded-full bg-[#EEF2F8] px-4 py-2 text-sm font-semibold text-[#425066]">
-                    {status === 'loading' ? '內容整理中' : '已生成可展示內容'}
+                  <div className="rounded-full bg-[var(--accent-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)]">
+                    {status === 'loading' ? '內容整理中' : topic.trim() === DEFAULT_LIVE_TOPIC && status === 'idle' ? '預設展示內容' : '已生成可展示內容'}
                   </div>
                 </div>
 
                 <ShowcaseTabs content={liveContent} activeTab={activeLiveTab} onChange={setActiveLiveTab} />
               </div>
-            ) : (
-              <div className="mt-8 rounded-2xl bg-[#F7F8FB] px-6 py-8 text-sm leading-8 text-[#5B6472]">
-                輸入一個法律主題後，這裡會顯示 Instagram Caption、5 張 Carousel 卡片，以及對應的文章標題與大綱。
-              </div>
-            )}
+            ) : null}
           </SurfaceCard>
         </LegalSection>
 
@@ -615,7 +652,7 @@ export default function LegalLandingPage() {
           description="這不是要取代律師，而是把原本散落在蒐集資料、整理架構、撰寫初稿的時間集中縮短。"
         >
           <SurfaceCard className="overflow-hidden">
-            <div className="grid grid-cols-3 bg-[#F3F5F8] text-sm font-semibold text-[#425066]">
+            <div className="grid grid-cols-3 bg-[var(--bg-sunken)] text-sm font-semibold text-[var(--text-secondary)]">
               <div className="px-5 py-4">項目</div>
               <div className="px-5 py-4">傳統做法</div>
               <div className="px-5 py-4">使用 Neoxra</div>
@@ -629,11 +666,11 @@ export default function LegalLandingPage() {
               <div
                 key={row[0]}
                 className={`grid grid-cols-3 text-sm md:text-base ${index !== 3 ? 'border-t' : ''}`}
-                style={{ borderColor: 'rgba(59,79,122,0.08)' }}
+                style={{ borderColor: 'var(--border)' }}
               >
-                <div className="px-5 py-4 font-semibold text-[#1A1A1A]">{row[0]}</div>
-                <div className="px-5 py-4 text-[#5B6472]">{row[1]}</div>
-                <div className="px-5 py-4 font-semibold text-[#1A1A1A]">{row[2]}</div>
+                <div className="px-5 py-4 font-semibold text-[var(--text-primary)]">{row[0]}</div>
+                <div className="px-5 py-4 text-[var(--text-secondary)]">{row[1]}</div>
+                <div className="px-5 py-4 font-semibold text-[var(--text-primary)]">{row[2]}</div>
               </div>
             ))}
           </SurfaceCard>
@@ -641,21 +678,23 @@ export default function LegalLandingPage() {
 
         <section
           id="cta"
-          className="rounded-[28px] border border-[rgba(59,79,122,0.12)] bg-white px-8 py-10 text-center md:px-12 md:py-14"
-          style={{ boxShadow: '0 16px 40px rgba(59,79,122,0.08)' }}
+          className="rounded-[28px] border border-[var(--border)] bg-[var(--bg-sunken)]/70 px-8 py-10 text-center backdrop-blur-sm md:px-12 md:py-14"
         >
           <div className="mx-auto max-w-3xl space-y-5">
-            <h2 className="text-3xl font-black leading-tight text-[#1A1A1A] md:text-5xl">如果你希望內容穩定產出，現在就安排 2 週免費試用</h2>
-            <p className="text-lg leading-8 text-[#5B6472]">
-              用真實主題測試內容產出速度、律師審稿流程與每月固定欄位規劃，直接評估是否適合導入 NTD 20,000 / 月的 pilot。
+            <h2 className="text-3xl font-black leading-tight text-[var(--text-primary)] md:text-5xl">如果你希望內容穩定產出，現在就安排 2 週免費試用</h2>
+            <p className="text-lg leading-8 text-[var(--text-secondary)]">
+              用真實主題測試內容產出速度、律師審稿流程與每月固定欄位規劃。
+            </p>
+            <p className="text-sm leading-7 text-[var(--text-secondary)]">
+              直接評估是否適合導入 NTD 20,000 / 月的 pilot。
             </p>
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               <a
                 href="mailto:support@neoxra.com?subject=%E9%A0%90%E7%B4%84%202%20%E9%80%B1%E5%85%8D%E8%B2%BB%E8%A9%A6%E7%94%A8"
-                className="inline-flex items-center justify-center rounded-[8px] px-7 py-3 text-base font-semibold text-white transition"
+                className="inline-flex items-center justify-center rounded-[8px] px-6 py-3 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90"
                 style={{ background: PRIMARY }}
                 onMouseEnter={(event) => {
-                  event.currentTarget.style.background = '#324468'
+                  event.currentTarget.style.background = PRIMARY_HOVER
                 }}
                 onMouseLeave={(event) => {
                   event.currentTarget.style.background = PRIMARY
@@ -665,13 +704,13 @@ export default function LegalLandingPage() {
               </a>
               <Link
                 href="/instagram"
-                className="inline-flex items-center justify-center rounded-full border px-7 py-3 text-base font-semibold text-[#1A1A1A]"
-                style={{ borderColor: PAGE_BORDER, background: '#F7F8FB' }}
+                className="inline-flex items-center justify-center rounded-full border px-7 py-3 text-base font-semibold text-[var(--text-primary)]"
+                style={{ borderColor: PAGE_BORDER, background: 'var(--bg-sunken)' }}
               >
                 看更多內容範例
               </Link>
             </div>
-            <p className="text-sm text-[#7A8394]">由 Neoxra 提供技術支援</p>
+            <p className="text-sm text-[var(--text-tertiary)]">由 Neoxra 提供技術支援</p>
           </div>
         </section>
       </div>
