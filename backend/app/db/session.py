@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session, sessionmaker
 def get_database_url() -> str | None:
     url = os.getenv("DATABASE_URL") or None
     if url and url.startswith("postgres://"):
-        return "postgresql://" + url.removeprefix("postgres://")
+        return "postgresql+psycopg://" + url.removeprefix("postgres://")
+    if url and url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url.removeprefix("postgresql://")
     return url
 
 

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from dotenv import load_dotenv
 
 from app.db.base import Base
 from app.db.models import DemoRun, TenantConfig, UsageEvent  # noqa: F401
 from app.db.session import get_database_url
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(BACKEND_ROOT / ".env", override=False)
 
 config = context.config
 

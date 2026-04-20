@@ -86,7 +86,7 @@ Set at least:
 ```bash
 ANTHROPIC_API_KEY=...
 ANTHROPIC_MODEL=claude-haiku-4-5
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/neoxra
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/neoxra
 ```
 
 If you want the new durable data layer locally, run migrations before starting the API:
