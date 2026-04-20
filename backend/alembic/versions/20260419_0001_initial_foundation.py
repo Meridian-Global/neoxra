@@ -52,9 +52,10 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("tenant_key", "environment", name="uq_tenant_configs_tenant_env"),
     )
     op.create_index(op.f("ix_tenant_configs_environment"), "tenant_configs", ["environment"], unique=False)
-    op.create_index(op.f("ix_tenant_configs_tenant_key"), "tenant_configs", ["tenant_key"], unique=True)
+    op.create_index(op.f("ix_tenant_configs_tenant_key"), "tenant_configs", ["tenant_key"], unique=False)
 
     op.create_table(
         "usage_events",

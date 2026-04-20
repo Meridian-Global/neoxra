@@ -143,7 +143,11 @@ def upsert_tenant_config(
 
     session = create_session()
     try:
-        tenant = session.query(TenantConfig).filter(TenantConfig.tenant_key == tenant_key).one_or_none()
+        tenant = (
+            session.query(TenantConfig)
+            .filter(TenantConfig.tenant_key == tenant_key, TenantConfig.environment == environment)
+            .one_or_none()
+        )
         if tenant is None:
             tenant = TenantConfig(
                 tenant_key=tenant_key,

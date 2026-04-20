@@ -9,25 +9,21 @@ from sqlalchemy.orm import Session, sessionmaker
 
 
 def get_database_url() -> str | None:
-    return os.getenv("DATABASE_URL") or None
+    url = os.getenv("DATABASE_URL") or None
+    if url and url.startswith("postgres://"):
+        return "postgresql://" + url.removeprefix("postgres://")
+    return url
 
 
 def is_database_enabled() -> bool:
     return bool(get_database_url())
 
 
-def _normalized_database_url() -> str:
+@lru_cache(maxsize=1)
+def get_engine() -> Engine:
     database_url = get_database_url()
     if not database_url:
         raise RuntimeError("DATABASE_URL is not configured.")
-    if database_url.startswith("postgres://"):
-        return "postgresql://" + database_url.removeprefix("postgres://")
-    return database_url
-
-
-@lru_cache(maxsize=1)
-def get_engine() -> Engine:
-    database_url = _normalized_database_url()
     connect_args: dict[str, object] = {}
     if database_url.startswith("sqlite"):
         connect_args["check_same_thread"] = False

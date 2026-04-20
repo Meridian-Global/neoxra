@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from app.db import Base, DemoRun, TenantConfig, UsageEvent, create_session, get_engine
 from app.db.session import reset_database_state
 from app.services import create_demo_run, mark_demo_run_completed, record_usage_event, upsert_tenant_config
