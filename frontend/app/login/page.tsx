@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { LanguageToggle } from '../../components/LanguageToggle'
 import { useLanguage } from '../../components/LanguageProvider'
@@ -73,6 +73,7 @@ function LoginPageContent() {
   const { language } = useLanguage()
   const copy = useMemo(() => createCopy(language), [language])
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
 
   const [email, setEmail] = useState('')
@@ -104,7 +105,7 @@ function LoginPageContent() {
         // Remove the token from the URL so refreshes / language switches don't re-trigger
         const params = new URLSearchParams(searchParams.toString())
         params.delete('token')
-        const nextUrl = params.toString() ? `?${params.toString()}` : '/login'
+        const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname
         router.replace(nextUrl)
         const rawRedirect = result.redirect_path || searchParams.get('redirect') || '/instagram'
         const redirectPath = isSafeRedirectPath(rawRedirect) ? rawRedirect : '/instagram'

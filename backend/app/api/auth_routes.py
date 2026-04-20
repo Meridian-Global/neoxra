@@ -9,7 +9,7 @@ from ..core.auth import magic_link_debug_enabled, require_authenticated_user, re
 
 router = APIRouter()
 
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
 
 def _is_safe_redirect_path(value: str) -> bool:

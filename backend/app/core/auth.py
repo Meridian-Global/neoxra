@@ -18,6 +18,11 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _ensure_utc(dt: datetime) -> datetime:
+    """Return a timezone-aware datetime in UTC. Handles SQLite-returned naive datetimes."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
 # Only write last_seen_at if it is older than this threshold to reduce write amplification.
 _LAST_SEEN_UPDATE_INTERVAL = timedelta(minutes=15)
 
@@ -118,7 +123,7 @@ def resolve_auth_context(request: Request) -> AuthContext:
         auth_session_row, user, organization = auth_session
         now = _utcnow()
         last_seen = auth_session_row.last_seen_at
-        if last_seen is None or (now - (last_seen if last_seen.tzinfo else last_seen.replace(tzinfo=timezone.utc))) > _LAST_SEEN_UPDATE_INTERVAL:
+        if last_seen is None or (now - _ensure_utc(last_seen)) > _LAST_SEEN_UPDATE_INTERVAL:
             auth_session_row.last_seen_at = now
             session.commit()
         return AuthContext(
