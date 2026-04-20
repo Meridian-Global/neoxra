@@ -13,6 +13,8 @@ import { ThemeToggle } from '../../../components/landing/ThemeToggle'
 import { API_BASE_URL } from '../../../lib/api'
 import { buildDemoHeaders, clearStoredDemoToken, getStoredDemoSource } from '../../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../../lib/demo-config'
+import { fetchDemoClientConfig } from '../../../lib/demo-client-config'
+import { getDeterministicFallbackResult } from '../../../lib/demo-fallbacks'
 import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../../lib/analytics'
 import {
   getLegalDemoPresets,
@@ -26,6 +28,7 @@ import type {
   Scorecard,
   StyleAnalysis,
 } from '../../../lib/instagram-types'
+import type { DemoClientConfig } from '../../../lib/demo-config'
 
 const SCORE_DIMS = [
   'hook_strength',
@@ -337,6 +340,7 @@ export default function LegalDemoPage() {
   const { language } = useLanguage()
   const copy = createLegalCopy(language)
   const demoConfig = useMemo(() => getDemoSurfaceConfig('legal'), [])
+  const [clientConfig, setClientConfig] = useState<DemoClientConfig | null>(null)
   const legalDemoPresets = getLegalDemoPresets(language)
   const legalVoicePresets = getLegalVoicePresets(language)
   const legalGoldenScenario = getLegalGoldenScenario(language)
@@ -364,6 +368,24 @@ export default function LegalDemoPage() {
   const abortRef = useRef<AbortController | null>(null)
   const latestPreviewRef = useRef(preview)
   const [source, setSource] = useState(() => getStoredDemoSource(demoConfig.apiSurface))
+  const fallbackResult = useMemo(
+    () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback.fallback_key ?? null, language),
+    [clientConfig, language],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchDemoClientConfig(demoConfig.apiSurface, demoConfig.demoKey)
+      .then((config) => {
+        if (!cancelled) setClientConfig(config)
+      })
+      .catch(() => {
+        if (!cancelled) setClientConfig(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [demoConfig.apiSurface, demoConfig.demoKey])
 
   useEffect(() => {
     setSource(getStoredDemoSource(demoConfig.apiSurface))
@@ -468,6 +490,19 @@ export default function LegalDemoPage() {
     setResultOrigin('golden')
   }, [legalDemoPresets, legalGoldenScenario])
 
+  const applyConfiguredFallback = useCallback(() => {
+    if (!fallbackResult) return
+    abortRef.current?.abort()
+    setStyleAnalysis(fallbackResult.style_analysis)
+    setContent(fallbackResult.content)
+    setScorecard(fallbackResult.scorecard)
+    setCritique(fallbackResult.critique)
+    setError(null)
+    setCurrentStage('')
+    setStatus('completed')
+    setResultOrigin('golden')
+  }, [fallbackResult])
+
   const handleScenarioSelect = useCallback((label: string) => {
     setSelectedScenarioLabel(label)
     clearResults()
@@ -565,7 +600,18 @@ export default function LegalDemoPage() {
             } else {
               setError(copy.errors.generic)
             }
-            setStatus('error')
+            if (clientConfig?.deterministic_fallback.mode === 'auto' && fallbackResult) {
+              setStyleAnalysis(fallbackResult.style_analysis)
+              setContent(fallbackResult.content)
+              setScorecard(fallbackResult.scorecard)
+              setCritique(fallbackResult.critique)
+              setError(null)
+              setCurrentStage('')
+              setStatus('completed')
+              setResultOrigin('golden')
+            } else {
+              setStatus('error')
+            }
             failed = true
             trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
             break
@@ -573,9 +619,20 @@ export default function LegalDemoPage() {
         }
 
         if (!abort.signal.aborted && !completed && !failed) {
-          setError(copy.errors.generic)
-          setStatus('error')
-          setCurrentStage('')
+          if (clientConfig?.deterministic_fallback.mode === 'auto' && fallbackResult) {
+            setStyleAnalysis(fallbackResult.style_analysis)
+            setContent(fallbackResult.content)
+            setScorecard(fallbackResult.scorecard)
+            setCritique(fallbackResult.critique)
+            setError(null)
+            setCurrentStage('')
+            setStatus('completed')
+            setResultOrigin('golden')
+          } else {
+            setError(copy.errors.generic)
+            setStatus('error')
+            setCurrentStage('')
+          }
           trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
         }
       } catch (err) {
@@ -585,6 +642,18 @@ export default function LegalDemoPage() {
             setDemoToken(null)
             setError(copy.access.invalidCode)
           } else {
+            if (clientConfig?.deterministic_fallback.mode === 'auto' && fallbackResult) {
+              setStyleAnalysis(fallbackResult.style_analysis)
+              setContent(fallbackResult.content)
+              setScorecard(fallbackResult.scorecard)
+              setCritique(fallbackResult.critique)
+              setError(null)
+              setCurrentStage('')
+              setStatus('completed')
+              setResultOrigin('golden')
+              trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
+              return
+            }
             setError(toFriendlyError(err, copy))
           }
           setStatus('error')
@@ -593,7 +662,7 @@ export default function LegalDemoPage() {
         }
       }
     },
-    [clearResults, copy, demoConfig.apiSurface, demoToken, language, selectedVoice, source],
+    [clearResults, clientConfig?.deterministic_fallback.mode, copy, demoConfig.apiSurface, demoToken, fallbackResult, language, selectedVoice, source],
   )
 
   function handleCancel() {
@@ -998,12 +1067,12 @@ export default function LegalDemoPage() {
               >
                 {copy.sections.reset}
               </button>
-              <button
-                className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
-                onClick={applyGoldenScenario}
-              >
-                {copy.sections.useGolden}
-              </button>
+                <button
+                  className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
+                  onClick={applyConfiguredFallback}
+                >
+                  {clientConfig?.deterministic_fallback.label || copy.sections.useGolden}
+                </button>
             </div>
           </div>
         )}

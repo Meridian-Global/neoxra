@@ -168,6 +168,21 @@ def test_analytics_event_endpoint_accepts_frontend_events():
     assert response.json()["status"] == "ok"
 
 
+def test_demo_config_endpoint_returns_surface_config():
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/demo/config",
+        params={"surface": "instagram", "demo_key": "instagram-public"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["demo_key"] == "instagram-public"
+    assert payload["surface"] == "instagram"
+    assert payload["deterministic_fallback"]["enabled"] is True
+
+
 def test_core_health_hides_internal_diagnostics():
     client = TestClient(app)
 

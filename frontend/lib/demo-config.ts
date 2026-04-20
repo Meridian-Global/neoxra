@@ -3,12 +3,30 @@ export type DemoSurfaceId = 'landing' | 'instagram' | 'legal'
 export type DemoAccessMode = 'public' | 'gated'
 export type DemoProfile = 'public' | 'client'
 
+export interface DemoDeterministicFallbackConfig {
+  enabled: boolean
+  mode: 'disabled' | 'manual' | 'auto'
+  fallback_key: string | null
+  label: string
+}
+
 export interface DemoSurfaceConfig {
   id: DemoSurfaceId
   apiSurface: DemoSurfaceId
   accessMode: DemoAccessMode
   demoProfile: DemoProfile
   allowSampleFallback: boolean
+  demoKey: string
+}
+
+export interface DemoClientConfig {
+  demo_key: string
+  surface: DemoSurfaceId
+  display_name: string
+  profile: string
+  preset_profile: string
+  deterministic_fallback: DemoDeterministicFallbackConfig
+  environment: DemoEnvironmentMode
 }
 
 const VALID_ENV_MODES = new Set<DemoEnvironmentMode>([
@@ -68,6 +86,22 @@ export function getDemoEnvironmentMode(): DemoEnvironmentMode {
   return getRuntimeMode()
 }
 
+function getConfiguredDemoKey(surface: DemoSurfaceId): string {
+  const raw = (
+    surface === 'landing'
+      ? process.env.NEXT_PUBLIC_LANDING_DEMO_KEY
+      : surface === 'instagram'
+        ? process.env.NEXT_PUBLIC_INSTAGRAM_DEMO_KEY
+        : process.env.NEXT_PUBLIC_LEGAL_DEMO_KEY
+  )?.trim()
+
+  if (raw) return raw
+
+  if (surface === 'landing') return 'landing-public'
+  if (surface === 'instagram') return 'instagram-public'
+  return 'legal-client'
+}
+
 export function getDemoSurfaceConfig(surface: DemoSurfaceId): DemoSurfaceConfig {
   const mode = getRuntimeMode()
   const accessMode = getSurfaceAccessMode(surface, mode)
@@ -79,5 +113,6 @@ export function getDemoSurfaceConfig(surface: DemoSurfaceId): DemoSurfaceConfig 
     accessMode,
     demoProfile,
     allowSampleFallback: surface !== 'landing',
+    demoKey: getConfiguredDemoKey(surface),
   }
 }

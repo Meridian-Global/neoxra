@@ -12,7 +12,8 @@ import { useLanguage } from '../../components/LanguageProvider'
 import { API_BASE_URL } from '../../lib/api'
 import { buildDemoHeaders, clearStoredDemoToken, getStoredDemoSource } from '../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../lib/demo-config'
-import { getInstagramSampleResult } from '../../lib/instagram-demo'
+import { fetchDemoClientConfig } from '../../lib/demo-client-config'
+import { getDeterministicFallbackResult } from '../../lib/demo-fallbacks'
 import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../lib/analytics'
 import { APIError, streamSSE } from '../../lib/sse'
 import type {
@@ -21,6 +22,7 @@ import type {
   Scorecard,
 } from '../../lib/instagram-types'
 import { ThemeToggle } from '../../components/landing/ThemeToggle'
+import type { DemoClientConfig } from '../../lib/demo-config'
 
 const SCORE_DIMS = [
   'hook_strength', 'cta_clarity', 'hashtag_relevance',
@@ -285,8 +287,8 @@ function toFriendlyError(error: unknown, copy: ReturnType<typeof createInstagram
 export default function InstagramPage() {
   const { language } = useLanguage()
   const copy = createInstagramCopy(language)
-  const sampleResult = getInstagramSampleResult(language)
   const demoConfig = useMemo(() => getDemoSurfaceConfig('instagram'), [])
+  const [clientConfig, setClientConfig] = useState<DemoClientConfig | null>(null)
   const [preview, setPreview] = useState<SubmitPayload>({
     topic: '',
     template_text: '',
@@ -306,6 +308,24 @@ export default function InstagramPage() {
   const abortRef = useRef<AbortController | null>(null)
   const latestPreviewRef = useRef(preview)
   const [source, setSource] = useState(() => getStoredDemoSource(demoConfig.apiSurface))
+  const fallbackResult = useMemo(
+    () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback.fallback_key ?? null, language),
+    [clientConfig, language],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchDemoClientConfig(demoConfig.apiSurface, demoConfig.demoKey)
+      .then((config) => {
+        if (!cancelled) setClientConfig(config)
+      })
+      .catch(() => {
+        if (!cancelled) setClientConfig(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [demoConfig.apiSurface, demoConfig.demoKey])
 
   useEffect(() => {
     setSource(getStoredDemoSource(demoConfig.apiSurface))
@@ -429,7 +449,18 @@ export default function InstagramPage() {
             } else {
               setError(copy.errors.generic)
             }
-            setStatus('error')
+            if (clientConfig?.deterministic_fallback.mode === 'auto' && fallbackResult) {
+              setStyleAnalysis(fallbackResult.style_analysis)
+              setContent(fallbackResult.content)
+              setScorecard(fallbackResult.scorecard)
+              setCritique(fallbackResult.critique)
+              setError(null)
+              setCurrentStage('')
+              setStatus('completed')
+              setResultOrigin('sample')
+            } else {
+              setStatus('error')
+            }
             failed = true
             trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
             break
@@ -437,9 +468,20 @@ export default function InstagramPage() {
         }
 
         if (!abort.signal.aborted && !completed && !failed) {
-          setError(copy.errors.generic)
-          setStatus('error')
-          setCurrentStage('')
+          if (clientConfig?.deterministic_fallback.mode === 'auto' && fallbackResult) {
+            setStyleAnalysis(fallbackResult.style_analysis)
+            setContent(fallbackResult.content)
+            setScorecard(fallbackResult.scorecard)
+            setCritique(fallbackResult.critique)
+            setError(null)
+            setCurrentStage('')
+            setStatus('completed')
+            setResultOrigin('sample')
+          } else {
+            setError(copy.errors.generic)
+            setStatus('error')
+            setCurrentStage('')
+          }
           trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
         }
       } catch (err) {
@@ -452,14 +494,25 @@ export default function InstagramPage() {
             setCurrentStage('')
             return
           }
-          setError(toFriendlyError(err, copy))
-          setStatus('error')
-          setCurrentStage('')
+          if (clientConfig?.deterministic_fallback.mode === 'auto' && fallbackResult) {
+            setStyleAnalysis(fallbackResult.style_analysis)
+            setContent(fallbackResult.content)
+            setScorecard(fallbackResult.scorecard)
+            setCritique(fallbackResult.critique)
+            setError(null)
+            setCurrentStage('')
+            setStatus('completed')
+            setResultOrigin('sample')
+          } else {
+            setError(toFriendlyError(err, copy))
+            setStatus('error')
+            setCurrentStage('')
+          }
           trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
         }
       }
     },
-    [copy, demoConfig.apiSurface, demoToken, language, source],
+    [clientConfig?.deterministic_fallback.mode, copy, demoConfig.apiSurface, demoToken, fallbackResult, language, source],
   )
 
   function handleCancel() {
@@ -492,11 +545,12 @@ export default function InstagramPage() {
   }
 
   function handleUseSample() {
+    if (!fallbackResult) return
     abortRef.current?.abort()
-    setStyleAnalysis(sampleResult.style_analysis)
-    setContent(sampleResult.content)
-    setScorecard(sampleResult.scorecard)
-    setCritique(sampleResult.critique)
+    setStyleAnalysis(fallbackResult.style_analysis)
+    setContent(fallbackResult.content)
+    setScorecard(fallbackResult.scorecard)
+    setCritique(fallbackResult.critique)
     setError(null)
     setCurrentStage('')
     setStatus('completed')
@@ -762,12 +816,14 @@ export default function InstagramPage() {
               >
                 {copy.errorBox.reset}
               </button>
-              <button
-                className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
-                onClick={handleUseSample}
-              >
-                {copy.errorBox.sample}
-              </button>
+              {fallbackResult ? (
+                <button
+                  className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
+                  onClick={handleUseSample}
+                >
+                  {clientConfig?.deterministic_fallback.label || copy.errorBox.sample}
+                </button>
+              ) : null}
             </div>
           </div>
         )}
