@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..core.auth import magic_link_debug_enabled, require_authenticated_user, request_magic_link, revoke_session_token, verify_magic_link
 
 router = APIRouter()
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _is_safe_redirect_path(value: str) -> bool:
+    """Return True only for safe relative paths (no scheme or protocol-relative URL)."""
+    return value.startswith("/") and not value.startswith("//") and "://" not in value
 
 
 class MagicLinkRequest(BaseModel):
@@ -18,11 +27,23 @@ class MagicLinkRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def email_must_not_be_blank(cls, value: str) -> str:
+    def email_must_be_valid(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
             raise ValueError("email must not be blank")
+        if not _EMAIL_RE.match(cleaned):
+            raise ValueError("email must be a valid email address")
         return cleaned
+
+    @field_validator("redirect_path")
+    @classmethod
+    def redirect_path_must_be_safe(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        stripped = value.strip()
+        if stripped and not _is_safe_redirect_path(stripped):
+            raise ValueError("redirect_path must be a safe relative path starting with /")
+        return stripped or None
 
 
 class MagicLinkVerifyRequest(BaseModel):

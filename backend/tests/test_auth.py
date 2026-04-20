@@ -1,3 +1,5 @@
+from urllib.parse import parse_qs, urlparse
+
 from fastapi.testclient import TestClient
 
 from app.db import Base, create_session, get_engine
@@ -33,12 +35,14 @@ def test_magic_link_auth_flow(monkeypatch, tmp_path):
     assert "magic_link" in payload
 
     magic_link = payload["magic_link"]
-    token = magic_link.split("token=", 1)[1]
+    parsed = urlparse(magic_link)
+    token = parse_qs(parsed.query)["token"][0]
 
     verify_response = client.post("/api/auth/verify", json={"token": token})
     assert verify_response.status_code == 200
     verified = verify_response.json()
     session_token = verified["session_token"]
+    assert verified["redirect_path"] == "/demo/legal"
 
     me_response = client.get(
         "/api/auth/me",

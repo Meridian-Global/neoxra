@@ -89,6 +89,7 @@ export async function verifyMagicLink(token: string) {
     status: string
     session_token: string
     expires_at: string
+    redirect_path?: string | null
   } & AuthIdentity
 }
 
@@ -101,7 +102,9 @@ export async function fetchCurrentUser() {
     },
   })
   if (!response.ok) {
-    clearSessionToken()
+    if (response.status === 401 || response.status === 403) {
+      clearSessionToken()
+    }
     return null
   }
   return (await response.json()) as {

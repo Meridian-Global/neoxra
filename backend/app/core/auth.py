@@ -5,14 +5,21 @@ import os
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote as urlquote
 
 from fastapi import HTTPException, Request
+from sqlalchemy import update as sa_update
+from sqlalchemy.exc import IntegrityError
 
 from ..db import AuthSession, MagicLinkToken, Organization, OrganizationMembership, User, create_session
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# Only write last_seen_at if it is older than this threshold to reduce write amplification.
+_LAST_SEEN_UPDATE_INTERVAL = timedelta(minutes=15)
 
 
 def _normalize_email(email: str) -> str:
@@ -32,6 +39,16 @@ def _normalize_tenant_key(value: str) -> str:
 
 def _hash_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def _validate_redirect_path(value: str | None) -> str | None:
+    """Return a safe relative path or None. Rejects absolute URLs and protocol-relative paths."""
+    if not value:
+        return None
+    stripped = value.strip()
+    if not stripped.startswith("/") or stripped.startswith("//") or "://" in stripped:
+        return None
+    return stripped
 
 
 def _magic_link_ttl_minutes() -> int:
@@ -90,6 +107,8 @@ def resolve_auth_context(request: Request) -> AuthContext:
                 AuthSession.session_token_hash == token_hash,
                 AuthSession.status == "active",
                 AuthSession.expires_at > _utcnow(),
+                User.is_active.is_(True),
+                (AuthSession.organization_id.is_(None) | Organization.is_active.is_(True)),
             )
             .one_or_none()
         )
@@ -97,8 +116,11 @@ def resolve_auth_context(request: Request) -> AuthContext:
             return AuthContext(is_authenticated=False)
 
         auth_session_row, user, organization = auth_session
-        auth_session_row.last_seen_at = _utcnow()
-        session.commit()
+        now = _utcnow()
+        last_seen = auth_session_row.last_seen_at
+        if last_seen is None or (now - (last_seen if last_seen.tzinfo else last_seen.replace(tzinfo=timezone.utc))) > _LAST_SEEN_UPDATE_INTERVAL:
+            auth_session_row.last_seen_at = now
+            session.commit()
         return AuthContext(
             is_authenticated=True,
             user_id=user.id,
@@ -137,8 +159,12 @@ def _find_or_create_user(email: str, full_name: str | None = None) -> User:
         if user is None:
             user = User(email=email, full_name=full_name)
             session.add(user)
-            session.commit()
-            session.refresh(user)
+            try:
+                session.commit()
+                session.refresh(user)
+            except IntegrityError:
+                session.rollback()
+                user = session.query(User).filter(User.email == email).one()
         return user
     finally:
         session.close()
@@ -155,8 +181,12 @@ def _find_or_create_organization(tenant_key: str, display_name: str | None = Non
                 org_type="client" if tenant_key != "personal" else "personal",
             )
             session.add(organization)
-            session.commit()
-            session.refresh(organization)
+            try:
+                session.commit()
+                session.refresh(organization)
+            except IntegrityError:
+                session.rollback()
+                organization = session.query(Organization).filter(Organization.tenant_key == tenant_key).one()
         return organization
     finally:
         session.close()
@@ -181,7 +211,10 @@ def _ensure_membership(organization_id: str, user_id: str) -> None:
                     role="owner",
                 )
             )
-            session.commit()
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
     finally:
         session.close()
 
@@ -193,8 +226,26 @@ def request_magic_link(
     redirect_path: str | None = None,
     full_name: str | None = None,
 ) -> dict[str, object]:
-    normalized_email = _normalize_email(email)
-    tenant_key = _normalize_tenant_key(organization_key) if organization_key else "personal"
+    try:
+        normalized_email = _normalize_email(email)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"detail": str(exc), "error_code": "invalid_email"},
+        ) from exc
+
+    if organization_key:
+        try:
+            tenant_key = _normalize_tenant_key(organization_key)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"detail": str(exc), "error_code": "invalid_organization_key"},
+            ) from exc
+    else:
+        tenant_key = "personal"
+
+    safe_redirect = _validate_redirect_path(redirect_path)
 
     user = _find_or_create_user(normalized_email, full_name)
     organization = _find_or_create_organization(tenant_key)
@@ -211,7 +262,7 @@ def request_magic_link(
             organization_id=organization.id,
             email=normalized_email,
             token_hash=token_hash,
-            redirect_path=redirect_path,
+            redirect_path=safe_redirect,
             expires_at=expires_at,
         )
         session.add(token)
@@ -219,7 +270,8 @@ def request_magic_link(
     finally:
         session.close()
 
-    magic_link = f"{_frontend_app_url()}/login?token={raw_token}"
+    base_link = f"{_frontend_app_url()}/login?token={raw_token}"
+    magic_link = f"{base_link}&redirect={urlquote(safe_redirect, safe='/')}" if safe_redirect else base_link
     response: dict[str, object] = {
         "status": "ok",
         "delivery": "magic_link",
@@ -244,28 +296,38 @@ def verify_magic_link(token: str) -> dict[str, object]:
         )
 
     token_hash = _hash_token(raw_token)
+    now = _utcnow()
     session = create_session()
     try:
-        match = (
-            session.query(MagicLinkToken, User, Organization)
-            .join(User, MagicLinkToken.user_id == User.id)
-            .outerjoin(Organization, MagicLinkToken.organization_id == Organization.id)
-            .filter(
+        # Atomically mark the token as used. Only the first concurrent request will
+        # match (used_at IS NULL), preventing double-redemption races.
+        result = session.execute(
+            sa_update(MagicLinkToken)
+            .where(
                 MagicLinkToken.token_hash == token_hash,
                 MagicLinkToken.used_at.is_(None),
-                MagicLinkToken.expires_at > _utcnow(),
+                MagicLinkToken.expires_at > now,
             )
-            .one_or_none()
+            .values(used_at=now)
         )
-        if match is None:
+        session.flush()
+        if result.rowcount != 1:
             raise HTTPException(
                 status_code=401,
                 detail={"detail": "Magic link is invalid or expired.", "error_code": "INVALID_MAGIC_LINK"},
             )
 
+        match = (
+            session.query(MagicLinkToken, User, Organization)
+            .join(User, MagicLinkToken.user_id == User.id)
+            .outerjoin(Organization, MagicLinkToken.organization_id == Organization.id)
+            .filter(MagicLinkToken.token_hash == token_hash)
+            .one()
+        )
+
         magic_token, user, organization = match
-        magic_token.used_at = _utcnow()
-        user.last_login_at = _utcnow()
+        user.last_login_at = now
+        redirect_path = magic_token.redirect_path
 
         session_token = secrets.token_urlsafe(32)
         auth_session = AuthSession(
@@ -273,8 +335,8 @@ def verify_magic_link(token: str) -> dict[str, object]:
             organization_id=organization.id if organization else None,
             session_token_hash=_hash_token(session_token),
             auth_method="magic_link",
-            expires_at=_utcnow() + timedelta(days=_session_ttl_days()),
-            last_seen_at=_utcnow(),
+            expires_at=now + timedelta(days=_session_ttl_days()),
+            last_seen_at=now,
         )
         session.add(auth_session)
         session.commit()
@@ -284,6 +346,7 @@ def verify_magic_link(token: str) -> dict[str, object]:
             "status": "ok",
             "session_token": session_token,
             "expires_at": auth_session.expires_at.isoformat(),
+            "redirect_path": redirect_path,
             "user": {
                 "id": user.id,
                 "email": user.email,

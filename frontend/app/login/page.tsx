@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { LanguageToggle } from '../../components/LanguageToggle'
 import { useLanguage } from '../../components/LanguageProvider'
 import { ThemeToggle } from '../../components/landing/ThemeToggle'
@@ -60,6 +60,15 @@ function createCopy(language: 'en' | 'zh-TW') {
   }
 }
 
+function isSafeRedirectPath(path: string): boolean {
+  return (
+    typeof path === 'string' &&
+    path.startsWith('/') &&
+    !path.startsWith('//') &&
+    !path.includes('://')
+  )
+}
+
 function LoginPageContent() {
   const { language } = useLanguage()
   const copy = useMemo(() => createCopy(language), [language])
@@ -75,6 +84,7 @@ function LoginPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [identity, setIdentity] = useState<Awaited<ReturnType<typeof fetchCurrentUser>>>(null)
+  const hasVerified = useRef(false)
 
   useEffect(() => {
     void fetchCurrentUser().then(setIdentity)
@@ -82,15 +92,22 @@ function LoginPageContent() {
 
   useEffect(() => {
     const token = searchParams.get('token')
-    if (!token) return
+    if (!token || hasVerified.current) return
+    hasVerified.current = true
     setIsVerifying(true)
     setError(null)
     void verifyMagicLink(token)
-      .then(async () => {
+      .then(async (result) => {
         const me = await fetchCurrentUser()
         setIdentity(me)
         setMessage(copy.success)
-        const redirectPath = searchParams.get('redirect') || '/instagram'
+        // Remove the token from the URL so refreshes / language switches don't re-trigger
+        const params = new URLSearchParams(searchParams.toString())
+        params.delete('token')
+        const nextUrl = params.toString() ? `?${params.toString()}` : '/login'
+        router.replace(nextUrl)
+        const rawRedirect = result.redirect_path || searchParams.get('redirect') || '/instagram'
+        const redirectPath = isSafeRedirectPath(rawRedirect) ? rawRedirect : '/instagram'
         window.setTimeout(() => router.push(redirectPath), 800)
       })
       .catch(() => {
@@ -99,7 +116,7 @@ function LoginPageContent() {
       .finally(() => {
         setIsVerifying(false)
       })
-  }, [copy.success, copy.verifyError, router, searchParams])
+  }, [searchParams, router, copy.success, copy.verifyError])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
