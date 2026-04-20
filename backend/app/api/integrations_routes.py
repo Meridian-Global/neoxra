@@ -1,6 +1,6 @@
 import logging
 import os
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -21,7 +21,9 @@ except ModuleNotFoundError as exc:
     publish_to_linkedin = None
     _LINKEDIN_IMPORT_ERROR = exc
 
-router = APIRouter()
+from .access_groups import build_authenticated_marker_router
+
+router = build_authenticated_marker_router()
 
 
 class PublishLinkedInRequest(BaseModel):

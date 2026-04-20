@@ -1,19 +1,23 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..core.growth_context import get_session_id, get_visitor_id
 from ..core.request_guards import ANALYTICS_ROUTE_KEY, enforce_generation_limits
 from ..services import record_usage_event
+from .access_groups import build_public_router
 
-router = APIRouter()
+router = build_public_router()
 
 SUPPORTED_ANALYTICS_EVENTS = {
     "page_view",
     "demo_viewed",
     "demo_abandoned",
     "demo_access_unlocked",
+    "demo_started",
+    "demo_completed",
+    "demo_failed",
 }
 
 _SURFACE_MAX_LENGTH = 64

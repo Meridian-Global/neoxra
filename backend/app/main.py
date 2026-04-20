@@ -27,12 +27,13 @@ from .api.routes import router
 from .api.analytics_routes import router as analytics_router
 from .api.auth_routes import router as auth_router
 from .api.demo_access_routes import router as demo_access_router
+from .api.health_routes import internal_router as internal_health_router
+from .api.health_routes import public_router as health_router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
-from .core.demo_access import get_demo_surface_summary, get_runtime_mode
+from .core.demo_access import get_runtime_mode
 from .core.auth import attach_auth_context
 from .core.error_handling import json_error_response
-from .core.generation_metrics import get_generation_metrics_snapshot
 from .core.logging_utils import (
     configure_logging,
     format_log_fields,
@@ -45,7 +46,7 @@ from .core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
 )
-from .db import check_database_connection, is_database_enabled
+from .db import is_database_enabled
 
 DEFAULT_CORS_ORIGINS = (
     "https://neoxra.com",
@@ -82,6 +83,8 @@ app.include_router(router)
 app.include_router(analytics_router)
 app.include_router(auth_router)
 app.include_router(demo_access_router)
+app.include_router(health_router)
+app.include_router(internal_health_router)
 app.include_router(integrations_router)
 app.include_router(instagram_router)
 
@@ -228,6 +231,11 @@ async def add_request_context(request: Request, call_next) -> Response:
 
     duration_ms = round((time.perf_counter() - start) * 1000, 1)
     response.headers["X-Request-ID"] = request_id
+    response.headers["X-Neoxra-Route-Access-Level"] = getattr(request.state, "route_access_level", "public")
+    for header_name, header_value in getattr(request.state, "rate_limit_headers", {}).items():
+        response.headers[header_name] = header_value
+    for header_name, header_value in getattr(request.state, "quota_headers", {}).items():
+        response.headers[header_name] = header_value
     logger.info(
         "request completed %s",
         format_log_fields(
@@ -243,55 +251,11 @@ async def add_request_context(request: Request, call_next) -> Response:
     return response
 
 
-@app.get("/", tags=["health"])
-async def root_health() -> dict:
-    return {"status": "ok", "service": "neoxra-api"}
-
-
-@app.get("/healthz", tags=["health"])
-async def healthz() -> dict:
-    return {"status": "ok", "database_enabled": is_database_enabled()}
-
-
-@app.get("/health/db", tags=["health"])
-async def db_health() -> dict:
-    if not is_database_enabled():
-        return {"status": "disabled", "database_enabled": False}
-    try:
-        check_database_connection()
-    except Exception:
-        logger.exception("database connectivity check failed")
-        return {"status": "degraded", "database_enabled": True}
-    return {"status": "ok", "database_enabled": True}
-
-
-@app.get("/health/core", tags=["health"])
-async def core_health() -> dict:
-    diagnostics = get_neoxra_core_diagnostics()
-    import_ok = bool(diagnostics.get("import_ok"))
-    return {
-        "status": "ok" if import_ok else "degraded",
-        "core": {
-            "import_ok": import_ok,
-            "distribution_installed": diagnostics.get("distribution_installed", False),
-            "distribution_version": diagnostics.get("distribution_version", "unknown"),
-        },
-        "summary": "Core dependencies available." if import_ok else "Core dependencies unavailable.",
-    }
-
-
-@app.get("/health/generation-metrics", tags=["health"])
-async def generation_metrics_health() -> dict:
-    snapshot = get_generation_metrics_snapshot()
-    snapshot["status"] = "ok"
-    return snapshot
-
-
 @app.on_event("startup")
 async def log_core_diagnostics_on_startup() -> None:
     diagnostics = get_neoxra_core_diagnostics()
     logger.info(
-        "startup configuration environment=%s runtime_mode=%s core_client_mode=%s database_enabled=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s demo_surfaces=%s",
+        "startup configuration environment=%s runtime_mode=%s core_client_mode=%s database_enabled=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s route_access_levels=%s",
         os.getenv("ENVIRONMENT", "development"),
         get_runtime_mode(),
         get_core_client_mode(),
@@ -299,7 +263,7 @@ async def log_core_diagnostics_on_startup() -> None:
         os.getenv("LOG_LEVEL", "INFO"),
         ",".join(_get_allowed_origins()),
         os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),
-        get_demo_surface_summary(),
+        "public/gated/authenticated/internal",
     )
     logger.info(
         "startup neoxra_core import_ok=%s version=%s",

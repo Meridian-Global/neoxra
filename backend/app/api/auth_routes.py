@@ -6,8 +6,11 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..core.auth import magic_link_debug_enabled, require_authenticated_user, request_magic_link, revoke_session_token, verify_magic_link
+from .access_groups import build_authenticated_marker_router, build_public_router
 
 router = APIRouter()
+public_router = build_public_router()
+authenticated_router = build_authenticated_marker_router()
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
@@ -60,7 +63,7 @@ class MagicLinkVerifyRequest(BaseModel):
         return cleaned
 
 
-@router.post("/api/auth/request-link")
+@public_router.post("/api/auth/request-link")
 async def auth_request_magic_link(payload: MagicLinkRequest) -> dict[str, object]:
     response = request_magic_link(
         email=payload.email,
@@ -73,12 +76,12 @@ async def auth_request_magic_link(payload: MagicLinkRequest) -> dict[str, object
     return response
 
 
-@router.post("/api/auth/verify")
+@public_router.post("/api/auth/verify")
 async def auth_verify_magic_link(payload: MagicLinkVerifyRequest) -> dict[str, object]:
     return verify_magic_link(payload.token)
 
 
-@router.get("/api/auth/me")
+@authenticated_router.get("/api/auth/me")
 async def auth_me(request: Request) -> dict[str, object]:
     auth = require_authenticated_user(request)
     return {
@@ -94,7 +97,7 @@ async def auth_me(request: Request) -> dict[str, object]:
     }
 
 
-@router.post("/api/auth/logout")
+@authenticated_router.post("/api/auth/logout")
 async def auth_logout(request: Request) -> dict[str, str]:
     raw = (
         request.headers.get("X-Neoxra-Session-Token")
@@ -105,3 +108,7 @@ async def auth_logout(request: Request) -> dict[str, str]:
     if raw:
         revoke_session_token(raw)
     return {"status": "ok"}
+
+
+router.include_router(public_router)
+router.include_router(authenticated_router)

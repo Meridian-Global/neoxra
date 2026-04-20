@@ -406,7 +406,11 @@ class TestInstagramSSERoute:
         )
         assert failure_response.status_code == 200
 
-        metrics_response = client.get("/health/generation-metrics")
+        monkeypatch.setenv("NEOXRA_ADMIN_KEY", "admin-secret")
+        metrics_response = client.get(
+            "/health/generation-metrics",
+            headers={"X-Neoxra-Admin-Key": "admin-secret"},
+        )
         assert metrics_response.status_code == 200
         metrics = metrics_response.json()
         assert metrics["by_pipeline"]["instagram"]["total_runs"] == 2
@@ -435,7 +439,7 @@ class TestInstagramSSERoute:
         assert first.status_code == 200
         assert second.status_code == 429
         assert second.json()["detail"] == "Rate limit exceeded for generation endpoint. Please retry shortly."
-        assert second.json()["error_code"] == "RATE_LIMITED"
+        assert second.json()["error_code"] == "RATE_LIMIT_EXCEEDED"
 
     def test_instagram_route_rejects_concurrent_runs_from_same_ip(self, monkeypatch):
         reset_generation_metrics()
@@ -454,7 +458,7 @@ class TestInstagramSSERoute:
             assert response.json()["detail"] == (
                 "Too many concurrent generation requests from this IP. Please wait for the current run to finish."
             )
-            assert response.json()["error_code"] == "RATE_LIMITED"
+            assert response.json()["error_code"] == "CONCURRENCY_LIMIT_EXCEEDED"
         finally:
             GENERATION_GUARDS._set_active_count_for_test(INSTAGRAM_ROUTE_KEY, "203.0.113.21", 0)
 
