@@ -34,6 +34,7 @@ Render is the current production path. The Dockerfile exists to make local and f
 - `ANTHROPIC_API_KEY`
 - `ANTHROPIC_MODEL`
 - `GITHUB_TOKEN`
+- `DATABASE_URL`
 
 ### Recommended Environment Variables
 
@@ -43,6 +44,20 @@ Render is the current production path. The Dockerfile exists to make local and f
 - `NEOXRA_CORE_CLIENT_MODE=local`
 - `NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/neoxra-core.git`
 - `NEOXRA_CORE_GIT_REF=main`
+
+### Database Notes
+
+Neoxra now expects one Postgres database for:
+- `demo_runs`
+- `usage_events`
+- `tenant_configs`
+
+Run migrations during deploy or immediately after provisioning:
+
+```bash
+cd backend
+alembic upgrade head
+```
 
 ### What The Build Does
 
@@ -99,6 +114,7 @@ python scripts/check_demo_readiness.py --base-url https://api.neoxra.com
 Useful health endpoints:
 
 - `GET /healthz`
+- `GET /health/db`
 - `GET /health/core`
 - `GET /health/generation-metrics`
 

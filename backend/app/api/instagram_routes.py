@@ -34,6 +34,7 @@ from ..core_client import (
     CoreClientUnavailableError,
     get_core_client,
 )
+from ..services import create_demo_run, mark_demo_run_completed, record_usage_event
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 
@@ -177,6 +178,33 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
             }
         ),
     )
+    demo_run_handle = create_demo_run(
+        route=request.url.path,
+        pipeline="instagram",
+        surface=demo_surface,
+        locale=req.locale,
+        core_client_mode=core_client.mode,
+        input_summary={
+            "topic_length": len(req.topic),
+            "goal": req.goal,
+            "style_examples": len(req.style_examples),
+        },
+    )
+    record_usage_event(
+        route=request.url.path,
+        pipeline="instagram",
+        event_name="request_accepted",
+        status="accepted",
+        locale=req.locale,
+        surface=demo_surface,
+        metadata={
+            "goal": req.goal,
+            "topic_length": len(req.topic),
+            "style_examples": len(req.style_examples),
+            "core_client_mode": core_client.mode,
+        },
+        demo_run_handle=demo_run_handle,
+    )
 
     try:
         generation_request = core_client.build_instagram_generation_request(
@@ -226,6 +254,16 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         "demo_surface": demo_surface,
                     },
                 )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="instagram",
+                    event_name="pipeline_started",
+                    status="started",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    metadata={"goal": generation_request.goal},
+                    demo_run_handle=demo_run_handle,
+                )
 
                 # Step 1: Style analysis
                 tracker.stage_started("style_analysis")
@@ -241,11 +279,29 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 except ValidationError:
                     logger.exception("Instagram flow failed during style analysis")
                     error_code, safe_message = validation_error_for_stage("style_analysis")
-                    tracker.fail(
+                    duration_ms = tracker.fail(
                         stage="style_analysis",
                         failure_reason="output_validation_failed",
                         error_type="ValidationError",
                         message=safe_message,
+                    )
+                    mark_demo_run_completed(
+                        demo_run_handle,
+                        status="failed",
+                        duration_ms=duration_ms,
+                        failure_reason="output_validation_failed",
+                        error_code=error_code,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="style_analysis_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        error_code=error_code,
+                        error_stage="style_analysis",
+                        demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
                         "error",
@@ -259,11 +315,30 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 except Exception as exc:
                     logger.exception("Instagram flow failed during style analysis")
                     error_code, safe_message = public_generation_error("style_analysis")
-                    tracker.fail(
+                    duration_ms = tracker.fail(
                         stage="style_analysis",
                         failure_reason="stage_exception",
                         error_type=type(exc).__name__,
                         message=safe_message,
+                    )
+                    mark_demo_run_completed(
+                        demo_run_handle,
+                        status="failed",
+                        duration_ms=duration_ms,
+                        failure_reason="stage_exception",
+                        error_code=error_code,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="style_analysis_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        error_code=error_code,
+                        error_stage="style_analysis",
+                        metadata={"exception_type": type(exc).__name__},
+                        demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
                         "error",
@@ -294,11 +369,29 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 except ValidationError:
                     logger.exception("Instagram flow failed during generation")
                     error_code, safe_message = validation_error_for_stage("generation")
-                    tracker.fail(
+                    duration_ms = tracker.fail(
                         stage="generation",
                         failure_reason="output_validation_failed",
                         error_type="ValidationError",
                         message=safe_message,
+                    )
+                    mark_demo_run_completed(
+                        demo_run_handle,
+                        status="failed",
+                        duration_ms=duration_ms,
+                        failure_reason="output_validation_failed",
+                        error_code=error_code,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="generation_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        error_code=error_code,
+                        error_stage="generation",
+                        demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
                         "error",
@@ -312,11 +405,30 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 except Exception as exc:
                     logger.exception("Instagram flow failed during generation")
                     error_code, safe_message = public_generation_error("generation")
-                    tracker.fail(
+                    duration_ms = tracker.fail(
                         stage="generation",
                         failure_reason="stage_exception",
                         error_type=type(exc).__name__,
                         message=safe_message,
+                    )
+                    mark_demo_run_completed(
+                        demo_run_handle,
+                        status="failed",
+                        duration_ms=duration_ms,
+                        failure_reason="stage_exception",
+                        error_code=error_code,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="generation_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        error_code=error_code,
+                        error_stage="generation",
+                        metadata={"exception_type": type(exc).__name__},
+                        demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
                         "error",
@@ -344,11 +456,29 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 except ValidationError:
                     logger.exception("Instagram flow failed during scoring")
                     error_code, safe_message = validation_error_for_stage("scoring")
-                    tracker.fail(
+                    duration_ms = tracker.fail(
                         stage="scoring",
                         failure_reason="output_validation_failed",
                         error_type="ValidationError",
                         message=safe_message,
+                    )
+                    mark_demo_run_completed(
+                        demo_run_handle,
+                        status="failed",
+                        duration_ms=duration_ms,
+                        failure_reason="output_validation_failed",
+                        error_code=error_code,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="scoring_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        error_code=error_code,
+                        error_stage="scoring",
+                        demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
                         "error",
@@ -362,11 +492,30 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 except Exception as exc:
                     logger.exception("Instagram flow failed during scoring")
                     error_code, safe_message = public_generation_error("scoring")
-                    tracker.fail(
+                    duration_ms = tracker.fail(
                         stage="scoring",
                         failure_reason="stage_exception",
                         error_type=type(exc).__name__,
                         message=safe_message,
+                    )
+                    mark_demo_run_completed(
+                        demo_run_handle,
+                        status="failed",
+                        duration_ms=duration_ms,
+                        failure_reason="stage_exception",
+                        error_code=error_code,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="scoring_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        error_code=error_code,
+                        error_stage="scoring",
+                        metadata={"exception_type": type(exc).__name__},
+                        demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
                         "error",
@@ -403,17 +552,51 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     "style_analysis": style_data,
                 }
                 completed = True
-                tracker.complete(goal=generation_request.goal)
+                duration_ms = tracker.complete(goal=generation_request.goal)
+                mark_demo_run_completed(
+                    demo_run_handle,
+                    status="completed",
+                    duration_ms=duration_ms,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="instagram",
+                    event_name="pipeline_completed",
+                    status="success",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    metadata={"goal": generation_request.goal},
+                    demo_run_handle=demo_run_handle,
+                )
                 _log_instagram_event("pipeline_completed", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("pipeline_completed", result_dict)
             except Exception as exc:
                 logger.exception("Instagram flow failed before completion")
                 error_code, safe_message = public_generation_error("pipeline")
-                tracker.fail(
+                duration_ms = tracker.fail(
                     stage="pipeline",
                     failure_reason="pipeline_exception",
                     error_type=type(exc).__name__,
                     message=safe_message,
+                )
+                mark_demo_run_completed(
+                    demo_run_handle,
+                    status="failed",
+                    duration_ms=duration_ms,
+                    failure_reason="pipeline_exception",
+                    error_code=error_code,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="instagram",
+                    event_name="pipeline_exception",
+                    status="failed",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    error_code=error_code,
+                    error_stage="pipeline",
+                    metadata={"exception_type": type(exc).__name__},
+                    demo_run_handle=demo_run_handle,
                 )
                 yield _sse(
                     "error",
@@ -427,10 +610,28 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
 
             if not completed:
                 logger.error("Instagram pipeline stream ended without pipeline_completed")
-                tracker.fail(
+                duration_ms = tracker.fail(
                     stage="pipeline",
                     failure_reason="stream_incomplete",
                     message="Generation could not be completed. Please try again.",
+                )
+                mark_demo_run_completed(
+                    demo_run_handle,
+                    status="failed",
+                    duration_ms=duration_ms,
+                    failure_reason="stream_incomplete",
+                    error_code="PIPELINE_INCOMPLETE",
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="instagram",
+                    event_name="pipeline_incomplete",
+                    status="failed",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    error_code="PIPELINE_INCOMPLETE",
+                    error_stage="pipeline",
+                    demo_run_handle=demo_run_handle,
                 )
                 yield _sse(
                     "error",

@@ -19,6 +19,7 @@ class PipelineLifecycleTracker:
     request_id: str = field(default_factory=get_request_id)
     started_at: float = field(default_factory=time.perf_counter)
     _finished: bool = False
+    total_duration_ms: float | None = None
 
     def log_start(self, **fields: Any) -> None:
         self.logger.info(
@@ -73,12 +74,13 @@ class PipelineLifecycleTracker:
         )
         return duration_ms
 
-    def complete(self, **fields: Any) -> None:
+    def complete(self, **fields: Any) -> float:
         if self._finished:
-            return
+            return self.total_duration_ms or 0.0
 
         self._finished = True
         total_duration_ms = round((time.perf_counter() - self.started_at) * 1000, 1)
+        self.total_duration_ms = total_duration_ms
         record_generation_outcome(self.pipeline_name, success=True)
         self.logger.info(
             "pipeline lifecycle %s",
@@ -94,6 +96,7 @@ class PipelineLifecycleTracker:
                 }
             ),
         )
+        return total_duration_ms
 
     def fail(
         self,
@@ -103,12 +106,13 @@ class PipelineLifecycleTracker:
         error_type: str | None = None,
         message: str | None = None,
         **fields: Any,
-    ) -> None:
+    ) -> float:
         if self._finished:
-            return
+            return self.total_duration_ms or 0.0
 
         self._finished = True
         total_duration_ms = round((time.perf_counter() - self.started_at) * 1000, 1)
+        self.total_duration_ms = total_duration_ms
         record_generation_outcome(
             self.pipeline_name,
             success=False,
@@ -132,3 +136,4 @@ class PipelineLifecycleTracker:
                 }
             ),
         )
+        return total_duration_ms

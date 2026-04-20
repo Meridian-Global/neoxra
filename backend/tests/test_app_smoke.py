@@ -132,6 +132,17 @@ def test_health_route_sets_request_id_header():
 
     assert response.status_code == 200
     assert response.headers["X-Request-ID"]
+    assert "database_enabled" in response.json()
+
+
+def test_db_health_disabled_without_database_url(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    client = TestClient(app)
+    response = client.get("/health/db")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "disabled"
 
 
 def test_core_health_hides_internal_diagnostics():
