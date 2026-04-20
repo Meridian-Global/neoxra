@@ -39,6 +39,7 @@ Useful docs:
 - [docs/architecture.md](./docs/architecture.md)
 - [docs/public-private-boundary.md](./docs/public-private-boundary.md)
 - [docs/deployment.md](./docs/deployment.md)
+- [docs/yc-metrics.sql](./docs/yc-metrics.sql)
 - [backend/.env.example](./backend/.env.example)
 
 ## Current product surfaces
@@ -118,6 +119,8 @@ Create `frontend/.env.local`:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_PLAUSIBLE_DOMAIN=
+NEXT_PUBLIC_PLAUSIBLE_API_HOST=https://plausible.io
 ```
 
 Then run:
@@ -205,6 +208,7 @@ Useful checks:
 - `GET /health/generation-metrics`
 
 The backend now also returns `X-Request-ID` headers and logs request IDs plus pipeline stage transitions to make production debugging easier.
+Growth instrumentation now records demo lifecycle and page analytics into `usage_events`, and Plausible can be enabled from frontend envs for page and conversion tracking.
 
 ## Notes
 

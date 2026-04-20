@@ -145,6 +145,29 @@ def test_db_health_disabled_without_database_url(monkeypatch):
     assert response.json()["status"] == "disabled"
 
 
+def test_analytics_event_endpoint_accepts_frontend_events():
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/analytics/events",
+        headers={
+            "X-Neoxra-Visitor-ID": "visitor-1",
+            "X-Neoxra-Session-ID": "session-1",
+        },
+        json={
+            "event_name": "page_view",
+            "route": "/instagram",
+            "surface": "instagram",
+            "source": "instagram",
+            "locale": "en",
+            "metadata": {"referrer": "direct"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
 def test_core_health_hides_internal_diagnostics():
     client = TestClient(app)
 

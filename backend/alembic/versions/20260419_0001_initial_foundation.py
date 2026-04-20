@@ -23,6 +23,9 @@ def upgrade() -> None:
         sa.Column("route", sa.String(length=128), nullable=False),
         sa.Column("pipeline", sa.String(length=64), nullable=False),
         sa.Column("surface", sa.String(length=64), nullable=True),
+        sa.Column("source", sa.String(length=64), nullable=True),
+        sa.Column("visitor_id", sa.String(length=64), nullable=True),
+        sa.Column("session_id", sa.String(length=64), nullable=True),
         sa.Column("locale", sa.String(length=16), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("failure_reason", sa.String(length=128), nullable=True),
@@ -37,8 +40,11 @@ def upgrade() -> None:
     op.create_index(op.f("ix_demo_runs_pipeline"), "demo_runs", ["pipeline"], unique=False)
     op.create_index(op.f("ix_demo_runs_request_id"), "demo_runs", ["request_id"], unique=False)
     op.create_index(op.f("ix_demo_runs_route"), "demo_runs", ["route"], unique=False)
+    op.create_index(op.f("ix_demo_runs_session_id"), "demo_runs", ["session_id"], unique=False)
+    op.create_index(op.f("ix_demo_runs_source"), "demo_runs", ["source"], unique=False)
     op.create_index(op.f("ix_demo_runs_status"), "demo_runs", ["status"], unique=False)
     op.create_index(op.f("ix_demo_runs_surface"), "demo_runs", ["surface"], unique=False)
+    op.create_index(op.f("ix_demo_runs_visitor_id"), "demo_runs", ["visitor_id"], unique=False)
 
     op.create_table(
         "tenant_configs",
@@ -68,6 +74,9 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=32), nullable=True),
         sa.Column("locale", sa.String(length=16), nullable=True),
         sa.Column("surface", sa.String(length=64), nullable=True),
+        sa.Column("source", sa.String(length=64), nullable=True),
+        sa.Column("visitor_id", sa.String(length=64), nullable=True),
+        sa.Column("session_id", sa.String(length=64), nullable=True),
         sa.Column("error_code", sa.String(length=64), nullable=True),
         sa.Column("error_stage", sa.String(length=64), nullable=True),
         sa.Column("metadata_json", sa.JSON(), nullable=False),
@@ -80,7 +89,10 @@ def upgrade() -> None:
     op.create_index(op.f("ix_usage_events_pipeline"), "usage_events", ["pipeline"], unique=False)
     op.create_index(op.f("ix_usage_events_request_id"), "usage_events", ["request_id"], unique=False)
     op.create_index(op.f("ix_usage_events_route"), "usage_events", ["route"], unique=False)
+    op.create_index(op.f("ix_usage_events_session_id"), "usage_events", ["session_id"], unique=False)
+    op.create_index(op.f("ix_usage_events_source"), "usage_events", ["source"], unique=False)
     op.create_index(op.f("ix_usage_events_status"), "usage_events", ["status"], unique=False)
+    op.create_index(op.f("ix_usage_events_visitor_id"), "usage_events", ["visitor_id"], unique=False)
 
 
 def downgrade() -> None:
@@ -88,6 +100,9 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_usage_events_route"), table_name="usage_events")
     op.drop_index(op.f("ix_usage_events_request_id"), table_name="usage_events")
     op.drop_index(op.f("ix_usage_events_pipeline"), table_name="usage_events")
+    op.drop_index(op.f("ix_usage_events_visitor_id"), table_name="usage_events")
+    op.drop_index(op.f("ix_usage_events_source"), table_name="usage_events")
+    op.drop_index(op.f("ix_usage_events_session_id"), table_name="usage_events")
     op.drop_index(op.f("ix_usage_events_event_name"), table_name="usage_events")
     op.drop_index(op.f("ix_usage_events_demo_run_id"), table_name="usage_events")
     op.drop_table("usage_events")
@@ -99,4 +114,7 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_demo_runs_route"), table_name="demo_runs")
     op.drop_index(op.f("ix_demo_runs_request_id"), table_name="demo_runs")
     op.drop_index(op.f("ix_demo_runs_pipeline"), table_name="demo_runs")
+    op.drop_index(op.f("ix_demo_runs_visitor_id"), table_name="demo_runs")
+    op.drop_index(op.f("ix_demo_runs_source"), table_name="demo_runs")
+    op.drop_index(op.f("ix_demo_runs_session_id"), table_name="demo_runs")
     op.drop_table("demo_runs")

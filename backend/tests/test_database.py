@@ -13,6 +13,9 @@ def test_usage_events_and_demo_runs_persist_with_sqlite(monkeypatch, tmp_path):
         route="/api/run",
         pipeline="core",
         surface="landing",
+        source="landing",
+        visitor_id="visitor-1",
+        session_id="session-1",
         locale="en",
         core_client_mode="local",
         input_summary={"idea_length": 12},
@@ -26,6 +29,9 @@ def test_usage_events_and_demo_runs_persist_with_sqlite(monkeypatch, tmp_path):
         status="started",
         locale="en",
         surface="landing",
+        source="landing",
+        visitor_id="visitor-1",
+        session_id="session-1",
         demo_run_handle=handle,
     )
     mark_demo_run_completed(
@@ -53,7 +59,13 @@ def test_usage_events_and_demo_runs_persist_with_sqlite(monkeypatch, tmp_path):
     assert demo_run.route == "/api/run"
     assert demo_run.status == "completed"
     assert demo_run.duration_ms == 145.2
+    assert demo_run.source == "landing"
+    assert demo_run.visitor_id == "visitor-1"
+    assert demo_run.session_id == "session-1"
     assert usage_event.event_name == "pipeline_started"
     assert usage_event.demo_run_id == demo_run.id
+    assert usage_event.source == "landing"
+    assert usage_event.visitor_id == "visitor-1"
+    assert usage_event.session_id == "session-1"
     assert tenant.tenant_key == "legal-demo"
     assert tenant.environment == "public-demo"

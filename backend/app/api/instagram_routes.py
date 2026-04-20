@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from ..core.demo_access import require_demo_access
 from ..core.error_handling import generation_error_payload, public_generation_error, validation_error_for_stage
+from ..core.growth_context import get_demo_source, get_session_id, get_visitor_id
 from ..core.localization import (
     DEFAULT_LOCALE,
     append_locale_instruction,
@@ -161,6 +162,9 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
         default_surface="instagram",
         allowed_surfaces={"instagram", "legal"},
     )
+    demo_source = get_demo_source(request, demo_surface)
+    visitor_id = get_visitor_id(request)
+    session_id = get_session_id(request)
     logger.info(
         "instagram generation request accepted %s",
         format_log_fields(
@@ -172,6 +176,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 "locale": req.locale,
                 "core_client_mode": core_client.mode,
                 "demo_surface": demo_surface,
+                "demo_source": demo_source,
                 "runtime_mode": getattr(request.state, "runtime_mode", "unknown"),
                 "style_examples": len(req.style_examples),
                 "path": request.url.path,
@@ -182,6 +187,9 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
         route=request.url.path,
         pipeline="instagram",
         surface=demo_surface,
+        source=demo_source,
+        visitor_id=visitor_id,
+        session_id=session_id,
         locale=req.locale,
         core_client_mode=core_client.mode,
         input_summary={
@@ -197,6 +205,9 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
         status="accepted",
         locale=req.locale,
         surface=demo_surface,
+        source=demo_source,
+        visitor_id=visitor_id,
+        session_id=session_id,
         metadata={
             "goal": req.goal,
             "topic_length": len(req.topic),
@@ -261,6 +272,22 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     status="started",
                     locale=req.locale,
                     surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
+                    metadata={"goal": generation_request.goal},
+                    demo_run_handle=demo_run_handle,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="instagram",
+                    event_name="demo_started",
+                    status="started",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
                     metadata={"goal": generation_request.goal},
                     demo_run_handle=demo_run_handle,
                 )
@@ -299,8 +326,26 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         status="failed",
                         locale=req.locale,
                         surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
                         error_code=error_code,
                         error_stage="style_analysis",
+                        demo_run_handle=demo_run_handle,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="demo_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
+                        error_code=error_code,
+                        error_stage="style_analysis",
+                        metadata={"failure_reason": "output_validation_failed"},
                         demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
@@ -335,9 +380,27 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         status="failed",
                         locale=req.locale,
                         surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
                         error_code=error_code,
                         error_stage="style_analysis",
                         metadata={"exception_type": type(exc).__name__},
+                        demo_run_handle=demo_run_handle,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="demo_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
+                        error_code=error_code,
+                        error_stage="style_analysis",
+                        metadata={"failure_reason": "stage_exception"},
                         demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
@@ -389,8 +452,26 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         status="failed",
                         locale=req.locale,
                         surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
                         error_code=error_code,
                         error_stage="generation",
+                        demo_run_handle=demo_run_handle,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="demo_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
+                        error_code=error_code,
+                        error_stage="generation",
+                        metadata={"failure_reason": "output_validation_failed"},
                         demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
@@ -425,9 +506,27 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         status="failed",
                         locale=req.locale,
                         surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
                         error_code=error_code,
                         error_stage="generation",
                         metadata={"exception_type": type(exc).__name__},
+                        demo_run_handle=demo_run_handle,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="demo_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
+                        error_code=error_code,
+                        error_stage="generation",
+                        metadata={"failure_reason": "stage_exception"},
                         demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
@@ -476,8 +575,26 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         status="failed",
                         locale=req.locale,
                         surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
                         error_code=error_code,
                         error_stage="scoring",
+                        demo_run_handle=demo_run_handle,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="demo_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
+                        error_code=error_code,
+                        error_stage="scoring",
+                        metadata={"failure_reason": "output_validation_failed"},
                         demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
@@ -512,9 +629,27 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         status="failed",
                         locale=req.locale,
                         surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
                         error_code=error_code,
                         error_stage="scoring",
                         metadata={"exception_type": type(exc).__name__},
+                        demo_run_handle=demo_run_handle,
+                    )
+                    record_usage_event(
+                        route=request.url.path,
+                        pipeline="instagram",
+                        event_name="demo_failed",
+                        status="failed",
+                        locale=req.locale,
+                        surface=demo_surface,
+                        source=demo_source,
+                        visitor_id=visitor_id,
+                        session_id=session_id,
+                        error_code=error_code,
+                        error_stage="scoring",
+                        metadata={"failure_reason": "stage_exception"},
                         demo_run_handle=demo_run_handle,
                     )
                     yield _sse(
@@ -565,6 +700,22 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     status="success",
                     locale=req.locale,
                     surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
+                    metadata={"goal": generation_request.goal},
+                    demo_run_handle=demo_run_handle,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="instagram",
+                    event_name="demo_completed",
+                    status="success",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
                     metadata={"goal": generation_request.goal},
                     demo_run_handle=demo_run_handle,
                 )
@@ -593,9 +744,27 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     status="failed",
                     locale=req.locale,
                     surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
                     error_code=error_code,
                     error_stage="pipeline",
                     metadata={"exception_type": type(exc).__name__},
+                    demo_run_handle=demo_run_handle,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="instagram",
+                    event_name="demo_failed",
+                    status="failed",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
+                    error_code=error_code,
+                    error_stage="pipeline",
+                    metadata={"failure_reason": "pipeline_exception"},
                     demo_run_handle=demo_run_handle,
                 )
                 yield _sse(
@@ -629,8 +798,26 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     status="failed",
                     locale=req.locale,
                     surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
                     error_code="PIPELINE_INCOMPLETE",
                     error_stage="pipeline",
+                    demo_run_handle=demo_run_handle,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="instagram",
+                    event_name="demo_failed",
+                    status="failed",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
+                    error_code="PIPELINE_INCOMPLETE",
+                    error_stage="pipeline",
+                    metadata={"failure_reason": "stream_incomplete"},
                     demo_run_handle=demo_run_handle,
                 )
                 yield _sse(

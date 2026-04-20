@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState, type FormEvent } from 'react'
+import { trackBackendAnalyticsEvent, trackPlausibleEvent } from '../lib/analytics'
 import type { DemoSurfaceId } from '../lib/demo-config'
 import {
   clearStoredDemoToken,
   consumeDemoTokenFromUrl,
+  getStoredDemoSource,
   getStoredDemoToken,
   requestDemoAccess,
 } from '../lib/demo-access'
@@ -37,6 +39,15 @@ export function DemoAccessGate({ surface, copy, onAccessReady }: DemoAccessGateP
     const tokenFromUrl = consumeDemoTokenFromUrl(surface)
     const stored = tokenFromUrl ?? getStoredDemoToken(surface)
     if (stored) {
+      const source = getStoredDemoSource(surface)
+      trackPlausibleEvent('demo_access_unlocked', { surface, source, method: tokenFromUrl ? 'signed_link' : 'stored_token' })
+      void trackBackendAnalyticsEvent({
+        eventName: 'demo_access_unlocked',
+        route: surface === 'legal' ? '/demo/legal' : `/${surface}`,
+        surface,
+        source,
+        metadata: { method: tokenFromUrl ? 'signed_link' : 'stored_token' },
+      })
       onAccessReady(stored)
     }
   }, [onAccessReady, surface])
@@ -48,6 +59,15 @@ export function DemoAccessGate({ surface, copy, onAccessReady }: DemoAccessGateP
     setError(null)
     try {
       const token = await requestDemoAccess(surface, accessCode)
+      const source = getStoredDemoSource(surface)
+      trackPlausibleEvent('demo_access_unlocked', { surface, source, method: 'access_code' })
+      void trackBackendAnalyticsEvent({
+        eventName: 'demo_access_unlocked',
+        route: surface === 'legal' ? '/demo/legal' : `/${surface}`,
+        surface,
+        source,
+        metadata: { method: 'access_code' },
+      })
       onAccessReady(token)
     } catch {
       setError(copy.invalidCode)

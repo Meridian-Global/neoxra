@@ -11,8 +11,9 @@ import { LanguageToggle } from '../../../components/LanguageToggle'
 import { useLanguage } from '../../../components/LanguageProvider'
 import { ThemeToggle } from '../../../components/landing/ThemeToggle'
 import { API_BASE_URL } from '../../../lib/api'
-import { buildDemoHeaders, clearStoredDemoToken } from '../../../lib/demo-access'
+import { buildDemoHeaders, clearStoredDemoToken, getStoredDemoSource } from '../../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../../lib/demo-config'
+import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../../lib/analytics'
 import {
   getLegalDemoPresets,
   getLegalDemoValueProp,
@@ -361,6 +362,16 @@ export default function LegalDemoPage() {
   const [demoToken, setDemoToken] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  const latestPreviewRef = useRef(preview)
+  const [source, setSource] = useState(() => getStoredDemoSource(demoConfig.apiSurface))
+
+  useEffect(() => {
+    setSource(getStoredDemoSource(demoConfig.apiSurface))
+  }, [demoConfig.apiSurface, demoToken])
+
+  useEffect(() => {
+    latestPreviewRef.current = preview
+  }, [preview])
 
   const selectedScenario = useMemo(
     () => legalDemoPresets.find((preset) => preset.label === selectedScenarioLabel) ?? legalDemoPresets[0],
@@ -381,6 +392,27 @@ export default function LegalDemoPage() {
       })
     }
   }, [legalDemoPresets, selectedScenarioLabel])
+
+  useEffect(() => {
+    function handlePageHide() {
+      if (status !== 'loading' && status !== 'streaming') return
+      trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: language })
+      sendBeaconAnalyticsEvent({
+        eventName: 'demo_abandoned',
+        route: '/demo/legal',
+        surface: demoConfig.apiSurface,
+        source,
+        locale: language,
+        metadata: {
+          reason: 'pagehide',
+          topic_length: latestPreviewRef.current.topic.trim().length,
+        },
+      })
+    }
+
+    window.addEventListener('pagehide', handlePageHide)
+    return () => window.removeEventListener('pagehide', handlePageHide)
+  }, [demoConfig.apiSurface, language, source, status])
 
   const beforeAfterTopic = preview.topic.trim() || selectedScenario.topic
   const beforeAfterGoal = preview.goal || selectedScenario.goal
@@ -447,6 +479,7 @@ export default function LegalDemoPage() {
       setLastSubmitted(data)
       clearResults()
       setStatus('loading')
+      trackPlausibleEvent('demo_started', { surface: demoConfig.apiSurface, source, locale: language })
 
       const abort = new AbortController()
       abortRef.current = abort
@@ -521,6 +554,7 @@ export default function LegalDemoPage() {
             setStatus('completed')
             setResultOrigin('live')
             completed = true
+            trackPlausibleEvent('demo_completed', { surface: demoConfig.apiSurface, source, locale: language })
             continue
           }
 
@@ -533,6 +567,7 @@ export default function LegalDemoPage() {
             }
             setStatus('error')
             failed = true
+            trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
             break
           }
         }
@@ -541,6 +576,7 @@ export default function LegalDemoPage() {
           setError(copy.errors.generic)
           setStatus('error')
           setCurrentStage('')
+          trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
         }
       } catch (err) {
         if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
@@ -553,16 +589,29 @@ export default function LegalDemoPage() {
           }
           setStatus('error')
           setCurrentStage('')
+          trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
         }
       }
     },
-    [clearResults, copy, demoConfig.apiSurface, demoToken, language, selectedVoice],
+    [clearResults, copy, demoConfig.apiSurface, demoToken, language, selectedVoice, source],
   )
 
   function handleCancel() {
     abortRef.current?.abort()
     setStatus('idle')
     setCurrentStage('')
+    trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: language })
+    sendBeaconAnalyticsEvent({
+      eventName: 'demo_abandoned',
+      route: '/demo/legal',
+      surface: demoConfig.apiSurface,
+      source,
+      locale: language,
+      metadata: {
+        reason: 'manual_stop',
+        topic_length: latestPreviewRef.current.topic.trim().length,
+      },
+    })
   }
 
   function handleRetry() {

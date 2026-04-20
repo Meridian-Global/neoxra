@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLanguage } from '../LanguageProvider'
 import { API_BASE_URL } from '../../lib/api'
 import { buildDemoHeaders } from '../../lib/demo-access'
+import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../lib/analytics'
 import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { APIError, streamSSE } from '../../lib/sse'
 
@@ -267,6 +268,29 @@ export function DemoSection() {
   const [activePlatform, setActivePlatform] = useState<PlatformKey | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  const latestIdeaRef = useRef(copy.defaultIdea)
+
+  useEffect(() => {
+    latestIdeaRef.current = idea
+  }, [idea])
+
+  useEffect(() => {
+    function handlePageHide() {
+      if (status !== 'running') return
+      trackPlausibleEvent('demo_abandoned', { surface: 'landing', source: 'landing' })
+      sendBeaconAnalyticsEvent({
+        eventName: 'demo_abandoned',
+        route: '/',
+        surface: 'landing',
+        source: 'landing',
+        locale: language,
+        metadata: { reason: 'pagehide', idea_length: latestIdeaRef.current.trim().length },
+      })
+    }
+
+    window.addEventListener('pagehide', handlePageHide)
+    return () => window.removeEventListener('pagehide', handlePageHide)
+  }, [language, status])
 
   const copyText = useCallback((key: string, value: string) => {
     navigator.clipboard.writeText(value).then(() => {
@@ -291,6 +315,7 @@ export function DemoSection() {
     setError('')
     setBriefPreview([])
     setActivePlatform(null)
+    trackPlausibleEvent('demo_started', { surface: 'landing', source: 'landing', locale: language })
 
     try {
       for await (const { event, data } of streamSSE(
@@ -392,6 +417,7 @@ export function DemoSection() {
           completed = true
           setStatus('done')
           setActivePlatform(null)
+          trackPlausibleEvent('demo_completed', { surface: 'landing', source: 'landing', locale: language })
         }
 
         if (event === 'error') {
@@ -400,6 +426,7 @@ export function DemoSection() {
           setStageMessage(copy.errors.stopped)
           setActivePlatform(null)
           failed = true
+          trackPlausibleEvent('demo_failed', { surface: 'landing', source: 'landing', locale: language })
           break
         }
       }
@@ -409,6 +436,7 @@ export function DemoSection() {
         setError(copy.errors.generic)
         setStageMessage(copy.errors.earlyEnd)
         setActivePlatform(null)
+        trackPlausibleEvent('demo_failed', { surface: 'landing', source: 'landing', locale: language })
       }
     } catch (err) {
       if (!abortController.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
@@ -416,6 +444,7 @@ export function DemoSection() {
         setError(toFriendlyError(err, copy))
         setStageMessage(copy.errors.stopped)
         setActivePlatform(null)
+        trackPlausibleEvent('demo_failed', { surface: 'landing', source: 'landing', locale: language })
       }
     }
   }, [copy, demoConfig.apiSurface, idea, language, status])
@@ -425,6 +454,15 @@ export function DemoSection() {
     setStatus('idle')
     setStageMessage(copy.section.runStopped)
     setActivePlatform(null)
+    trackPlausibleEvent('demo_abandoned', { surface: 'landing', source: 'landing' })
+    sendBeaconAnalyticsEvent({
+      eventName: 'demo_abandoned',
+      route: '/',
+      surface: 'landing',
+      source: 'landing',
+      locale: language,
+      metadata: { reason: 'manual_stop', idea_length: latestIdeaRef.current.trim().length },
+    })
   }, [copy.section.runStopped])
 
   const hasAnyOutput = Object.values(outputs).some(output => output.content)
