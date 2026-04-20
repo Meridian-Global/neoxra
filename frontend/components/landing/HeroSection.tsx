@@ -15,8 +15,6 @@ export function HeroSection() {
           title: '把一個想法轉成平台原生內容。',
           body:
             'Neoxra 透過 planner、平台代理與 critic，把一個輸入轉成適合 LinkedIn、Instagram 與 Threads 的內容，而不是單純複製貼上。',
-          noticePrefix: '內部 demo 頁面在',
-          noticeSuffix: '。要進行法律服務 demo 時，請直接輸入這個網址。',
           instagram: 'Instagram',
           login: '登入',
           what: '它做什麼',
@@ -32,8 +30,6 @@ export function HeroSection() {
           title: 'Turn one idea into platform-native content.',
           body:
             'Neoxra uses a planner, platform agents, and a critic to turn one input into LinkedIn, Instagram, and Threads content that feels native instead of copy-pasted.',
-          noticePrefix: 'Internal demo surface is available at',
-          noticeSuffix: 'Use that route directly when you want the legal-services walkthrough.',
           instagram: 'Instagram',
           login: 'Login',
           what: 'What it does',
@@ -72,10 +68,6 @@ export function HeroSection() {
           <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted)] sm:text-lg">
             {copy.body}
           </p>
-
-          <div className="mt-8 max-w-2xl rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-4 text-sm leading-6 text-[var(--muted)]">
-            {copy.noticePrefix} <span className="font-semibold text-[var(--text)]">`/demo/legal`</span>. {copy.noticeSuffix}
-          </div>
 
           <div className="mt-4">
             <div className="flex flex-wrap gap-3">
