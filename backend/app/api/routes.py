@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from ..core.error_handling import generation_error_payload, public_generation_error, validation_error_for_stage
 from ..core.demo_access import require_demo_access
+from ..core.growth_context import get_demo_source, get_session_id, get_visitor_id
 from ..core.localization import DEFAULT_LOCALE, validate_locale
 from ..core.logging_utils import format_log_fields, get_request_id
 from ..core_client import (
@@ -198,6 +199,9 @@ async def run_pipeline(req: RunRequest, request: Request):
         default_surface="landing",
         allowed_surfaces={"landing"},
     )
+    demo_source = get_demo_source(request, demo_surface)
+    visitor_id = get_visitor_id(request)
+    session_id = get_session_id(request)
     core_client = _get_core_client()
     if core_client.requires_local_api_key:
         _require_anthropic_api_key()
@@ -225,6 +229,7 @@ async def run_pipeline(req: RunRequest, request: Request):
                 "locale": req.locale,
                 "core_client_mode": core_client.mode,
                 "demo_surface": demo_surface,
+                "demo_source": demo_source,
                 "runtime_mode": getattr(request.state, "runtime_mode", "unknown"),
                 "path": request.url.path,
             }
@@ -234,6 +239,9 @@ async def run_pipeline(req: RunRequest, request: Request):
         route=request.url.path,
         pipeline="core",
         surface=demo_surface,
+        source=demo_source,
+        visitor_id=visitor_id,
+        session_id=session_id,
         locale=req.locale,
         core_client_mode=core_client.mode,
         input_summary={
@@ -248,6 +256,9 @@ async def run_pipeline(req: RunRequest, request: Request):
         status="accepted",
         locale=req.locale,
         surface=demo_surface,
+        source=demo_source,
+        visitor_id=visitor_id,
+        session_id=session_id,
         metadata={
             "idea_length": len(req.idea),
             "voice_profile": req.voice_profile,
@@ -292,6 +303,22 @@ async def run_pipeline(req: RunRequest, request: Request):
                     status="started",
                     locale=req.locale,
                     surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
+                    metadata={"voice_profile": req.voice_profile},
+                    demo_run_handle=demo_run_handle,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="core",
+                    event_name="demo_started",
+                    status="started",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
                     metadata={"voice_profile": req.voice_profile},
                     demo_run_handle=demo_run_handle,
                 )
@@ -328,9 +355,27 @@ async def run_pipeline(req: RunRequest, request: Request):
                                 status="failed",
                                 locale=req.locale,
                                 surface=demo_surface,
+                                source=demo_source,
+                                visitor_id=visitor_id,
+                                session_id=session_id,
                                 error_code=error_code,
                                 error_stage=stage_name or "pipeline",
                                 metadata={"internal_event": event_name},
+                                demo_run_handle=demo_run_handle,
+                            )
+                            record_usage_event(
+                                route=request.url.path,
+                                pipeline="core",
+                                event_name="demo_failed",
+                                status="failed",
+                                locale=req.locale,
+                                surface=demo_surface,
+                                source=demo_source,
+                                visitor_id=visitor_id,
+                                session_id=session_id,
+                                error_code=error_code,
+                                error_stage=stage_name or "pipeline",
+                                metadata={"failure_reason": "output_validation_failed"},
                                 demo_run_handle=demo_run_handle,
                             )
                             yield sse(
@@ -362,6 +407,22 @@ async def run_pipeline(req: RunRequest, request: Request):
                             status="success",
                             locale=req.locale,
                             surface=demo_surface,
+                            source=demo_source,
+                            visitor_id=visitor_id,
+                            session_id=session_id,
+                            metadata={"voice_profile": req.voice_profile},
+                            demo_run_handle=demo_run_handle,
+                        )
+                        record_usage_event(
+                            route=request.url.path,
+                            pipeline="core",
+                            event_name="demo_completed",
+                            status="success",
+                            locale=req.locale,
+                            surface=demo_surface,
+                            source=demo_source,
+                            visitor_id=visitor_id,
+                            session_id=session_id,
                             metadata={"voice_profile": req.voice_profile},
                             demo_run_handle=demo_run_handle,
                         )
@@ -394,9 +455,27 @@ async def run_pipeline(req: RunRequest, request: Request):
                             status="failed",
                             locale=req.locale,
                             surface=demo_surface,
+                            source=demo_source,
+                            visitor_id=visitor_id,
+                            session_id=session_id,
                             error_code=error_code,
                             error_stage=stage,
                             metadata={"internal_event": event_name},
+                            demo_run_handle=demo_run_handle,
+                        )
+                        record_usage_event(
+                            route=request.url.path,
+                            pipeline="core",
+                            event_name="demo_failed",
+                            status="failed",
+                            locale=req.locale,
+                            surface=demo_surface,
+                            source=demo_source,
+                            visitor_id=visitor_id,
+                            session_id=session_id,
+                            error_code=error_code,
+                            error_stage=stage,
+                            metadata={"failure_reason": "pipeline_error_event"},
                             demo_run_handle=demo_run_handle,
                         )
                         yield sse(
@@ -436,9 +515,27 @@ async def run_pipeline(req: RunRequest, request: Request):
                     status="failed",
                     locale=req.locale,
                     surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
                     error_code=error_code,
                     error_stage="pipeline",
                     metadata={"exception_type": type(exc).__name__},
+                    demo_run_handle=demo_run_handle,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="core",
+                    event_name="demo_failed",
+                    status="failed",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
+                    error_code=error_code,
+                    error_stage="pipeline",
+                    metadata={"failure_reason": "pipeline_exception"},
                     demo_run_handle=demo_run_handle,
                 )
                 yield sse(
@@ -474,8 +571,26 @@ async def run_pipeline(req: RunRequest, request: Request):
                     status="failed",
                     locale=req.locale,
                     surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
                     error_code="PIPELINE_INCOMPLETE",
                     error_stage="pipeline",
+                    demo_run_handle=demo_run_handle,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="core",
+                    event_name="demo_failed",
+                    status="failed",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    source=demo_source,
+                    visitor_id=visitor_id,
+                    session_id=session_id,
+                    error_code="PIPELINE_INCOMPLETE",
+                    error_stage="pipeline",
+                    metadata={"failure_reason": "stream_incomplete"},
                     demo_run_handle=demo_run_handle,
                 )
                 yield sse(

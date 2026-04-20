@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from .api.routes import router
+from .api.analytics_routes import router as analytics_router
 from .api.demo_access_routes import router as demo_access_router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
@@ -76,6 +77,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(analytics_router)
 app.include_router(demo_access_router)
 app.include_router(integrations_router)
 app.include_router(instagram_router)

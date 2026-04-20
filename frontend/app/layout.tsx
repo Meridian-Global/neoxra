@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { AnalyticsProvider } from '../components/AnalyticsProvider'
 import { LanguageProvider } from '../components/LanguageProvider'
 import './globals.css'
 
@@ -28,7 +29,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          <AnalyticsProvider />
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   )

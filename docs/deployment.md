@@ -143,6 +143,8 @@ Create `frontend/.env.local`:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_PLAUSIBLE_DOMAIN=
+NEXT_PUBLIC_PLAUSIBLE_API_HOST=https://plausible.io
 ```
 
 Then run:

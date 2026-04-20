@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { DemoAccessGate } from '../../components/DemoAccessGate'
 import { InstagramForm } from '../../components/InstagramForm'
 import { InstagramResult as InstagramResultView } from '../../components/InstagramResult'
@@ -10,9 +10,10 @@ import { CarouselPreview } from '../../components/CarouselPreview'
 import { LanguageToggle } from '../../components/LanguageToggle'
 import { useLanguage } from '../../components/LanguageProvider'
 import { API_BASE_URL } from '../../lib/api'
-import { buildDemoHeaders, clearStoredDemoToken } from '../../lib/demo-access'
+import { buildDemoHeaders, clearStoredDemoToken, getStoredDemoSource } from '../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { getInstagramSampleResult } from '../../lib/instagram-demo'
+import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../lib/analytics'
 import { APIError, streamSSE } from '../../lib/sse'
 import type {
   StyleAnalysis,
@@ -303,6 +304,33 @@ export default function InstagramPage() {
   const [demoToken, setDemoToken]         = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  const latestPreviewRef = useRef(preview)
+  const source = getStoredDemoSource(demoConfig.apiSurface)
+
+  useEffect(() => {
+    latestPreviewRef.current = preview
+  }, [preview])
+
+  useEffect(() => {
+    function handlePageHide() {
+      if (status !== 'loading' && status !== 'streaming') return
+      trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: language })
+      sendBeaconAnalyticsEvent({
+        eventName: 'demo_abandoned',
+        route: '/instagram',
+        surface: demoConfig.apiSurface,
+        source,
+        locale: language,
+        metadata: {
+          reason: 'pagehide',
+          topic_length: latestPreviewRef.current.topic.trim().length,
+        },
+      })
+    }
+
+    window.addEventListener('pagehide', handlePageHide)
+    return () => window.removeEventListener('pagehide', handlePageHide)
+  }, [demoConfig.apiSurface, language, source, status])
 
   const handleSubmit = useCallback(
     async (data: SubmitPayload) => {
@@ -315,6 +343,7 @@ export default function InstagramPage() {
       setError(null)
       setCurrentStage('')
       setResultOrigin(null)
+      trackPlausibleEvent('demo_started', { surface: demoConfig.apiSurface, source, locale: language })
 
       const abort = new AbortController()
       abortRef.current = abort
@@ -384,6 +413,7 @@ export default function InstagramPage() {
             setResultOrigin('live')
             completed = true
             setStatus('completed')
+            trackPlausibleEvent('demo_completed', { surface: demoConfig.apiSurface, source, locale: language })
             continue
           }
 
@@ -397,6 +427,7 @@ export default function InstagramPage() {
             }
             setStatus('error')
             failed = true
+            trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
             break
           }
         }
@@ -405,6 +436,7 @@ export default function InstagramPage() {
           setError(copy.errors.generic)
           setStatus('error')
           setCurrentStage('')
+          trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
         }
       } catch (err) {
         if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
@@ -419,16 +451,29 @@ export default function InstagramPage() {
           setError(toFriendlyError(err, copy))
           setStatus('error')
           setCurrentStage('')
+          trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
         }
       }
     },
-    [copy, demoConfig.apiSurface, demoToken, language],
+    [copy, demoConfig.apiSurface, demoToken, language, source],
   )
 
   function handleCancel() {
     abortRef.current?.abort()
     setStatus('idle')
     setCurrentStage('')
+    trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: language })
+    sendBeaconAnalyticsEvent({
+      eventName: 'demo_abandoned',
+      route: '/instagram',
+      surface: demoConfig.apiSurface,
+      source,
+      locale: language,
+      metadata: {
+        reason: 'manual_stop',
+        topic_length: latestPreviewRef.current.topic.trim().length,
+      },
+    })
   }
 
   function handleRetry() {
