@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 from .base import CoreClientNotImplementedError
 from .signing import sign_internal_request_from_env
 from .types import CoreInstagramGenerationRequest
@@ -24,9 +22,8 @@ class HttpCoreClient:
         *,
         method: str,
         path: str,
-        payload: dict[str, object],
+        body: bytes,
     ) -> dict[str, str]:
-        body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
         return sign_internal_request_from_env(
             method=method,
             path=path,

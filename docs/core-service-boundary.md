@@ -1,6 +1,6 @@
 # Core Service Boundary
 
-This document defines the next boundary between the public `neoxra` shell and the private `neoxra-core` runtime.
+This document defines the boundary between the public `neoxra` shell and the private `neoxra-core` runtime.
 
 The goal is to future-proof the boundary without forcing an immediate migration away from the current local package install.
 

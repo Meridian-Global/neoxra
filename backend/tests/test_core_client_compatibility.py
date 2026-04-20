@@ -36,3 +36,41 @@ def test_core_compatibility_rejects_missing_capabilities_and_schema_mismatch():
     assert any("api_schema_version mismatch" in reason for reason in result.reasons)
     assert any("package_version too old" in reason for reason in result.reasons)
     assert any("missing capabilities" in reason for reason in result.reasons)
+
+
+def test_core_compatibility_handles_null_capabilities():
+    result = evaluate_core_compatibility(
+        {
+            "api_schema_version": "2026-04-19",
+            "package_version": "0.1.0",
+            "capabilities": None,
+        }
+    )
+
+    assert result.compatible is False
+    assert any("capabilities missing or invalid" in reason for reason in result.reasons)
+
+
+def test_core_compatibility_handles_non_list_capabilities():
+    result = evaluate_core_compatibility(
+        {
+            "api_schema_version": "2026-04-19",
+            "package_version": "0.1.0",
+            "capabilities": "core.pipeline.stream",
+        }
+    )
+
+    assert result.compatible is False
+    assert any("capabilities missing or invalid" in reason for reason in result.reasons)
+
+
+def test_core_compatibility_handles_missing_capabilities_key():
+    result = evaluate_core_compatibility(
+        {
+            "api_schema_version": "2026-04-19",
+            "package_version": "0.1.0",
+        }
+    )
+
+    assert result.compatible is False
+    assert any("missing capabilities" in reason for reason in result.reasons)

@@ -68,9 +68,13 @@ def evaluate_core_compatibility(
             f"expected >= {expectation.min_package_version}, got {metadata.get('package_version')}"
         )
 
+    raw_capabilities = metadata.get("capabilities", [])
+    if not isinstance(raw_capabilities, list):
+        reasons.append("capabilities missing or invalid")
+        raw_capabilities = []
     actual_capabilities = {
         str(capability)
-        for capability in metadata.get("capabilities", [])
+        for capability in raw_capabilities
         if str(capability).strip()
     }
     missing_capabilities = sorted(

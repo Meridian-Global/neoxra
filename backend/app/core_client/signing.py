@@ -59,7 +59,7 @@ def sign_internal_request(
     timestamp: int | None = None,
     nonce: str | None = None,
 ) -> dict[str, str]:
-    issued_at = str(timestamp or int(time.time()))
+    issued_at = str(timestamp if timestamp is not None else int(time.time()))
     request_nonce = nonce or uuid.uuid4().hex
     body_sha256 = sha256_hexdigest(body)
     payload = build_signature_payload(
