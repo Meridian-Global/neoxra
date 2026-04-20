@@ -2,11 +2,12 @@ import json
 import logging
 import os
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from ..core.demo_access import require_demo_access
+from ..core.abuse_monitor import ABUSE_MONITOR
 from ..core.error_handling import generation_error_payload, public_generation_error, validation_error_for_stage
 from ..core.growth_context import get_demo_source, get_session_id, get_visitor_id
 from ..core.localization import (
@@ -36,10 +37,11 @@ from ..core_client import (
     get_core_client,
 )
 from ..services import create_demo_run, mark_demo_run_completed, record_usage_event
+from .access_groups import build_gated_demo_router
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 
-router = APIRouter()
+router = build_gated_demo_router()
 logger = logging.getLogger(__name__)
 
 _PUBLIC_PHASE_BY_STAGE = {
@@ -163,6 +165,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
         allowed_surfaces={"instagram", "legal"},
     )
     auth = getattr(request.state, "auth", None)
+    client_id = getattr(request.state, "client_ip", None) or "unknown"
     demo_source = get_demo_source(request, demo_surface)
     visitor_id = get_visitor_id(request)
     session_id = get_session_id(request)
@@ -369,6 +372,11 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                             message=safe_message,
                         ),
                     )
+                    await ABUSE_MONITOR.record_failure(
+                        route_key=INSTAGRAM_ROUTE_KEY,
+                        client_id=client_id,
+                        error_code=error_code,
+                    )
                     return
                 except Exception as exc:
                     logger.exception("Instagram flow failed during style analysis")
@@ -427,6 +435,11 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                             error_code=error_code,
                             message=safe_message,
                         ),
+                    )
+                    await ABUSE_MONITOR.record_failure(
+                        route_key=INSTAGRAM_ROUTE_KEY,
+                        client_id=client_id,
+                        error_code=error_code,
                     )
                     return
                 tracker.stage_completed("style_analysis")
@@ -503,6 +516,11 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                             message=safe_message,
                         ),
                     )
+                    await ABUSE_MONITOR.record_failure(
+                        route_key=INSTAGRAM_ROUTE_KEY,
+                        client_id=client_id,
+                        error_code=error_code,
+                    )
                     return
                 except Exception as exc:
                     logger.exception("Instagram flow failed during generation")
@@ -561,6 +579,11 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                             error_code=error_code,
                             message=safe_message,
                         ),
+                    )
+                    await ABUSE_MONITOR.record_failure(
+                        route_key=INSTAGRAM_ROUTE_KEY,
+                        client_id=client_id,
+                        error_code=error_code,
                     )
                     return
                 tracker.stage_completed("generation")
@@ -756,6 +779,10 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     metadata={"goal": generation_request.goal},
                     demo_run_handle=demo_run_handle,
                 )
+                await ABUSE_MONITOR.record_completion(
+                    route_key=INSTAGRAM_ROUTE_KEY,
+                    client_id=client_id,
+                )
                 _log_instagram_event("pipeline_completed", locale=req.locale, demo_surface=demo_surface)
                 yield _sse("pipeline_completed", result_dict)
             except Exception as exc:
@@ -816,6 +843,11 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         message=safe_message,
                     ),
                 )
+                await ABUSE_MONITOR.record_failure(
+                    route_key=INSTAGRAM_ROUTE_KEY,
+                    client_id=client_id,
+                    error_code=error_code,
+                )
                 return
 
             if not completed:
@@ -872,6 +904,11 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         error_code="PIPELINE_INCOMPLETE",
                         message="Generation could not be completed. Please try again.",
                     ),
+                )
+                await ABUSE_MONITOR.record_failure(
+                    route_key=INSTAGRAM_ROUTE_KEY,
+                    client_id=client_id,
+                    error_code="PIPELINE_INCOMPLETE",
                 )
             else:
                 logger.info("Instagram pipeline completed successfully")

@@ -184,6 +184,27 @@ def test_core_health_hides_internal_diagnostics():
     assert "verified_imports" not in payload["core"]
 
 
+def test_internal_generation_metrics_requires_admin_key():
+    client = TestClient(app)
+    response = client.get("/health/generation-metrics")
+
+    assert response.status_code == 404
+    assert response.json()["error_code"] == "INTERNAL_ROUTE_DISABLED"
+
+
+def test_internal_generation_metrics_accepts_admin_key(monkeypatch):
+    monkeypatch.setenv("NEOXRA_ADMIN_KEY", "admin-secret")
+    client = TestClient(app)
+    response = client.get(
+        "/health/generation-metrics",
+        headers={"X-Neoxra-Admin-Key": "admin-secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.headers["X-Neoxra-Route-Access-Level"] == "internal"
+
+
 def test_runtime_health_exposes_safe_demo_surface_summary(monkeypatch):
     monkeypatch.setenv("NEOXRA_ENV_MODE", "public-demo")
     monkeypatch.setenv("NEOXRA_LEGAL_DEMO_ACCESS_MODE", "gated")
@@ -409,7 +430,11 @@ def test_generation_metrics_endpoint_tracks_core_success_and_failure(monkeypatch
     failure_response = client.post("/api/run", json={"idea": "hello"})
     assert failure_response.status_code == 200
 
-    metrics_response = client.get("/health/generation-metrics")
+    monkeypatch.setenv("NEOXRA_ADMIN_KEY", "admin-secret")
+    metrics_response = client.get(
+        "/health/generation-metrics",
+        headers={"X-Neoxra-Admin-Key": "admin-secret"},
+    )
     assert metrics_response.status_code == 200
     metrics = metrics_response.json()
     assert metrics["status"] == "ok"
@@ -458,7 +483,7 @@ def test_core_route_rate_limits_by_ip(monkeypatch):
     assert first.status_code == 200
     assert second.status_code == 429
     assert second.json()["detail"] == "Rate limit exceeded for generation endpoint. Please retry shortly."
-    assert second.json()["error_code"] == "RATE_LIMITED"
+    assert second.json()["error_code"] == "RATE_LIMIT_EXCEEDED"
 
 
 def test_core_route_rejects_concurrent_runs_from_same_ip(monkeypatch):
@@ -480,9 +505,59 @@ def test_core_route_rejects_concurrent_runs_from_same_ip(monkeypatch):
         assert response.json()["detail"] == (
             "Too many concurrent generation requests from this IP. Please wait for the current run to finish."
         )
-        assert response.json()["error_code"] == "RATE_LIMITED"
+        assert response.json()["error_code"] == "CONCURRENCY_LIMIT_EXCEEDED"
     finally:
         GENERATION_GUARDS._set_active_count_for_test(CORE_ROUTE_KEY, "203.0.113.11", 0)
+
+
+def test_core_route_enforces_soft_quota(monkeypatch):
+    reset_generation_metrics()
+    reset_generation_guards()
+    monkeypatch.setenv("CORE_RUN_RATE_LIMIT_PER_MINUTE", "50")
+    monkeypatch.setenv("PUBLIC_GENERATION_QUOTA_PER_DAY", "1")
+
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
+        yield {"event": "planner_started", "data": {}}
+        yield {
+            "event": "pipeline_completed",
+            "data": {
+                "brief": {
+                    "original_idea": "hello",
+                    "core_angle": "angle",
+                    "target_audience": "audience",
+                    "tone": "tone",
+                    "instagram_notes": "ig",
+                    "threads_notes": "th",
+                    "linkedin_notes": "li",
+                },
+                "instagram": "instagram",
+                "threads": "threads",
+                "linkedin": "linkedin",
+                "instagram_final": "instagram_final",
+                "threads_final": "threads_final",
+                "linkedin_final": "linkedin_final",
+                "critic_notes": "notes",
+            },
+        }
+
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_run_pipeline_stream))
+
+    client = TestClient(app)
+    first = client.post(
+        "/api/run",
+        json={"idea": "hello"},
+        headers={"X-Neoxra-Session-ID": "soft-quota-session"},
+    )
+    second = client.post(
+        "/api/run",
+        json={"idea": "hello"},
+        headers={"X-Neoxra-Session-ID": "soft-quota-session"},
+    )
+
+    assert first.status_code == 200
+    assert first.headers["X-Neoxra-Quota-Scope"] == "session"
+    assert second.status_code == 429
+    assert second.json()["error_code"] == "SOFT_QUOTA_EXCEEDED"
 
 
 def test_core_route_rejects_oversized_request_body(monkeypatch):

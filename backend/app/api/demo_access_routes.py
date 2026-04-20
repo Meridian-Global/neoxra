@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..core.demo_access import (
@@ -8,11 +8,11 @@ from ..core.demo_access import (
     create_demo_access_response,
     get_runtime_mode,
     get_surface_access_mode,
-    get_demo_surface_summary,
     validate_demo_access_code,
 )
+from .access_groups import build_public_router
 
-router = APIRouter()
+router = build_public_router()
 
 
 class DemoAccessRequest(BaseModel):
@@ -53,13 +53,3 @@ async def issue_demo_access(request: DemoAccessRequest) -> dict[str, object]:
         )
 
     return create_demo_access_response(request.surface)
-
-
-@router.get("/health/runtime", tags=["health"])
-async def runtime_health() -> dict[str, object]:
-    runtime_mode = get_runtime_mode()
-    return {
-        "status": "ok",
-        "runtime_mode": runtime_mode,
-        "demo_surfaces": get_demo_surface_summary(runtime_mode),
-    }

@@ -1,11 +1,12 @@
+import logging
 import json
 import os
-import logging
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from ..core.error_handling import generation_error_payload, public_generation_error, validation_error_for_stage
+from ..core.abuse_monitor import ABUSE_MONITOR
 from ..core.demo_access import require_demo_access
 from ..core.growth_context import get_demo_source, get_session_id, get_visitor_id
 from ..core.localization import DEFAULT_LOCALE, validate_locale
@@ -24,8 +25,9 @@ from ..core.request_guards import (
     get_max_voice_profile_length,
 )
 from ..services import create_demo_run, mark_demo_run_completed, record_usage_event
+from .access_groups import build_gated_demo_router
 
-router = APIRouter()
+router = build_gated_demo_router()
 logger = logging.getLogger(__name__)
 
 # Events that carry no validatable payload – skip output validation for these.
@@ -200,6 +202,7 @@ async def run_pipeline(req: RunRequest, request: Request):
         allowed_surfaces={"landing"},
     )
     auth = getattr(request.state, "auth", None)
+    client_id = getattr(request.state, "client_ip", None) or "unknown"
     demo_source = get_demo_source(request, demo_surface)
     visitor_id = get_visitor_id(request)
     session_id = get_session_id(request)
@@ -401,6 +404,11 @@ async def run_pipeline(req: RunRequest, request: Request):
                                     ),
                                 }
                             )
+                            await ABUSE_MONITOR.record_failure(
+                                route_key=CORE_ROUTE_KEY,
+                                client_id=client_id,
+                                error_code=error_code,
+                            )
                             return
                     if event_name.endswith("_completed") and stage_name is not None:
                         tracker.stage_completed(stage_name)
@@ -442,6 +450,10 @@ async def run_pipeline(req: RunRequest, request: Request):
                             session_id=session_id,
                             metadata={"voice_profile": req.voice_profile},
                             demo_run_handle=demo_run_handle,
+                        )
+                        await ABUSE_MONITOR.record_completion(
+                            route_key=CORE_ROUTE_KEY,
+                            client_id=client_id,
                         )
                         public_event = _translate_public_event(event_name, event.get("data", {}))
                         if public_event is not None:
@@ -509,6 +521,11 @@ async def run_pipeline(req: RunRequest, request: Request):
                                 ),
                             }
                         )
+                        await ABUSE_MONITOR.record_failure(
+                            route_key=CORE_ROUTE_KEY,
+                            client_id=client_id,
+                            error_code=error_code,
+                        )
                         break
                     public_event = _translate_public_event(event_name, event.get("data", {}))
                     if public_event is not None:
@@ -573,6 +590,11 @@ async def run_pipeline(req: RunRequest, request: Request):
                         ),
                     }
                 )
+                await ABUSE_MONITOR.record_failure(
+                    route_key=CORE_ROUTE_KEY,
+                    client_id=client_id,
+                    error_code=error_code,
+                )
                 return
 
             if not completed and not failed:
@@ -631,6 +653,11 @@ async def run_pipeline(req: RunRequest, request: Request):
                             message="Generation could not be completed. Please try again.",
                         ),
                     }
+                )
+                await ABUSE_MONITOR.record_failure(
+                    route_key=CORE_ROUTE_KEY,
+                    client_id=client_id,
+                    error_code="PIPELINE_INCOMPLETE",
                 )
             elif failed:
                 logger.warning("Core pipeline terminated after emitting error event")
