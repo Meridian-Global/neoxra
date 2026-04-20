@@ -28,12 +28,10 @@ const SCORE_DIMS = [
 
 const KNOWN_EVENTS = new Set([
   'pipeline_started',
-  'style_analysis_started',
-  'style_analysis_completed',
-  'generation_started',
-  'generation_completed',
-  'scoring_started',
-  'scoring_completed',
+  'phase_started',
+  'style_ready',
+  'content_ready',
+  'score_ready',
   'pipeline_completed',
   'error',
 ])
@@ -46,14 +44,14 @@ function createInstagramCopy(language: 'en' | 'zh-TW') {
     return {
       stageLabels: {
         pipeline_started: '正在建立這次生成流程…',
-        style_analysis_started: '正在分析語氣與寫作風格…',
-        generation_started: '正在生成 Instagram 內容…',
-        scoring_started: '正在評估內容品質…',
+        analysis: '正在分析語氣與寫作風格…',
+        drafting: '正在生成 Instagram 內容…',
+        review: '正在評估內容品質…',
       } as Record<string, string>,
       stageSequence: [
-        { event: 'style_analysis_started', label: '風格分析' },
-        { event: 'generation_started', label: '內容生成' },
-        { event: 'scoring_started', label: '品質評分' },
+        { event: 'analysis', label: '風格分析' },
+        { event: 'drafting', label: '內容生成' },
+        { event: 'review', label: '品質評分' },
       ] as const,
       statusMeta: {
         idle: {
@@ -157,14 +155,14 @@ function createInstagramCopy(language: 'en' | 'zh-TW') {
   return {
     stageLabels: {
       pipeline_started: 'Setting up the generation run…',
-      style_analysis_started: 'Analyzing writing style…',
-      generation_started: 'Generating Instagram content…',
-      scoring_started: 'Scoring content quality…',
+      analysis: 'Analyzing writing style…',
+      drafting: 'Generating Instagram content…',
+      review: 'Scoring content quality…',
     } as Record<string, string>,
     stageSequence: [
-      { event: 'style_analysis_started', label: 'Style analysis' },
-      { event: 'generation_started', label: 'Draft generation' },
-      { event: 'scoring_started', label: 'Quality scoring' },
+      { event: 'analysis', label: 'Style analysis' },
+      { event: 'drafting', label: 'Draft generation' },
+      { event: 'review', label: 'Quality scoring' },
     ] as const,
     statusMeta: {
       idle: {
@@ -348,24 +346,29 @@ export default function InstagramPage() {
           }
 
           // *_started → update stage label
-          if (event in copy.stageLabels) {
-            setCurrentStage(copy.stageLabels[event])
+          if (event === 'pipeline_started') {
+            setCurrentStage(copy.stageLabels.pipeline_started)
             continue
           }
 
-          if (event === 'style_analysis_completed') {
+          if (event === 'phase_started' && typeof payload?.phase === 'string') {
+            setCurrentStage(copy.stageLabels[payload.phase] ?? '')
+            continue
+          }
+
+          if (event === 'style_ready') {
             setStyleAnalysis(payload as StyleAnalysis)
             setCurrentStage('')
             continue
           }
 
-          if (event === 'generation_completed') {
+          if (event === 'content_ready') {
             setContent(payload as InstagramContent)
             setCurrentStage('')
             continue
           }
 
-          if (event === 'scoring_completed') {
+          if (event === 'score_ready') {
             const avg = SCORE_DIMS.reduce((s, d) => s + payload[d], 0) / SCORE_DIMS.length
             setScorecard({ ...payload, average: avg } as Scorecard)
             setCurrentStage('')

@@ -40,6 +40,7 @@ Render is the current production path. The Dockerfile exists to make local and f
 - `ENVIRONMENT=production`
 - `LOG_LEVEL=info`
 - `CORS_ALLOWED_ORIGINS=https://neoxra.com,https://www.neoxra.com,http://localhost:3000`
+- `NEOXRA_CORE_CLIENT_MODE=local`
 - `NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/neoxra-core.git`
 - `NEOXRA_CORE_GIT_REF=main`
 

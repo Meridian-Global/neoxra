@@ -5,42 +5,15 @@ any backend change that would break the frontend is caught immediately.
 """
 
 import json
-from unittest.mock import MagicMock, patch
+import unittest.mock
 
 import pytest
 from fastapi.testclient import TestClient
 
+import app.api.instagram_routes as instagram_routes
 from app.main import app
 
 client = TestClient(app)
-
-# ── Canned LLM responses ─────────────────────────────────────────────
-
-STYLE_ANALYSIS_JSON = json.dumps({
-    "tone_keywords": ["bold", "conversational"],
-    "structural_patterns": ["short paragraphs", "hook first"],
-    "vocabulary_notes": "casual but smart",
-})
-
-GENERATION_JSON = json.dumps({
-    "caption": "Test caption about AI tools",
-    "hook_options": ["Hook A", "Hook B"],
-    "hashtags": ["#ai", "#tools", "#productivity"],
-    "carousel_outline": [
-        {"title": f"Slide {i}", "body": f"Body {i}"} for i in range(1, 6)
-    ],
-    "reel_script": "Open on a laptop screen...",
-})
-
-SCORING_JSON = json.dumps({
-    "hook_strength": 8,
-    "cta_clarity": 7,
-    "hashtag_relevance": 9,
-    "platform_fit": 8,
-    "tone_match": 7,
-    "originality": 6,
-    "critique": "Strong hook but CTA could be sharper.",
-})
 
 # ── SSE event schema contract ────────────────────────────────────────
 # Maps each event name to {field_name: expected_type}.
@@ -52,22 +25,22 @@ EVENT_SCHEMA = {
         "goal": str,
         "locale": str,
     },
-    "style_analysis_started": {},
-    "style_analysis_completed": {
+    "phase_started": {
+        "phase": str,
+    },
+    "style_ready": {
         "tone_keywords": list,
         "structural_patterns": list,
         "vocabulary_notes": str,
     },
-    "generation_started": {},
-    "generation_completed": {
+    "content_ready": {
         "caption": str,
         "hook_options": list,
         "hashtags": list,
         "carousel_outline": list,
         "reel_script": str,
     },
-    "scoring_started": {},
-    "scoring_completed": {
+    "score_ready": {
         "hook_strength": int,
         "cta_clarity": int,
         "hashtag_relevance": int,
@@ -83,7 +56,72 @@ EVENT_SCHEMA = {
     },
 }
 
-EXPECTED_EVENT_ORDER = list(EVENT_SCHEMA.keys())
+EXPECTED_EVENT_ORDER = [
+    "pipeline_started",
+    "phase_started",
+    "style_ready",
+    "phase_started",
+    "content_ready",
+    "phase_started",
+    "score_ready",
+    "pipeline_completed",
+]
+
+
+class FakeInstagramCoreClient:
+    mode = "local"
+    requires_local_api_key = False
+
+    def ensure_instagram_available(self):
+        return None
+
+    def build_instagram_generation_request(self, *, topic: str, template_text: str, goal: str, style_examples: list[str]):
+        return type(
+            "GenerationRequest",
+            (),
+            {
+                "topic": topic,
+                "template_text": template_text,
+                "goal": goal,
+                "style_examples": list(style_examples),
+            },
+        )()
+
+    def analyze_instagram_style(self, *, template_text: str, style_examples: list[str]):
+        return {
+            "tone_keywords": ["bold", "conversational"],
+            "structural_patterns": ["short paragraphs", "hook first"],
+            "vocabulary_notes": "casual but smart",
+        }
+
+    def generate_instagram_content(
+        self,
+        *,
+        generation_request,
+        localized_template_text: str,
+        style_analysis: dict[str, object],
+        locale: str,
+    ):
+        return {
+            "caption": "Test caption about AI tools",
+            "hook_options": ["Hook A", "Hook B"],
+            "hashtags": ["#ai", "#tools", "#productivity"],
+            "carousel_outline": [{"title": f"Slide {i}", "body": f"Body {i}"} for i in range(1, 6)],
+            "reel_script": "Open on a laptop screen...",
+        }
+
+    def score_instagram_content(self, *, content: dict[str, object], goal: str):
+        return (
+            {
+                "hook_strength": 8,
+                "cta_clarity": 7,
+                "hashtag_relevance": 9,
+                "platform_fit": 8,
+                "tone_match": 7,
+                "originality": 6,
+            },
+            "Strong hook but CTA could be sharper.",
+        )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -109,14 +147,9 @@ def _parse_sse_stream(raw: str) -> list[dict]:
 
 
 def _fire_pipeline() -> list[dict]:
-    """Mock the LLM, hit the route, return parsed SSE events."""
-    mock = MagicMock(
-        side_effect=[STYLE_ANALYSIS_JSON, GENERATION_JSON, SCORING_JSON],
-    )
-    with (
-        patch("neoxra_core.skills.style_analysis.generate", mock),
-        patch("neoxra_core.skills.instagram_generation.generate", mock),
-        patch("neoxra_core.skills.content_scoring.generate", mock),
+    """Mock the core client, hit the route, return parsed SSE events."""
+    with unittest.mock.patch.object(
+        instagram_routes, "_get_core_client", return_value=FakeInstagramCoreClient()
     ):
         resp = client.post(
             "/api/instagram/generate",
@@ -151,20 +184,20 @@ class TestSSEContract:
                 f"Unknown SSE event '{ev['event']}'"
             )
 
-    @pytest.mark.parametrize("event_name", EXPECTED_EVENT_ORDER)
-    def test_payload_has_required_keys(self, event_name):
+    @pytest.mark.parametrize("index,event_name", list(enumerate(EXPECTED_EVENT_ORDER)))
+    def test_payload_has_required_keys(self, index, event_name):
         schema = EVENT_SCHEMA[event_name]
-        ev = next(e for e in self.events if e["event"] == event_name)
+        ev = self.events[index]
         data = ev["data"]
         for key in schema:
             assert key in data, (
                 f"Event '{event_name}' missing required key '{key}'"
             )
 
-    @pytest.mark.parametrize("event_name", EXPECTED_EVENT_ORDER)
-    def test_payload_value_types(self, event_name):
+    @pytest.mark.parametrize("index,event_name", list(enumerate(EXPECTED_EVENT_ORDER)))
+    def test_payload_value_types(self, index, event_name):
         schema = EVENT_SCHEMA[event_name]
-        ev = next(e for e in self.events if e["event"] == event_name)
+        ev = self.events[index]
         data = ev["data"]
         for key, expected_type in schema.items():
             assert isinstance(data[key], expected_type), (
@@ -172,12 +205,11 @@ class TestSSEContract:
                 f"expected {expected_type.__name__}, got {type(data[key]).__name__}"
             )
 
-    @pytest.mark.parametrize(
-        "event_name",
-        [name for name, schema in EVENT_SCHEMA.items() if not schema],
-    )
-    def test_empty_payloads_are_empty(self, event_name):
-        ev = next(e for e in self.events if e["event"] == event_name)
-        assert ev["data"] == {}, (
-            f"Event '{event_name}' should have empty payload, got {ev['data']}"
-        )
+    def test_public_sse_no_longer_exposes_internal_stage_names(self):
+        actual = [e["event"] for e in self.events]
+        assert "style_analysis_started" not in actual
+        assert "generation_started" not in actual
+        assert "scoring_started" not in actual
+        assert "style_analysis_completed" not in actual
+        assert "generation_completed" not in actual
+        assert "scoring_completed" not in actual
