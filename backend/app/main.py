@@ -42,6 +42,7 @@ from .core.neoxra_core_diagnostics import (
     format_neoxra_core_diagnostics,
     get_neoxra_core_diagnostics,
 )
+from .db import check_database_connection, is_database_enabled
 
 DEFAULT_CORS_ORIGINS = (
     "https://neoxra.com",
@@ -243,7 +244,19 @@ async def root_health() -> dict:
 
 @app.get("/healthz", tags=["health"])
 async def healthz() -> dict:
-    return {"status": "ok"}
+    return {"status": "ok", "database_enabled": is_database_enabled()}
+
+
+@app.get("/health/db", tags=["health"])
+async def db_health() -> dict:
+    if not is_database_enabled():
+        return {"status": "disabled", "database_enabled": False}
+    try:
+        check_database_connection()
+    except Exception:
+        logger.exception("database connectivity check failed")
+        return {"status": "degraded", "database_enabled": True}
+    return {"status": "ok", "database_enabled": True}
 
 
 @app.get("/health/core", tags=["health"])
@@ -272,10 +285,11 @@ async def generation_metrics_health() -> dict:
 async def log_core_diagnostics_on_startup() -> None:
     diagnostics = get_neoxra_core_diagnostics()
     logger.info(
-        "startup configuration environment=%s runtime_mode=%s core_client_mode=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s demo_surfaces=%s",
+        "startup configuration environment=%s runtime_mode=%s core_client_mode=%s database_enabled=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s demo_surfaces=%s",
         os.getenv("ENVIRONMENT", "development"),
         get_runtime_mode(),
         get_core_client_mode(),
+        is_database_enabled(),
         os.getenv("LOG_LEVEL", "INFO"),
         ",".join(_get_allowed_origins()),
         os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),

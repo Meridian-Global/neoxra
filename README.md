@@ -86,6 +86,25 @@ Set at least:
 ```bash
 ANTHROPIC_API_KEY=...
 ANTHROPIC_MODEL=claude-haiku-4-5
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/neoxra
+```
+
+If you want the new durable data layer locally, run migrations before starting the API:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+If you do not already have Postgres running locally, one quick option is:
+
+```bash
+docker run --name neoxra-postgres \
+  -e POSTGRES_DB=neoxra \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  -d postgres:16
 ```
 
 ### 2. Frontend
@@ -181,6 +200,7 @@ The backend depends on the private `neoxra-core` package. A healthy production d
 
 Useful checks:
 - `GET /healthz`
+- `GET /health/db`
 - `GET /health/core`
 - `GET /health/generation-metrics`
 

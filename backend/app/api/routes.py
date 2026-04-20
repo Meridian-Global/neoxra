@@ -22,6 +22,7 @@ from ..core.request_guards import (
     get_max_idea_length,
     get_max_voice_profile_length,
 )
+from ..services import create_demo_run, mark_demo_run_completed, record_usage_event
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -229,6 +230,31 @@ async def run_pipeline(req: RunRequest, request: Request):
             }
         ),
     )
+    demo_run_handle = create_demo_run(
+        route=request.url.path,
+        pipeline="core",
+        surface=demo_surface,
+        locale=req.locale,
+        core_client_mode=core_client.mode,
+        input_summary={
+            "idea_length": len(req.idea),
+            "voice_profile": req.voice_profile,
+        },
+    )
+    record_usage_event(
+        route=request.url.path,
+        pipeline="core",
+        event_name="request_accepted",
+        status="accepted",
+        locale=req.locale,
+        surface=demo_surface,
+        metadata={
+            "idea_length": len(req.idea),
+            "voice_profile": req.voice_profile,
+            "core_client_mode": core_client.mode,
+        },
+        demo_run_handle=demo_run_handle,
+    )
 
     async def stream():
         completed = False
@@ -259,6 +285,16 @@ async def run_pipeline(req: RunRequest, request: Request):
                         },
                     }
                 )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="core",
+                    event_name="pipeline_started",
+                    status="started",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    metadata={"voice_profile": req.voice_profile},
+                    demo_run_handle=demo_run_handle,
+                )
 
                 # Note: pipeline calls are blocking (Claude API). Fine for single-user demo.
                 for event in core_client.stream_core_pipeline(req.idea, req.voice_profile, req.locale):
@@ -272,11 +308,30 @@ async def run_pipeline(req: RunRequest, request: Request):
                         except (ValidationError, ValueError) as exc:
                             logger.exception("Core pipeline output validation failed event=%s", event_name)
                             error_code, safe_message = validation_error_for_stage(stage_name or "pipeline")
-                            tracker.fail(
+                            duration_ms = tracker.fail(
                                 stage=stage_name or event_name,
                                 failure_reason="output_validation_failed",
                                 error_type=type(exc).__name__,
                                 message=safe_message,
+                            )
+                            mark_demo_run_completed(
+                                demo_run_handle,
+                                status="failed",
+                                duration_ms=duration_ms,
+                                failure_reason="output_validation_failed",
+                                error_code=error_code,
+                            )
+                            record_usage_event(
+                                route=request.url.path,
+                                pipeline="core",
+                                event_name="validation_failed",
+                                status="failed",
+                                locale=req.locale,
+                                surface=demo_surface,
+                                error_code=error_code,
+                                error_stage=stage_name or "pipeline",
+                                metadata={"internal_event": event_name},
+                                demo_run_handle=demo_run_handle,
                             )
                             yield sse(
                                 {
@@ -294,7 +349,22 @@ async def run_pipeline(req: RunRequest, request: Request):
                     _log_pipeline_event(event_name, locale=req.locale, demo_surface=demo_surface)
                     if event_name == "pipeline_completed":
                         completed = True
-                        tracker.complete(voice_profile=req.voice_profile)
+                        duration_ms = tracker.complete(voice_profile=req.voice_profile)
+                        mark_demo_run_completed(
+                            demo_run_handle,
+                            status="completed",
+                            duration_ms=duration_ms,
+                        )
+                        record_usage_event(
+                            route=request.url.path,
+                            pipeline="core",
+                            event_name="pipeline_completed",
+                            status="success",
+                            locale=req.locale,
+                            surface=demo_surface,
+                            metadata={"voice_profile": req.voice_profile},
+                            demo_run_handle=demo_run_handle,
+                        )
                         public_event = _translate_public_event(event_name, event.get("data", {}))
                         if public_event is not None:
                             yield sse(public_event)
@@ -304,11 +374,30 @@ async def run_pipeline(req: RunRequest, request: Request):
                         error_data = event.get("data", {})
                         stage = error_data.get("stage", "pipeline")
                         error_code, safe_message = public_generation_error(stage)
-                        tracker.fail(
+                        duration_ms = tracker.fail(
                             stage=stage,
                             failure_reason="pipeline_error_event",
                             message=safe_message,
                             error_type=error_code,
+                        )
+                        mark_demo_run_completed(
+                            demo_run_handle,
+                            status="failed",
+                            duration_ms=duration_ms,
+                            failure_reason="pipeline_error_event",
+                            error_code=error_code,
+                        )
+                        record_usage_event(
+                            route=request.url.path,
+                            pipeline="core",
+                            event_name="pipeline_error",
+                            status="failed",
+                            locale=req.locale,
+                            surface=demo_surface,
+                            error_code=error_code,
+                            error_stage=stage,
+                            metadata={"internal_event": event_name},
+                            demo_run_handle=demo_run_handle,
                         )
                         yield sse(
                             {
@@ -327,11 +416,30 @@ async def run_pipeline(req: RunRequest, request: Request):
             except Exception as exc:
                 logger.exception("Core pipeline failed before completion")
                 error_code, safe_message = public_generation_error("pipeline")
-                tracker.fail(
+                duration_ms = tracker.fail(
                     stage="pipeline",
                     failure_reason="pipeline_exception",
                     error_type=type(exc).__name__,
                     message=safe_message,
+                )
+                mark_demo_run_completed(
+                    demo_run_handle,
+                    status="failed",
+                    duration_ms=duration_ms,
+                    failure_reason="pipeline_exception",
+                    error_code=error_code,
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="core",
+                    event_name="pipeline_exception",
+                    status="failed",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    error_code=error_code,
+                    error_stage="pipeline",
+                    metadata={"exception_type": type(exc).__name__},
+                    demo_run_handle=demo_run_handle,
                 )
                 yield sse(
                     {
@@ -347,10 +455,28 @@ async def run_pipeline(req: RunRequest, request: Request):
 
             if not completed and not failed:
                 logger.error("Core pipeline stream ended without pipeline_completed")
-                tracker.fail(
+                duration_ms = tracker.fail(
                     stage="pipeline",
                     failure_reason="stream_incomplete",
                     message="Generation could not be completed. Please try again.",
+                )
+                mark_demo_run_completed(
+                    demo_run_handle,
+                    status="failed",
+                    duration_ms=duration_ms,
+                    failure_reason="stream_incomplete",
+                    error_code="PIPELINE_INCOMPLETE",
+                )
+                record_usage_event(
+                    route=request.url.path,
+                    pipeline="core",
+                    event_name="pipeline_incomplete",
+                    status="failed",
+                    locale=req.locale,
+                    surface=demo_surface,
+                    error_code="PIPELINE_INCOMPLETE",
+                    error_stage="pipeline",
+                    demo_run_handle=demo_run_handle,
                 )
                 yield sse(
                     {
