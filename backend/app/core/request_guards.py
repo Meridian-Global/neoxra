@@ -123,7 +123,8 @@ def _quota_limit_for_request(request: Request, route_key: str) -> tuple[int | No
     if demo_token or getattr(request.state, "demo_access_mode", None) == "gated":
         return (_env_int("GATED_DEMO_GENERATION_QUOTA_PER_DAY", 40), "demo")
 
-    return (_env_int("PUBLIC_GENERATION_QUOTA_PER_DAY", 12), "session")
+    public_scope, _ = _quota_subject(request)
+    return (_env_int("PUBLIC_GENERATION_QUOTA_PER_DAY", 12), public_scope)
 
 
 def _quota_subject(request: Request) -> tuple[str, str]:
@@ -149,6 +150,7 @@ def _quota_subject(request: Request) -> tuple[str, str]:
 
 
 def _quota_window_seconds() -> int:
+    # 24-hour rolling window (not a calendar day)
     return 24 * 60 * 60
 
 
@@ -177,6 +179,14 @@ def reset_generation_guards() -> None:
 
 async def enforce_generation_limits(request: Request, route_key: str) -> ConcurrencyLease:
     client_id = getattr(request.state, "client_ip", None) or get_client_ip(request)
+
+    # Record every incoming request so burst monitoring reflects all outcomes.
+    await ABUSE_MONITOR.record_request(
+        route_key=route_key,
+        client_id=client_id,
+        access_level=str(getattr(request.state, "route_access_level", "unknown")),
+    )
+
     limit, window_seconds = get_rate_limit_config(route_key)
     allowed, retry_after, current_count = await GENERATION_GUARDS.check_limit(
         f"rate:{route_key}",
@@ -185,11 +195,6 @@ async def enforce_generation_limits(request: Request, route_key: str) -> Concurr
         window_seconds=window_seconds,
     )
     if not allowed:
-        await ABUSE_MONITOR.record_request(
-            route_key=route_key,
-            client_id=client_id,
-            access_level=str(getattr(request.state, "route_access_level", "unknown")),
-        )
         raise HTTPException(
             status_code=429,
             detail={
@@ -209,10 +214,23 @@ async def enforce_generation_limits(request: Request, route_key: str) -> Concurr
             window_seconds=_quota_window_seconds(),
         )
         if not quota_allowed:
+            _quota_scope_labels: dict[str, str] = {
+                "user": "for this user",
+                "demo": "for this demo token",
+                "session": "for this session",
+                "visitor": "for this visitor",
+                "ip": "for this IP",
+            }
+            _scope_label = _quota_scope_labels.get(quota_scope)
+            quota_detail = (
+                f"Generation quota reached {_scope_label}. Please try again later."
+                if _scope_label is not None
+                else "Generation quota reached. Please try again later."
+            )
             raise HTTPException(
                 status_code=429,
                 detail={
-                    "detail": "Generation quota reached for this session. Please try again later.",
+                    "detail": quota_detail,
                     "error_code": "SOFT_QUOTA_EXCEEDED",
                 },
                 headers={"Retry-After": str(quota_retry_after)},
@@ -237,11 +255,6 @@ async def enforce_generation_limits(request: Request, route_key: str) -> Concurr
             },
         )
 
-    await ABUSE_MONITOR.record_request(
-        route_key=route_key,
-        client_id=client_id,
-        access_level=str(getattr(request.state, "route_access_level", "unknown")),
-    )
     request.state.rate_limit_headers = {
         "X-Neoxra-RateLimit-Limit": str(limit),
         "X-Neoxra-RateLimit-Observed": str(current_count),

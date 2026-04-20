@@ -19,7 +19,7 @@ def build_gated_demo_router() -> APIRouter:
     return APIRouter(dependencies=[Depends(gated_demo_route_access)])
 
 
-def build_authenticated_router() -> APIRouter:
+def build_authenticated_marker_router() -> APIRouter:
     return APIRouter(dependencies=[Depends(authenticated_route_access)])
 
 

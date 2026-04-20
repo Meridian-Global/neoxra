@@ -255,7 +255,7 @@ async def add_request_context(request: Request, call_next) -> Response:
 async def log_core_diagnostics_on_startup() -> None:
     diagnostics = get_neoxra_core_diagnostics()
     logger.info(
-        "startup configuration environment=%s runtime_mode=%s core_client_mode=%s database_enabled=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s demo_surfaces=%s",
+        "startup configuration environment=%s runtime_mode=%s core_client_mode=%s database_enabled=%s log_level=%s cors_allowed_origins=%s anthropic_model=%s route_access_levels=%s",
         os.getenv("ENVIRONMENT", "development"),
         get_runtime_mode(),
         get_core_client_mode(),

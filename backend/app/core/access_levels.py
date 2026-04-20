@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from enum import Enum
 
 from fastapi import HTTPException, Request
@@ -51,7 +52,7 @@ def require_internal_route_access(request: Request) -> RouteAccessLevel:
         )
 
     supplied_admin_key = request.headers.get("X-Neoxra-Admin-Key", "").strip()
-    if supplied_admin_key != expected_admin_key:
+    if not secrets.compare_digest(supplied_admin_key, expected_admin_key):
         raise HTTPException(
             status_code=401,
             detail={

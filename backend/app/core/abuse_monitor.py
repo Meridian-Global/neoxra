@@ -102,10 +102,9 @@ class AbuseMonitor:
             details={},
         )
 
-    def snapshot(self) -> dict[str, object]:
-        return {
-            "status": "ok",
-            "recent_alerts": [
+    async def snapshot(self) -> dict[str, object]:
+        async with self._lock:
+            recent_alerts = [
                 {
                     "alert_type": alert.alert_type,
                     "route_key": alert.route_key,
@@ -115,7 +114,10 @@ class AbuseMonitor:
                     "details": alert.details,
                 }
                 for alert in list(self._alerts)
-            ],
+            ]
+        return {
+            "status": "ok",
+            "recent_alerts": recent_alerts,
             "thresholds": {
                 "burst_per_minute": _burst_threshold_per_minute(),
                 "repeated_failures_per_15m": _failure_threshold_per_window(),

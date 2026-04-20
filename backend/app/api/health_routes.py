@@ -76,5 +76,5 @@ async def guardrail_health() -> dict[str, object]:
     return {
         "status": "ok",
         "rate_limit_backend": get_rate_limit_backend_name(),
-        "abuse_monitor": ABUSE_MONITOR.snapshot(),
+        "abuse_monitor": await ABUSE_MONITOR.snapshot(),
     }

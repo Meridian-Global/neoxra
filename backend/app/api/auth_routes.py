@@ -6,11 +6,11 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..core.auth import magic_link_debug_enabled, require_authenticated_user, request_magic_link, revoke_session_token, verify_magic_link
-from .access_groups import build_authenticated_router, build_public_router
+from .access_groups import build_authenticated_marker_router, build_public_router
 
 router = APIRouter()
 public_router = build_public_router()
-authenticated_router = build_authenticated_router()
+authenticated_router = build_authenticated_marker_router()
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
