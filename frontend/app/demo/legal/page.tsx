@@ -1,1163 +1,699 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CarouselPreview } from '../../../components/CarouselPreview'
-import { DemoAccessGate } from '../../../components/DemoAccessGate'
-import { InstagramForm } from '../../../components/InstagramForm'
-import { InstagramResult as InstagramResultView } from '../../../components/InstagramResult'
-import { ScorecardRadar } from '../../../components/ScorecardRadar'
-import { LanguageToggle } from '../../../components/LanguageToggle'
-import { useLanguage } from '../../../components/LanguageProvider'
-import { ThemeToggle } from '../../../components/landing/ThemeToggle'
+import { useEffect, useMemo, useState } from 'react'
 import { API_BASE_URL } from '../../../lib/api'
-import { buildDemoHeaders, clearStoredDemoToken, getStoredDemoSource } from '../../../lib/demo-access'
-import { getDemoSurfaceConfig } from '../../../lib/demo-config'
-import { fetchDemoClientConfig } from '../../../lib/demo-client-config'
-import { getDeterministicFallbackResult } from '../../../lib/demo-fallbacks'
-import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../../lib/analytics'
-import {
-  getLegalDemoPresets,
-  getLegalDemoValueProp,
-  getLegalGoldenScenario,
-  getLegalVoicePresets,
-} from '../../../lib/legal-demo'
+import { normalizeLegalLivePayload } from '../../../lib/legal-live-parser'
 import { APIError, streamSSE } from '../../../lib/sse'
-import type {
-  InstagramContent,
-  Scorecard,
-  StyleAnalysis,
-} from '../../../lib/instagram-types'
-import type { DemoClientConfig } from '../../../lib/demo-config'
+import type { CarouselSlide, InstagramContent } from '../../../lib/instagram-types'
 
-const SCORE_DIMS = [
-  'hook_strength',
-  'cta_clarity',
-  'hashtag_relevance',
-  'platform_fit',
-  'tone_match',
-  'originality',
-] as const
+type ContentTab = 'instagram' | 'article'
+type DemoStatus = 'idle' | 'loading' | 'completed' | 'error'
 
-const KNOWN_EVENTS = new Set([
-  'pipeline_started',
-  'phase_started',
-  'style_ready',
-  'content_ready',
-  'score_ready',
-  'pipeline_completed',
-  'error',
-])
+interface ArticlePreview {
+  seoTitle: string
+  outline: string[]
+  summary: string
+}
 
-type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
-type SubmitPayload = { topic: string; template_text: string; goal: string }
+interface ShowcaseContent {
+  caption: string
+  slides: CarouselSlide[]
+  article: ArticlePreview
+}
 
-function createLegalCopy(language: 'en' | 'zh-TW') {
-  if (language === 'zh-TW') {
-    return {
-      stageLabels: {
-        pipeline_started: '正在建立這次 demo 流程…',
-        analysis: '正在分析內容語氣…',
-        drafting: '正在生成 Instagram 內容…',
-        review: '正在評估內容品質…',
-      } as Record<string, string>,
-      stageSequence: [
-        { event: 'analysis', label: '風格分析' },
-        { event: 'drafting', label: '內容生成' },
-        { event: 'review', label: '品質評分' },
-      ] as const,
-      statusMeta: {
-        idle: {
-          label: '準備完成',
-          description: '選好法律情境後，就能開始即時 demo。',
-        },
-        loading: {
-          label: '連線中',
-          description: '正在開啟串流並準備法律 demo 流程。',
-        },
-        streaming: {
-          label: '直播中',
-          description: '法律 demo 執行中，部分結果會即時出現。',
-        },
-        completed: {
-          label: '已完成',
-          description: '已收到最終 completion event，結果已可展示。',
-        },
-        error: {
-          label: '需要注意',
-          description: '流程提早中止時，可切換到 golden scenario。',
-        },
-      } as const,
-      errors: {
-        validation: '請檢查 demo 輸入內容後再試一次。',
-        unavailable: '系統暫時無法使用，請改用 golden scenario 或稍後重試。',
-        generic: '發生了一點問題，請再試一次。',
-        timeout: '生成時間過長，請重試或改用 golden scenario。',
+interface SampleCase {
+  key: string
+  label: string
+  instagram: ShowcaseContent
+}
+
+const PRIMARY = '#3B4F7A'
+const PAGE_BG = '#FAFAF9'
+const PAGE_TEXT = '#1A1A1A'
+const PAGE_MUTED = '#6B7280'
+const PAGE_BORDER = 'rgba(59, 79, 122, 0.12)'
+const PAGE_SHADOW = '0 1px 3px rgba(0,0,0,0.08)'
+
+const SAMPLE_CASES: SampleCase[] = [
+  {
+    key: 'accident',
+    label: '車禍理賠流程',
+    instagram: {
+      caption:
+        '車禍發生後，很多人第一時間只想到修車與和解，卻忽略了最關鍵的證據保全與時效問題。從報警、驗傷、保留單據，到後續保險理賠與損害賠償主張，每一步都會影響最終能不能拿回合理補償。如果你能在一開始就把流程走對，不只談判會更有底氣，也能避免在不清楚權利義務的情況下草率簽下和解。以下整理五個最重要的處理步驟，幫你先把方向抓清楚。',
+      slides: [
+        { title: '車禍後第一件事，不是先談和解', body: '先確認人身安全、報警備案，並保留現場照片與對話紀錄。' },
+        { title: '先把證據留好', body: '事故現場、車損、行車紀錄器、診斷證明與維修估價，都可能成為求償關鍵。' },
+        { title: '理賠與求償要分開看', body: '保險公司理賠不等於完整賠償，仍要評估是否另向對方主張醫療與工作損失。' },
+        { title: '別忽略時效與書面文件', body: '任何和解、放棄或收據文件，都要確認內容，避免先簽後失去追償空間。' },
+        { title: '需要專業協助？歡迎私訊諮詢', body: '若案件涉及受傷、失能或責任爭議，及早讓律師協助更安心。' },
+      ],
+      article: {
+        seoTitle: '車禍理賠怎麼算？完整流程、時效、注意事項一次看',
+        outline: ['車禍發生後第一時間應該做什麼', '保險理賠與民事求償有什麼差別', '和解前一定要確認的三件事', '什麼情況下建議尋求律師協助'],
+        summary:
+          '車禍理賠常見爭議，不在於有沒有保險，而在於是否在一開始就把證據、流程與時效掌握好。這篇文章會帶你快速看懂報警、驗傷、理賠與和解時最容易忽略的重點。',
       },
-      access: {
-        eyebrow: '法律客戶 demo 存取',
-        title: '這個法律 demo 目前只對已授權的客戶展示開放。',
-        body: '輸入本次 law-firm demo 的 access code，或直接使用已簽章的 signed link 進入。',
-        inputLabel: 'Demo access code',
-        inputPlaceholder: '輸入法律 demo 的 access code',
-        submitLabel: '解鎖法律 demo',
-        loadingLabel: '驗證中…',
-        signedLinkLoaded: '若你是從 signed link 進入，系統會自動保留這次存取權限。',
-        invalidCode: 'Access code 無效，或這個連結已經過期。',
-        clearAccess: '清除存取',
+    },
+  },
+  {
+    key: 'lease',
+    label: '租約糾紛常見問題',
+    instagram: {
+      caption:
+        '租屋糾紛通常不是因為某一方特別惡意，而是雙方一開始就沒有把押金、修繕、提前解約與違約責任講清楚。等到真的發生漏水、提前搬離、房東不退押金時，才發現租約內容太模糊，甚至連照片、對話與點交紀錄都沒有留下。其實很多爭議如果在簽約前就先檢查，後面就能少掉很多來回溝通與情緒成本。以下整理租約裡最容易出事的幾個重點。',
+      slides: [
+        { title: '租約不是簽了就好', body: '押金、修繕責任、提前解約與違約金，都要寫得明確才有保障。' },
+        { title: '點交紀錄很重要', body: '入住與退租時都要拍照、列清單，避免日後對設備損壞各說各話。' },
+        { title: '押金不能隨便扣', body: '房東若主張扣押金，通常仍需有具體損害或費用依據。' },
+        { title: '提前解約先看約定', body: '不是一句「我不租了」就結束，還要確認通知期限與違約責任。' },
+        { title: '需要專業協助？歡迎私訊諮詢', body: '若金額較大或雙方僵持，先讓專業法律意見協助判斷。' },
+      ],
+      article: {
+        seoTitle: '租約糾紛怎麼處理？押金、修繕、提前解約常見問題整理',
+        outline: ['租約中最應該先確認的條款', '押金返還常見爭議怎麼看', '房屋修繕責任如何分配', '提前解約時租客與房東各自要注意什麼'],
+        summary:
+          '租屋糾紛最常發生在押金、修繕與提前解約。只要租約條款模糊、點交紀錄不完整，後續爭議就很難快速解決。這篇文章整理租屋雙方最常忽略的法律重點。',
       },
-      header: {
-        badge: 'Neoxra 法律 Demo',
-        workflow: '法律 demo 流程',
-        back: '返回首頁',
-        eyebrow: '法律服務 demo',
-        title: '把法律 thought leadership 展示成策略型內容系統。',
-        helper: '專為重視清楚、可信與專業感的即時會議而設計。',
-        openStudio: '開啟 Instagram Studio',
-        loadGolden: '載入 Golden Scenario',
-        scenarioCount: '法律情境',
-        voiceCount: '語氣預設',
-        mode: 'demo 模式',
-        live: '即時',
-        safe: '穩定',
-        stateTitle: 'Demo 狀態',
-        complete: '已完成',
-        waiting: '等待中',
-        connecting: '正在連線至法律 demo 流程…',
-        partial: '正在接收部分結果…',
-        goldenLoaded: '已載入 golden scenario，可作為會議中的穩定展示備援。',
-        cancel: '取消本次生成',
+    },
+  },
+  {
+    key: 'labor',
+    label: '勞資爭議處理',
+    instagram: {
+      caption:
+        '勞資爭議常常不是單一事件，而是加班費、考績、資遣流程與溝通方式累積後一起爆發。對企業來說，最怕的是以為內部已經講清楚，結果沒有留下制度文件與通知紀錄；對員工來說，最擔心的是在不知道自己權利的情況下就簽下離職或資遣文件。無論站在哪一方，先把事實、時間點與文件整理清楚，才有機會理性處理，不讓問題升高成更大的風險。',
+      slides: [
+        { title: '勞資爭議，先把事實整理好', body: '出勤紀錄、薪資單、通知訊息與合約版本，是釐清爭議的基本材料。' },
+        { title: '加班費與工時最常出問題', body: '若工時管理不清楚，很容易在離職或申訴時成為主要爭點。' },
+        { title: '資遣流程不能只靠口頭', body: '通知、理由、資遣費與程序是否合法，都需要完整書面紀錄。' },
+        { title: '企業要做的是制度化', body: '有規則不等於有執行，真正重要的是制度能不能被證明有落地。' },
+        { title: '需要專業協助？歡迎私訊諮詢', body: '若案件涉及申訴、調解或訴訟風險，建議提早尋求專業判斷。' },
+      ],
+      article: {
+        seoTitle: '勞資爭議怎麼處理？加班費、資遣、申訴風險一次整理',
+        outline: ['勞資爭議發生時應先整理哪些資料', '加班費與工時管理的常見爭點', '資遣前企業應確認哪些程序', '員工申訴或調解時的實務注意事項'],
+        summary:
+          '勞資爭議往往牽涉工時、薪資、通知程序與內部制度執行。無論你是企業主還是人資，先把事實與文件整理清楚，才能有效降低後續調解與訴訟風險。',
       },
-      sections: {
-        scenariosEyebrow: '一鍵情境',
-        scenariosTitle: '選擇你想展示的法律敘事。',
-        voiceEyebrow: '語氣預設',
-        voiceTitle: '設定專家式口吻。',
-        beforeAfterEyebrow: 'Before → After',
-        beforeAfterTitle: '讓轉換過程看起來有策略感。',
-        originalTopic: '原始主題',
-        strategyLayer: 'Neoxra 策略層',
-        platformOutputs: '平台輸出',
-        goal: '目標',
-        voice: '語氣',
-        goldenEyebrow: 'Golden scenario',
-        goldenTitle: '適合現場會議的穩定備援。',
-        goldenBody: '若你希望會議中使用幾乎可預期的展示路徑，這個模式會直接載入一組已整理好的法律服務範例，不依賴即時模型輸出。',
-        demoBriefEyebrow: 'Demo brief',
-        demoBriefTitle: '即時生成法律導向的內容系統。',
-        demoBriefBody: '從可信的法律主題出發，保持專業且值得信任的語氣，展示 Neoxra 如何把一個敘事轉成多平台 thought leadership。',
-        editFlowEyebrow: '編輯後重新生成',
-        editFlowTitle: '保留目前 demo，微調後再跑一次。',
-        editFlowBody: '你可以在不清空畫面的情況下調整主題、模板或目標，再用新的版本重新生成。',
-        editFlowUnsaved: '你有尚未套用到目前輸出的新編輯。',
-        editFlowSynced: '目前畫面與最近一次送出的 demo brief 一致。',
-        editFlowTopic: '目前主題',
-        editFlowGoal: '目前目標',
-        editFlowButton: '用目前編輯重新生成',
-        editFlowJump: '回到輸入區',
-        presetsTitle: '法律 demo 預設',
-        presetsDescription: '為法律服務與 SMB 教育情境調整過的高品質 prompt，兼顧可信度、可收藏性與清楚度。',
-        submitLabel: '生成法律 Demo',
-        topicPlaceholder: '例如：給創辦人的合約風險、招募錯誤、或法律迷思教育貼文。',
-        templatePlaceholder: '專業、白話、可信、可執行…',
-        bestInputTips: [
-          '先點出一個常見法律誤解或創業者錯誤。',
-          '建議要具體到能讓人感覺你真的懂實務。',
-          '用 voice preset 去貼近現場受眾。',
-        ],
-        errorTitle: '生成已中止',
-        reset: '重設',
-        useGolden: '使用 Golden Scenario',
-        outputEyebrow: '輸出',
-        outputTitle: '檢視法律 demo 結果。',
-        outputBody: '讓客戶看到 Neoxra 不是單純生成文字，而是在替專業服務內容調整語氣、結構與可對外溝通的方式。',
-        styleRead: '風格讀取',
-        detectedVoice: '偵測到的法律語氣',
-        structuralPatterns: '結構特徵',
-        vocabularyNotes: '用詞觀察',
-        preview: '預覽',
-        carouselDeck: '輪播展示',
-      },
-      completedSteps: {
-        voice: '語氣分析完成',
-        draft: '內容已生成',
-        review: '品質審核完成',
-      },
-    }
+    },
+  },
+]
+
+function splitSentences(text: string): string[] {
+  return text
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[。！？!?])/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function deriveCarouselSlides(topic: string, content: Partial<InstagramContent>): CarouselSlide[] {
+  const existingSlides = Array.isArray(content.carousel_outline)
+    ? content.carousel_outline.filter((slide) => slide?.title?.trim() && slide?.body?.trim())
+    : []
+
+  if (existingSlides.length >= 5) {
+    return existingSlides.slice(0, 5)
   }
+
+  const hook = content.hook_options?.[0]?.trim() || `${topic}，先抓住三個關鍵重點`
+  const captionParts = splitSentences(content.caption ?? '')
+  const reelParts = splitSentences(content.reel_script ?? '')
+  const bodies = [...captionParts, ...reelParts].filter(Boolean)
+
+  const middleSlides = Array.from({ length: 3 }).map((_, index) => {
+    const fallbackBody = bodies[index] || `先釐清 ${topic} 的關鍵事實、流程與風險，才能做出正確下一步。`
+    return {
+      title: `重點 ${index + 1}`,
+      body: fallbackBody,
+    }
+  })
+
+  const merged = [
+    { title: hook, body: bodies[0] || `先用一句清楚的結論，讓讀者知道 ${topic} 影響的是什麼。` },
+    ...middleSlides,
+    { title: '需要專業協助？歡迎私訊諮詢', body: '涉及金額、時效或責任爭議時，建議及早尋求律師協助。' },
+  ]
+
+  return merged.slice(0, 5)
+}
+
+function buildArticlePreview(topic: string, content: Partial<InstagramContent>, slides: CarouselSlide[]): ArticlePreview {
+  const summary = [
+    content.caption ?? '',
+    content.reel_script ?? '',
+    ...slides.map((slide) => slide.body),
+  ]
+    .flatMap((text) => text.split(/\n+/))
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)[0]
+
+  const outline = [
+    `${topic}的核心問題是什麼`,
+    ...slides.slice(1, 4).map((slide) => slide.title),
+    '什麼情況下建議盡快找律師',
+  ].slice(0, 4)
 
   return {
-    stageLabels: {
-      pipeline_started: 'Setting up the generation run…',
-      analysis: 'Analyzing writing style…',
-      drafting: 'Generating Instagram content…',
-      review: 'Scoring content quality…',
-    } as Record<string, string>,
-    stageSequence: [
-      { event: 'analysis', label: 'Style analysis' },
-      { event: 'drafting', label: 'Draft generation' },
-      { event: 'review', label: 'Quality scoring' },
-    ] as const,
-    statusMeta: {
-      idle: {
-        label: 'Ready',
-        description: 'Choose a legal scenario, then start a live generation run.',
-      },
-      loading: {
-        label: 'Connecting',
-        description: 'Opening the stream and preparing the demo workflow.',
-      },
-      streaming: {
-        label: 'Live',
-        description: 'Partial output is arriving as the legal demo runs.',
-      },
-      completed: {
-        label: 'Completed',
-        description: 'The final completion event arrived and the demo output is ready.',
-      },
-      error: {
-        label: 'Needs attention',
-        description: 'The run stopped early, so switch to the golden scenario if needed.',
-      },
-    } as const,
-    errors: {
-      validation: 'Please check the demo inputs and try again.',
-      unavailable: 'System temporarily unavailable. Use the golden scenario or retry.',
-      generic: 'Something went wrong. Please try again.',
-      timeout: 'The generation took too long. Please retry or switch to the golden scenario.',
-    },
-    access: {
-      eyebrow: 'Legal client demo access',
-      title: 'This legal demo is limited to approved client sessions.',
-      body: 'Enter the access code for this law-firm demo, or open the signed link that was shared for the meeting.',
-      inputLabel: 'Demo access code',
-      inputPlaceholder: 'Enter the access code for this legal demo',
-      submitLabel: 'Unlock legal demo',
-      loadingLabel: 'Checking access…',
-      signedLinkLoaded: 'If you opened a signed link, access will be preserved automatically on this device.',
-      invalidCode: 'That access code is invalid or this signed link has expired.',
-      clearAccess: 'Clear access',
-    },
-    header: {
-      badge: 'Neoxra Legal Demo',
-      workflow: 'Legal demo workflow',
-      back: 'Back to landing',
-      eyebrow: 'Legal-services demo',
-      title: 'Show legal thought leadership as a strategic content system.',
-      helper: 'Built for live meetings where clarity and trust matter more than novelty.',
-      openStudio: 'Open Instagram Studio',
-      loadGolden: 'Load Golden Scenario',
-      scenarioCount: 'legal scenarios',
-      voiceCount: 'voice presets',
-      mode: 'demo mode',
-      live: 'Live',
-      safe: 'Safe',
-      stateTitle: 'Demo state',
-      complete: 'Completed',
-      waiting: 'Waiting',
-      connecting: 'Connecting to the legal demo pipeline…',
-      partial: 'Streaming partial output…',
-      goldenLoaded: 'Golden scenario loaded. Use this path if you want a deterministic demo fallback.',
-      cancel: 'Cancel run',
-    },
-    sections: {
-      scenariosEyebrow: 'One-click scenarios',
-      scenariosTitle: 'Pick the legal narrative you want to demo.',
-      voiceEyebrow: 'Voice preset',
-      voiceTitle: 'Set the expert tone.',
-      beforeAfterEyebrow: 'Before → After',
-      beforeAfterTitle: 'Make the transformation feel strategic.',
-      originalTopic: 'Original topic',
-      strategyLayer: 'Neoxra strategy layer',
-      platformOutputs: 'Platform outputs',
-      goal: 'Goal',
-      voice: 'Voice',
-      goldenEyebrow: 'Golden scenario',
-      goldenTitle: 'Reliable fallback for live meetings.',
-      goldenBody: 'Use this if you want a near-deterministic path during the meeting. It loads a polished legal-services example instantly without depending on live model output.',
-      demoBriefEyebrow: 'Demo brief',
-      demoBriefTitle: 'Generate a legal-focused content system live.',
-      demoBriefBody: 'Start from a credible legal topic, keep the tone expert and trustworthy, and show how Neoxra turns one narrative into platform-ready thought leadership.',
-      editFlowEyebrow: 'Edit and regenerate',
-      editFlowTitle: 'Keep the current demo visible, then rerun with sharper edits.',
-      editFlowBody: 'Adjust the topic, template, or goal without clearing the screen, then regenerate when you are ready.',
-      editFlowUnsaved: 'You have fresh edits that are not reflected in the current output yet.',
-      editFlowSynced: 'The current screen matches the most recent submitted brief.',
-      editFlowTopic: 'Current topic',
-      editFlowGoal: 'Current goal',
-      editFlowButton: 'Regenerate with current edits',
-      editFlowJump: 'Jump to input',
-      presetsTitle: 'Legal demo presets',
-      presetsDescription: 'High-quality prompts tuned for legal and SMB education, credibility, and save-worthy content.',
-      submitLabel: 'Generate Legal Demo',
-      topicPlaceholder: 'Example: A founder-facing post on contract risk, hiring mistakes, or legal myths.',
-      templatePlaceholder: 'Professional, plain-English, credible, and practical...',
-      bestInputTips: [
-        'Lead with one legal misconception or founder mistake.',
-        'Keep the advice concrete enough to sound expert, not generic.',
-        'Use the voice preset to match the audience in the room.',
-      ],
-      errorTitle: 'Generation stopped',
-      reset: 'Reset',
-      useGolden: 'Use Golden Scenario',
-      outputEyebrow: 'Output',
-      outputTitle: 'Review the legal demo output.',
-      outputBody: 'Show the client that Neoxra is not just generating text. It is shaping tone, structure, and business-safe messaging for expert-service content.',
-      styleRead: 'Style read',
-      detectedVoice: 'Detected legal voice',
-      structuralPatterns: 'Structural patterns',
-      vocabularyNotes: 'Vocabulary notes',
-      preview: 'Preview',
-      carouselDeck: 'Carousel Deck',
-    },
-    completedSteps: {
-      voice: 'Voice read complete',
-      draft: 'Draft generated',
-      review: 'Quality review complete',
+    seoTitle: `${topic}怎麼處理？流程、重點與注意事項一次看`,
+    outline,
+    summary:
+      summary ||
+      `如果你正在面對「${topic}」相關問題，先把流程、證據與時效觀念掌握清楚，會比急著做決定更重要。`,
+  }
+}
+
+function normalizeGeneratedContent(topic: string, content: Partial<InstagramContent>): ShowcaseContent {
+  const caption =
+    content.caption?.trim() ||
+    `針對「${topic}」，建議先把核心事實、程序節點與常見風險整理清楚，才能對外說明得更專業，也更容易轉成可持續發布的內容。`
+  const slides = deriveCarouselSlides(topic, { ...content, caption })
+  const article = buildArticlePreview(topic, { ...content, caption }, slides)
+
+  return {
+    caption,
+    slides,
+    article,
+  }
+}
+
+function normalizeFromAnyPayload(topic: string, payload: unknown): ShowcaseContent {
+  const normalized = normalizeLegalLivePayload(topic, payload)
+
+  return {
+    caption: normalized.caption,
+    slides: normalized.slides,
+    article: {
+      seoTitle: normalized.articleTitle,
+      outline: normalized.articleOutline.map((item) => item.heading),
+      summary: normalized.articleSummary,
     },
   }
 }
 
-function toFriendlyError(error: unknown, copy: ReturnType<typeof createLegalCopy>): string {
-  if (error instanceof APIError) {
-    if (error.status === 422) {
-      return copy.errors.validation
-    }
-    if (error.status === 503) {
-      return copy.errors.unavailable
-    }
-    return copy.errors.generic
-  }
-
-  if (error instanceof Error && error.message.includes('timed out')) {
-    return copy.errors.timeout
-  }
-
-  return copy.errors.generic
+function createLegalTemplate(topic: string) {
+  return `請以法律事務所對外教育內容的口吻，為主題「${topic}」生成內容。語氣要專業、親民、可信，先講結論，再拆解 3 到 4 個實際重點，最後提醒何時應該尋求專業法律協助。請讓內容適合台灣法律事務所用於 Instagram 圖文與網站文章。`
 }
 
-export default function LegalDemoPage() {
-  const { language } = useLanguage()
-  const copy = createLegalCopy(language)
-  const demoConfig = useMemo(() => getDemoSurfaceConfig('legal'), [])
-  const [clientConfig, setClientConfig] = useState<DemoClientConfig | null>(null)
-  const legalDemoPresets = getLegalDemoPresets(language)
-  const legalVoicePresets = getLegalVoicePresets(language)
-  const legalGoldenScenario = getLegalGoldenScenario(language)
-  const legalDemoValueProp = getLegalDemoValueProp(language)
-  type LegalVoicePresetId = (typeof legalVoicePresets)[number]['id']
+function LegalSection({
+  id,
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  id?: string
+  eyebrow: string
+  title: string
+  description?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section id={id} className="space-y-4">
+      <div className="space-y-2">
+        <p className="text-sm font-semibold tracking-[0.18em] text-[#3B4F7A]">{eyebrow}</p>
+        <h2 className="text-2xl font-black leading-tight text-[#1A1A1A] md:text-4xl">{title}</h2>
+        {description ? <p className="max-w-3xl text-base leading-7 text-[#5B6472] md:text-lg">{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  )
+}
 
-  const [selectedScenarioLabel, setSelectedScenarioLabel] = useState(legalDemoPresets[0].label)
-  const [selectedVoiceId, setSelectedVoiceId] = useState<LegalVoicePresetId>(legalVoicePresets[0].id)
-  const [preview, setPreview] = useState({
-    topic: legalDemoPresets[0].topic,
-    template_text: legalDemoPresets[0].templateText,
-    goal: legalDemoPresets[0].goal,
-  })
-  const [lastSubmitted, setLastSubmitted] = useState<SubmitPayload | null>(null)
-  const [status, setStatus] = useState<PageStatus>('idle')
+function SurfaceCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={`rounded-[12px] border border-[rgba(59,79,122,0.12)] bg-white ${className}`}
+      style={{ boxShadow: PAGE_SHADOW }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function CarouselDeck({ slides }: { slides: CarouselSlide[] }) {
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-2">
+      {slides.map((slide, index) => (
+        <SurfaceCard
+          key={`${slide.title}-${index}`}
+          className="flex aspect-square min-w-[220px] max-w-[220px] flex-col justify-between p-5 md:min-w-[240px] md:max-w-[240px]"
+        >
+          <div className="space-y-4">
+            <div className="text-xs font-medium tracking-[0.08em] text-[#6B7280]">
+              {index + 1}/{slides.length}
+            </div>
+            <h4 className="text-lg font-medium leading-snug text-[#1A1A1A] md:text-xl">{slide.title}</h4>
+          </div>
+          <p className="text-sm font-normal leading-7 text-[#4B5563]">{slide.body}</p>
+        </SurfaceCard>
+      ))}
+    </div>
+  )
+}
+
+function ShowcaseTabs({
+  content,
+  activeTab,
+  onChange,
+}: {
+  content: ShowcaseContent
+  activeTab: ContentTab
+  onChange: (tab: ContentTab) => void
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="inline-flex gap-2 rounded-xl border border-[rgba(59,79,122,0.12)] bg-[#F7F8FB] p-1.5">
+        {([
+          ['instagram', 'Instagram'],
+          ['article', '文章'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            className={`rounded-lg px-5 py-2.5 text-sm font-medium transition ${
+              activeTab === key ? 'bg-white text-[#1A1A1A]' : 'text-[#6B7280]'
+            }`}
+            style={
+              activeTab === key
+                ? {
+                    boxShadow: PAGE_SHADOW,
+                    borderBottom: `2px solid ${PRIMARY}`,
+                  }
+                : undefined
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'instagram' ? (
+        <div className="space-y-6">
+          <SurfaceCard className="p-6">
+            <p className="mb-3 text-sm font-semibold text-[#3B4F7A]">貼文說明</p>
+            <p className="whitespace-pre-line text-base leading-8 text-[#2A3446]">{content.caption}</p>
+          </SurfaceCard>
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-[#3B4F7A]">輪播卡片</p>
+            <CarouselDeck slides={content.slides} />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <SurfaceCard className="p-6">
+            <p className="mb-2 text-sm font-semibold text-[#3B4F7A]">SEO 標題</p>
+            <h3 className="text-xl font-black leading-snug text-[#1A1A1A]">{content.article.seoTitle}</h3>
+          </SurfaceCard>
+          <div className="grid gap-5 lg:grid-cols-[1.1fr,0.9fr]">
+            <SurfaceCard className="p-6">
+              <p className="mb-3 text-sm font-semibold text-[#3B4F7A]">文章大綱</p>
+              <div className="space-y-3">
+                {content.article.outline.map((item, index) => (
+                  <div key={`${item}-${index}`} className="rounded-xl bg-[#F7F8FB] px-4 py-3 text-sm font-medium text-[#2A3446]">
+                    H2 {index + 1}｜{item}
+                  </div>
+                ))}
+              </div>
+            </SurfaceCard>
+            <SurfaceCard className="p-6">
+              <p className="mb-3 text-sm font-semibold text-[#3B4F7A]">首段摘要</p>
+              <p className="text-sm leading-8 text-[#425066]">{content.article.summary}</p>
+            </SurfaceCard>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function LegalLandingPage() {
+  const [activeCaseKey, setActiveCaseKey] = useState<string>(SAMPLE_CASES[0].key)
+  const [activeSampleTab, setActiveSampleTab] = useState<ContentTab>('instagram')
+  const [activeLiveTab, setActiveLiveTab] = useState<ContentTab>('instagram')
+  const [topic, setTopic] = useState('')
+  const [status, setStatus] = useState<DemoStatus>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [currentStage, setCurrentStage] = useState('')
-  const [styleAnalysis, setStyleAnalysis] = useState<StyleAnalysis | null>(null)
-  const [content, setContent] = useState<InstagramContent | null>(null)
-  const [scorecard, setScorecard] = useState<Scorecard | null>(null)
-  const [critique, setCritique] = useState<string | null>(null)
-  const [resultOrigin, setResultOrigin] = useState<'live' | 'golden' | 'fallback' | null>(null)
-  const [demoToken, setDemoToken] = useState<string | null>(null)
-
-  const abortRef = useRef<AbortController | null>(null)
-  const latestPreviewRef = useRef(preview)
-  const [source, setSource] = useState(() => getStoredDemoSource(demoConfig.apiSurface))
-  const fallbackResult = useMemo(
-    () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback?.fallback_key ?? null, language),
-    [clientConfig, language],
-  )
+  const [liveContent, setLiveContent] = useState<ShowcaseContent | null>(null)
 
   useEffect(() => {
-    let cancelled = false
-    void fetchDemoClientConfig(demoConfig.apiSurface, demoConfig.demoKey)
-      .then((config) => {
-        if (!cancelled) setClientConfig(config)
-      })
-      .catch(() => {
-        if (!cancelled) setClientConfig(null)
-      })
+    const previousTheme = document.documentElement.dataset.theme
+    document.documentElement.dataset.theme = 'light'
     return () => {
-      cancelled = true
+      document.documentElement.dataset.theme = previousTheme || 'dark'
     }
-  }, [demoConfig.apiSurface, demoConfig.demoKey])
-
-  useEffect(() => {
-    setSource(getStoredDemoSource(demoConfig.apiSurface))
-  }, [demoConfig.apiSurface, demoToken])
-
-  useEffect(() => {
-    latestPreviewRef.current = preview
-  }, [preview])
-
-  const selectedScenario = useMemo(
-    () => legalDemoPresets.find((preset) => preset.label === selectedScenarioLabel) ?? legalDemoPresets[0],
-    [legalDemoPresets, selectedScenarioLabel],
-  )
-  const selectedVoice = useMemo(
-    () => legalVoicePresets.find((preset) => preset.id === selectedVoiceId) ?? legalVoicePresets[0],
-    [legalVoicePresets, selectedVoiceId],
-  )
-
-  useEffect(() => {
-    if (!legalDemoPresets.some((preset) => preset.label === selectedScenarioLabel)) {
-      setSelectedScenarioLabel(legalDemoPresets[0].label)
-      setPreview({
-        topic: legalDemoPresets[0].topic,
-        template_text: legalDemoPresets[0].templateText,
-        goal: legalDemoPresets[0].goal,
-      })
-    }
-  }, [legalDemoPresets, selectedScenarioLabel])
-
-  useEffect(() => {
-    function handlePageHide() {
-      if (status !== 'loading' && status !== 'streaming') return
-      trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: language })
-      sendBeaconAnalyticsEvent({
-        eventName: 'demo_abandoned',
-        route: '/demo/legal',
-        surface: demoConfig.apiSurface,
-        source,
-        locale: language,
-        metadata: {
-          reason: 'pagehide',
-          topic_length: latestPreviewRef.current.topic.trim().length,
-        },
-      })
-    }
-
-    window.addEventListener('pagehide', handlePageHide)
-    return () => window.removeEventListener('pagehide', handlePageHide)
-  }, [demoConfig.apiSurface, language, source, status])
-
-  const beforeAfterTopic = preview.topic.trim() || selectedScenario.topic
-  const beforeAfterGoal = preview.goal || selectedScenario.goal
-  const completedSteps = [
-    styleAnalysis ? copy.completedSteps.voice : null,
-    content ? copy.completedSteps.draft : null,
-    scorecard ? copy.completedSteps.review : null,
-  ].filter(Boolean) as string[]
-  const statusMeta = copy.statusMeta[status]
-  const activeStepIndex = currentStage
-    ? copy.stageSequence.findIndex((item) => copy.stageLabels[item.event] === currentStage)
-    : status === 'completed'
-      ? copy.stageSequence.length
-      : -1
-  const isLoading = status === 'loading'
-  const isStreaming = status === 'streaming'
-  const isWorking = isLoading || isStreaming
-  const hasResults = Boolean(styleAnalysis || content || scorecard || critique)
-  const needsAccess = demoConfig.accessMode === 'gated' && !demoToken
-  const hasPendingEdits = Boolean(
-    lastSubmitted &&
-      (preview.topic !== lastSubmitted.topic ||
-        preview.template_text !== lastSubmitted.template_text ||
-        preview.goal !== lastSubmitted.goal)
-  )
-
-  const clearResults = useCallback(() => {
-    setStyleAnalysis(null)
-    setContent(null)
-    setScorecard(null)
-    setCritique(null)
-    setError(null)
-    setCurrentStage('')
-    setResultOrigin(null)
   }, [])
 
-  const applyGoldenScenario = useCallback(() => {
-    abortRef.current?.abort()
-    setSelectedScenarioLabel(legalGoldenScenario.label)
-    setSelectedVoiceId('trusted-counsel')
-    setPreview({
-      topic: legalGoldenScenario.topic,
-      template_text: legalDemoPresets.find((preset) => preset.label === legalGoldenScenario.label)?.templateText ?? '',
-      goal: legalDemoPresets.find((preset) => preset.label === legalGoldenScenario.label)?.goal ?? 'save',
-    })
-    setStyleAnalysis(legalGoldenScenario.result.style_analysis)
-    setContent(legalGoldenScenario.result.content)
-    setScorecard(legalGoldenScenario.result.scorecard)
-    setCritique(legalGoldenScenario.result.critique)
-    setError(null)
-    setCurrentStage('')
-    setStatus('completed')
-    setResultOrigin('golden')
-  }, [legalDemoPresets, legalGoldenScenario])
-
-  const applyConfiguredFallback = useCallback(() => {
-    if (!fallbackResult) return
-    abortRef.current?.abort()
-    setStyleAnalysis(fallbackResult.style_analysis)
-    setContent(fallbackResult.content)
-    setScorecard(fallbackResult.scorecard)
-    setCritique(fallbackResult.critique)
-    setError(null)
-    setCurrentStage('')
-    setStatus('completed')
-    const fbKey = clientConfig?.deterministic_fallback?.fallback_key
-    setResultOrigin(fbKey === 'legal-golden' ? 'golden' : 'fallback')
-  }, [fallbackResult, clientConfig])
-
-  const handleScenarioSelect = useCallback((label: string) => {
-    setSelectedScenarioLabel(label)
-    clearResults()
-    setStatus('idle')
-  }, [clearResults])
-
-  const handleSubmit = useCallback(
-    async (data: SubmitPayload) => {
-      setLastSubmitted(data)
-      clearResults()
-      setStatus('loading')
-      trackPlausibleEvent('demo_started', { surface: demoConfig.apiSurface, source, locale: language })
-
-      const abort = new AbortController()
-      abortRef.current = abort
-      let completed = false
-      let failed = false
-      let sawStreamEvent = false
-      const enrichedTemplate = `${data.template_text}\n\nVoice preset: ${selectedVoice.label}. ${selectedVoice.instructions}`
-
-      try {
-        for await (const { event, data: payload } of streamSSE(
-          `${API_BASE_URL}/api/instagram/generate`,
-          {
-            topic: data.topic,
-            template_text: enrichedTemplate,
-            goal: data.goal,
-            locale: language,
-          },
-          {
-            signal: abort.signal,
-            timeoutMs: 45_000,
-            headers: buildDemoHeaders(demoConfig.apiSurface, demoToken),
-          },
-        )) {
-          if (abort.signal.aborted) break
-          if (!sawStreamEvent) {
-            sawStreamEvent = true
-            setStatus('streaming')
-          }
-
-          if (!KNOWN_EVENTS.has(event)) {
-            setError(copy.errors.generic)
-            setStatus('error')
-            failed = true
-            break
-          }
-
-          if (event === 'pipeline_started') {
-            setCurrentStage(copy.stageLabels.pipeline_started)
-            continue
-          }
-
-          if (event === 'phase_started' && typeof payload?.phase === 'string') {
-            setCurrentStage(copy.stageLabels[payload.phase] ?? '')
-            continue
-          }
-
-          if (event === 'style_ready') {
-            setStyleAnalysis(payload as StyleAnalysis)
-            setCurrentStage('')
-            continue
-          }
-
-          if (event === 'content_ready') {
-            setContent(payload as InstagramContent)
-            setCurrentStage('')
-            continue
-          }
-
-          if (event === 'score_ready') {
-            const avg = SCORE_DIMS.reduce((sum, dim) => sum + payload[dim], 0) / SCORE_DIMS.length
-            setScorecard({ ...payload, average: avg } as Scorecard)
-            setCurrentStage('')
-            continue
-          }
-
-          if (event === 'pipeline_completed') {
-            setContent(payload.content)
-            setScorecard(payload.scorecard)
-            setCritique(payload.critique)
-            setStyleAnalysis(payload.style_analysis)
-            setCurrentStage('')
-            setStatus('completed')
-            setResultOrigin('live')
-            completed = true
-            trackPlausibleEvent('demo_completed', { surface: demoConfig.apiSurface, source, locale: language })
-            continue
-          }
-
-          if (event === 'error') {
-            const rawMessage = typeof payload?.message === 'string' ? payload.message : ''
-            if (rawMessage.includes('temporarily unavailable')) {
-              setError(copy.errors.unavailable)
-            } else {
-              setError(copy.errors.generic)
-            }
-            if (clientConfig?.deterministic_fallback.mode === 'auto' && fallbackResult) {
-              setStyleAnalysis(fallbackResult.style_analysis)
-              setContent(fallbackResult.content)
-              setScorecard(fallbackResult.scorecard)
-              setCritique(fallbackResult.critique)
-              setError(null)
-              setCurrentStage('')
-              setStatus('completed')
-              setResultOrigin('golden')
-            } else {
-              setStatus('error')
-            }
-            failed = true
-            trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
-            break
-          }
-        }
-
-        if (!abort.signal.aborted && !completed && !failed) {
-          if (clientConfig?.deterministic_fallback.mode === 'auto' && fallbackResult) {
-            setStyleAnalysis(fallbackResult.style_analysis)
-            setContent(fallbackResult.content)
-            setScorecard(fallbackResult.scorecard)
-            setCritique(fallbackResult.critique)
-            setError(null)
-            setCurrentStage('')
-            setStatus('completed')
-            setResultOrigin('golden')
-          } else {
-            setError(copy.errors.generic)
-            setStatus('error')
-            setCurrentStage('')
-          }
-          trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
-        }
-      } catch (err) {
-        if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
-          if (err instanceof APIError && err.status === 401) {
-            clearStoredDemoToken(demoConfig.apiSurface)
-            setDemoToken(null)
-            setError(copy.access.invalidCode)
-          } else {
-            if (clientConfig?.deterministic_fallback.mode === 'auto' && fallbackResult) {
-              setStyleAnalysis(fallbackResult.style_analysis)
-              setContent(fallbackResult.content)
-              setScorecard(fallbackResult.scorecard)
-              setCritique(fallbackResult.critique)
-              setError(null)
-              setCurrentStage('')
-              setStatus('completed')
-              setResultOrigin('golden')
-              trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
-              return
-            }
-            setError(toFriendlyError(err, copy))
-          }
-          setStatus('error')
-          setCurrentStage('')
-          trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
-        }
-      }
-    },
-    [clearResults, clientConfig?.deterministic_fallback.mode, copy, demoConfig.apiSurface, demoToken, fallbackResult, language, selectedVoice, source],
+  const activeCase = useMemo(
+    () => SAMPLE_CASES.find((item) => item.key === activeCaseKey) ?? SAMPLE_CASES[0],
+    [activeCaseKey],
   )
 
-  function handleCancel() {
-    abortRef.current?.abort()
-    setStatus('idle')
-    setCurrentStage('')
-    trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: language })
-    sendBeaconAnalyticsEvent({
-      eventName: 'demo_abandoned',
-      route: '/demo/legal',
-      surface: demoConfig.apiSurface,
-      source,
-      locale: language,
-      metadata: {
-        reason: 'manual_stop',
-        topic_length: latestPreviewRef.current.topic.trim().length,
-      },
-    })
+  async function handleGenerate() {
+    const trimmedTopic = topic.trim()
+    if (!trimmedTopic) return
+
+    setStatus('loading')
+    setError(null)
+    setActiveLiveTab('instagram')
+
+    try {
+      let latestPayload: unknown = null
+
+      for await (const chunk of streamSSE(`${API_BASE_URL}/api/instagram/generate`, {
+        topic: trimmedTopic,
+        template_text: createLegalTemplate(trimmedTopic),
+        goal: 'authority',
+        locale: 'zh-TW',
+      })) {
+        if (chunk.event === 'content_ready') {
+          latestPayload = chunk.data?.content ?? chunk.data
+        }
+
+        if (chunk.event === 'pipeline_completed') {
+          const normalized = normalizeFromAnyPayload(trimmedTopic, chunk.data ?? latestPayload ?? {})
+          setLiveContent(normalized)
+          setStatus('completed')
+          return
+        }
+
+        if (chunk.event === 'error') {
+          throw new Error(typeof chunk.data?.message === 'string' ? chunk.data.message : '內容產生失敗。')
+        }
+      }
+
+      if (latestPayload) {
+        const normalized = normalizeFromAnyPayload(trimmedTopic, latestPayload)
+        setLiveContent(normalized)
+        setStatus('completed')
+        return
+      }
+
+      throw new Error('目前無法取得可展示的內容，請稍後再試。')
+    } catch (err) {
+      if (err instanceof APIError) {
+        if (err.status === 422) {
+          setError('請輸入更明確的法律主題，再重新產生。')
+        } else if (err.status === 503) {
+          setError('系統目前較忙，建議稍後再試。')
+        } else {
+          setError('目前無法完成內容產生，請稍後再試。')
+        }
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('目前無法完成內容產生，請稍後再試。')
+      }
+      setStatus('error')
+    }
   }
-
-  function handleRetry() {
-    clearResults()
-    setStatus('idle')
-  }
-
-  const editPanel =
-    hasResults || status === 'error' ? (
-      <div className="rounded-3xl border border-[color:var(--accent-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.14)]">
-        <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.editFlowEyebrow}</div>
-        <h3 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[var(--text)]">{copy.sections.editFlowTitle}</h3>
-        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{copy.sections.editFlowBody}</p>
-
-        <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-          <div className="text-sm font-medium text-[var(--text)]">
-            {hasPendingEdits ? copy.sections.editFlowUnsaved : copy.sections.editFlowSynced}
-          </div>
-          <div className="mt-3 space-y-3 text-sm">
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.editFlowTopic}</div>
-              <div className="mt-1 line-clamp-3 text-[var(--muted)]">{preview.topic || '-'}</div>
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.editFlowGoal}</div>
-              <div className="mt-1 text-[var(--muted)]">{preview.goal || '-'}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => handleSubmit(preview)}
-            disabled={isWorking || !preview.topic.trim() || !preview.template_text.trim()}
-            className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {copy.sections.editFlowButton}
-          </button>
-          <a
-            href="#legal-demo-form"
-            className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)]"
-          >
-            {copy.sections.editFlowJump}
-          </a>
-        </div>
-      </div>
-    ) : null
-
-  const fallbackConfig = clientConfig?.deterministic_fallback
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/10" />
-      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-10 px-5 pb-20 pt-8 sm:px-6 lg:px-8 lg:pb-28">
-        {needsAccess ? (
-          <section className="pt-12 sm:pt-16">
-            <div className="mb-8 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5">
-                <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
-                {copy.header.badge}
+    <main
+      className="min-h-screen"
+      style={{ background: PAGE_BG, color: PAGE_TEXT }}
+      lang="zh-Hant"
+    >
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+        html[data-theme='light'] body {
+          background: #fafaf9 !important;
+          color: #1a1a1a !important;
+        }
+
+        html[data-theme='light'] body,
+        html[data-theme='light'] main[lang='zh-Hant'] {
+          font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Heiti TC', sans-serif !important;
+        }
+
+        html[data-theme='light'] body::before,
+        html[data-theme='light'] body::after {
+          opacity: 0 !important;
+          background: none !important;
+        }
+      `}</style>
+      <div className="mx-auto flex max-w-7xl flex-col gap-20 px-6 py-10 md:px-10 md:py-14">
+        <section className="grid gap-10 rounded-[28px] border border-[rgba(59,79,122,0.12)] bg-white px-8 py-10 md:grid-cols-[1.05fr,0.95fr] md:px-12 md:py-14" style={{ boxShadow: '0 16px 40px rgba(59,79,122,0.08)' }}>
+          <div className="space-y-8">
+            <div className="space-y-5">
+              <div className="inline-flex rounded-full bg-[#EEF2F8] px-4 py-2 text-sm font-semibold text-[#3B4F7A]">
+                Neoxra｜法律事務所的 AI 內容系統
               </div>
-              <div className="flex items-center gap-3">
-                <Link
-                  href="/"
-                  className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5 text-sm text-[var(--subtle)] transition hover:border-white/20 hover:text-[var(--text)]"
-                >
-                  {copy.header.back}
-                </Link>
-                <LanguageToggle />
-                <ThemeToggle />
-              </div>
-            </div>
-            <DemoAccessGate surface={demoConfig.apiSurface} copy={copy.access} onAccessReady={setDemoToken} />
-          </section>
-        ) : null}
-
-        {!needsAccess ? (
-          <>
-        <section className="pt-8 sm:pt-12">
-          <div className="mb-12 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5">
-              <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
-              {copy.header.badge}
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="hidden text-[var(--subtle)] sm:block">{copy.header.workflow}</div>
-              <Link
-                href="/"
-                className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5 text-sm text-[var(--subtle)] transition hover:border-white/20 hover:text-[var(--text)]"
-              >
-                {copy.header.back}
-              </Link>
-              <LanguageToggle />
-              <ThemeToggle />
-            </div>
-          </div>
-
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_360px] lg:items-end">
-            <div className="max-w-3xl">
-              <div className="mb-5 inline-flex items-center rounded-full border border-[color:var(--accent-soft)] bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-[var(--text)]">
-                {copy.header.eyebrow}
-              </div>
-
-              <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.075em] text-[var(--text)] sm:text-5xl lg:text-6xl">
-                {copy.header.title}
-              </h1>
-
-              <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted)] sm:text-lg">
-                {legalDemoValueProp}
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href="/instagram"
-                  className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:bg-[var(--surface)]"
-                >
-                  {copy.header.openStudio}
-                </Link>
-                <button
-                  type="button"
-                  onClick={applyGoldenScenario}
-                  className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
-                >
-                  {copy.header.loadGolden}
-                </button>
-                <div className="text-sm text-[var(--subtle)]">
-                  {copy.header.helper}
-                </div>
-              </div>
-
-              <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
-                  <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">4</div>
-                  <div className="text-sm text-[var(--subtle)]">{copy.header.scenarioCount}</div>
-                </div>
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
-                  <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">3</div>
-                  <div className="text-sm text-[var(--subtle)]">{copy.header.voiceCount}</div>
-                </div>
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
-                  <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                    {(resultOrigin === 'golden' || resultOrigin === 'fallback') ? copy.header.safe : copy.header.live}
-                  </div>
-                  <div className="text-sm text-[var(--subtle)]">{copy.header.mode}</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-[var(--text)]">{copy.header.stateTitle}</div>
-                <span className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--subtle)]">
-                  {statusMeta.label}
-                </span>
-              </div>
-
-              <p className="mb-4 text-sm leading-6 text-[var(--muted)]">{statusMeta.description}</p>
-
-              <div className="space-y-3">
-                {copy.stageSequence.map((step, index) => {
-                  const isComplete =
-                    status === 'completed' ||
-                    index < activeStepIndex ||
-                    (index === 0 && styleAnalysis && !currentStage) ||
-                    (index === 1 && content && !currentStage) ||
-                    (index === 2 && scorecard && !currentStage)
-                  const isActive = index === activeStepIndex && isWorking
-
-                  return (
-                    <div
-                      key={step.event}
-                      className={`flex items-start gap-3 rounded-2xl border px-4 py-3 transition ${
-                        isActive
-                          ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
-                          : isComplete
-                            ? 'border-[var(--border)] bg-[var(--surface)]'
-                            : 'border-[var(--border)] bg-transparent'
-                      }`}
-                    >
-                      <span
-                        className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                          isActive ? 'bg-[var(--accent)]' : isComplete ? 'bg-[var(--text)]' : 'bg-[var(--subtle)]'
-                        }`}
-                      />
-                      <div>
-                        <div className="text-sm font-medium text-[var(--text)]">{step.label}</div>
-                        <div className="mt-1 text-sm text-[var(--muted)]">
-                          {isActive ? copy.stageLabels[step.event] : isComplete ? copy.header.complete : copy.header.waiting}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {(isLoading || isStreaming) && (
-                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
-                  {isLoading ? copy.header.connecting : currentStage || copy.header.partial}
-                </div>
-              )}
-
-              {completedSteps.length > 0 && (
-                <div className="mt-4 text-sm text-[var(--subtle)]">{completedSteps.join(' • ')}</div>
-              )}
-
-              {resultOrigin === 'golden' && (
-                <div className="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-                  {copy.header.goldenLoaded}
-                </div>
-              )}
-
-              {isWorking && (
-                <button
-                  className="mt-5 inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)]"
-                  onClick={handleCancel}
-                >
-                  {copy.header.cancel}
-                </button>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_360px]">
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur">
-            <div className="mb-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.scenariosEyebrow}</div>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                {copy.sections.scenariosTitle}
-              </h2>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {legalDemoPresets.map((preset) => {
-                const isSelected = preset.label === selectedScenarioLabel
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => handleScenarioSelect(preset.label)}
-                    className={`rounded-2xl border p-4 text-left transition ${
-                      isSelected
-                        ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
-                        : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--accent)]'
-                    }`}
-                  >
-                    <div className="text-sm font-semibold text-[var(--text)]">{preset.label}</div>
-                    <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{preset.topic}</p>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur">
-            <div className="mb-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.voiceEyebrow}</div>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                {copy.sections.voiceTitle}
-              </h2>
-            </div>
-            <div className="space-y-3">
-              {legalVoicePresets.map((preset) => {
-                const isSelected = preset.id === selectedVoiceId
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => setSelectedVoiceId(preset.id)}
-                    className={`w-full rounded-2xl border p-4 text-left transition ${
-                      isSelected
-                        ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
-                        : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--accent)]'
-                    }`}
-                  >
-                    <div className="text-sm font-semibold text-[var(--text)]">{preset.label}</div>
-                    <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{preset.description}</p>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_360px]">
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur">
-            <div className="mb-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.beforeAfterEyebrow}</div>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                {copy.sections.beforeAfterTitle}
-              </h2>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.originalTopic}</div>
-                <p className="mt-3 text-sm leading-6 text-[var(--text)]">{beforeAfterTopic}</p>
-              </div>
-
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.strategyLayer}</div>
-                <p className="mt-3 text-sm leading-6 text-[var(--text)]">{selectedScenario.strategy}</p>
-                <p className="mt-3 text-xs uppercase tracking-[0.18em] text-[var(--subtle)]">
-                  {copy.sections.goal}: {beforeAfterGoal} • {copy.sections.voice}: {selectedVoice.label}
+              <div className="space-y-4">
+                <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-[-0.03em] text-[#1A1A1A] md:text-6xl">
+                  法律事務所的 AI 內容系統
+                </h1>
+                <p className="max-w-2xl text-lg leading-8 text-[#425066] md:text-2xl">
+                  一個主題，自動產出 Instagram 圖文 + SEO 文章。每篇省下 2–3 小時。
                 </p>
               </div>
-
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--subtle)]">{copy.sections.platformOutputs}</div>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--text)]">
-                  {selectedScenario.platformOutcomes.map((outcome) => (
-                    <li key={outcome}>{outcome}</li>
-                  ))}
-                </ul>
-              </div>
             </div>
-          </div>
 
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur">
-            <div className="mb-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.goldenEyebrow}</div>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                {copy.sections.goldenTitle}
-              </h2>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                ['每月內容產能', '8 篇以上'],
+                ['單篇準備時間', '5 分鐘'],
+                ['審稿方式', '律師最後把關'],
+              ].map(([label, value]) => (
+                <SurfaceCard key={label} className="p-5">
+                  <p className="text-sm font-medium text-[#5B6472]">{label}</p>
+                  <p className="mt-3 text-2xl font-black text-[#1A1A1A]">{value}</p>
+                </SurfaceCard>
+              ))}
             </div>
-            <p className="text-sm leading-6 text-[var(--muted)]">
-              {copy.sections.goldenBody}
-            </p>
-            <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="text-sm font-semibold text-[var(--text)]">{legalGoldenScenario.label}</div>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{legalGoldenScenario.transformation}</p>
-            </div>
-            <button
-              type="button"
-              onClick={applyGoldenScenario}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
-            >
-              {copy.header.loadGolden}
-            </button>
-          </div>
-        </section>
 
-        <section>
-          <div className="mb-6 max-w-2xl">
-            <div className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">
-              {copy.sections.demoBriefEyebrow}
-            </div>
-            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[var(--text)] sm:text-4xl">
-              {copy.sections.demoBriefTitle}
-            </h2>
-            <p className="mt-3 text-base leading-7 text-[var(--muted)]">
-              {copy.sections.demoBriefBody}
-            </p>
-          </div>
-
-          <InstagramForm
-            key={selectedScenarioLabel}
-            onSubmit={handleSubmit}
-            disabled={isWorking}
-            presets={legalDemoPresets}
-            presetsTitle={copy.sections.presetsTitle}
-            presetsDescription={copy.sections.presetsDescription}
-            submitLabel={lastSubmitted ? copy.sections.editFlowButton : copy.sections.submitLabel}
-            initialTopic={selectedScenario.topic}
-            initialTemplateText={selectedScenario.templateText}
-            initialGoal={selectedScenario.goal}
-            topicPlaceholder={copy.sections.topicPlaceholder}
-            templatePlaceholder={copy.sections.templatePlaceholder}
-            bestInputTips={copy.sections.bestInputTips}
-            onPreviewChange={setPreview}
-            formAnchorId="legal-demo-form"
-            helperPanel={editPanel}
-          />
-        </section>
-
-        {status === 'error' && error && (
-          <div className="rounded-3xl border border-rose-400/30 bg-rose-400/10 p-5 text-[var(--text)]">
-            <div>
-              <strong className="block text-base">{copy.sections.errorTitle}</strong>
-              <p className="mt-2 text-sm leading-6 text-rose-100/90">{error}</p>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-[var(--text)] transition hover:bg-white/10"
-                onClick={handleRetry}
+            <div className="flex flex-wrap gap-4">
+              <a
+                href="#cta"
+                className="inline-flex items-center justify-center rounded-[8px] px-6 py-3 text-base font-semibold text-white transition"
+                style={{ background: PRIMARY }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = '#324468'
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = PRIMARY
+                }}
               >
-                {copy.sections.reset}
-              </button>
-              {fallbackResult && fallbackConfig?.enabled === true && fallbackConfig?.mode === 'manual' && (
-                <button
-                  className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
-                  onClick={applyConfiguredFallback}
-                >
-                  {fallbackConfig?.label || copy.sections.useGolden}
-                </button>
-              )}
+                預約 2 週免費試用
+              </a>
+              <a
+                href="#live-demo"
+                className="inline-flex items-center justify-center rounded-full border px-6 py-3 text-base font-semibold text-[#1A1A1A]"
+                style={{ borderColor: PAGE_BORDER, background: '#F7F8FB' }}
+              >
+                直接試一個主題
+              </a>
             </div>
           </div>
-        )}
 
-        {(styleAnalysis || content || scorecard) && (
-          <section>
-            <div className="mb-6 max-w-2xl">
-              <div>
-                <span className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--subtle)]">{copy.sections.outputEyebrow}</span>
-                <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[var(--text)] sm:text-4xl">
-                  {copy.sections.outputTitle}
-                </h2>
-              </div>
-              <p className="mt-3 text-base leading-7 text-[var(--muted)]">
-                {copy.sections.outputBody}
-              </p>
+          <SurfaceCard className="overflow-hidden">
+            <div className="border-b border-[rgba(59,79,122,0.08)] bg-[#F7F8FB] px-6 py-5">
+              <p className="text-sm font-semibold text-[#3B4F7A]">你會展示給客戶看的，不只是貼文，而是一套穩定內容流程</p>
+            </div>
+            <div className="grid gap-4 p-6">
+              {[
+                {
+                  title: 'Instagram 圖文',
+                  body: '先用一組有說服力的輪播圖文，快速抓住潛在客戶的注意力與信任感。',
+                },
+                {
+                  title: 'SEO 文章骨架',
+                  body: '同一個主題同步整理成文章標題、大綱與首段摘要，直接交給網站或內容編輯延伸。',
+                },
+                {
+                  title: '律師最後審稿',
+                  body: '內容生成不是取代專業，而是把律師的時間集中在最有價值的最後確認。',
+                },
+              ].map((item) => (
+                <div key={item.title} className="rounded-2xl bg-[#F7F8FB] p-5">
+                  <h3 className="text-lg font-black text-[#1A1A1A]">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-7 text-[#425066]">{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </SurfaceCard>
+        </section>
+
+        <LegalSection
+          eyebrow="預製範例"
+          title="直接看到法律內容長什麼樣"
+          description="以下三組內容直接模擬法律事務所最常需要對外說明的主題，讓會議現場可以快速感受最終輸出的樣子。"
+        >
+          <div className="flex flex-wrap gap-3">
+            {SAMPLE_CASES.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => {
+                  setActiveCaseKey(item.key)
+                  setActiveSampleTab('instagram')
+                }}
+                className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
+                  activeCase.key === item.key ? 'text-white' : 'text-[#1A1A1A]'
+                }`}
+                style={{
+                  background: activeCase.key === item.key ? PRIMARY : '#EEF2F8',
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <SurfaceCard className="p-6 md:p-8">
+            <div className="mb-6 space-y-2">
+              <p className="text-sm font-semibold text-[#3B4F7A]">範例主題</p>
+              <h3 className="text-2xl font-black text-[#1A1A1A]">{activeCase.label}</h3>
+            </div>
+            <ShowcaseTabs content={activeCase.instagram} activeTab={activeSampleTab} onChange={setActiveSampleTab} />
+          </SurfaceCard>
+        </LegalSection>
+
+        <LegalSection
+          id="live-demo"
+          eyebrow="即時體驗區"
+          title="試試你的主題"
+          description="直接輸入你想推廣的法律主題，頁面會即時整理成可展示的 Instagram 圖文與文章骨架。"
+        >
+          <SurfaceCard className="p-6 md:p-8">
+            <div className="grid gap-4 md:grid-cols-[1fr,160px]">
+              <input
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+                placeholder="輸入法律主題，例如：遺產繼承程序"
+                className="rounded-2xl border bg-[#FCFCFB] px-5 py-4 text-base text-[#1A1A1A] outline-none transition placeholder:text-[#8A93A3] focus:border-[#3B4F7A]"
+                style={{ borderColor: PAGE_BORDER }}
+              />
+              <button
+                type="button"
+                onClick={() => void handleGenerate()}
+                disabled={status === 'loading'}
+                className="rounded-[8px] px-5 py-4 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
+                style={{ background: PRIMARY }}
+                onMouseEnter={(event) => {
+                  if (!event.currentTarget.disabled) {
+                    event.currentTarget.style.background = '#324468'
+                  }
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = PRIMARY
+                }}
+              >
+                {status === 'loading' ? '產生中…' : '產生內容'}
+              </button>
             </div>
 
-            {styleAnalysis && (
-              <section className="mb-6 rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
-                <div className="mb-4">
-                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.styleRead}</span>
-                  <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">{copy.sections.detectedVoice}</h3>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {styleAnalysis.tone_keywords.map((keyword) => (
-                    <span
-                      key={keyword}
-                      className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text)]"
-                    >
-                      {keyword}
-                    </span>
-                  ))}
-                </div>
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 flex flex-wrap gap-3 text-sm">
+              {['遺產繼承程序', '醫療糾紛處理', '公司章程設計'].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setTopic(preset)}
+                  className="rounded-full bg-[#EEF2F8] px-4 py-2 font-medium text-[#425066]"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+
+            {error ? (
+              <div className="mt-5 rounded-2xl border border-[#E5C7C7] bg-[#FFF7F7] px-5 py-4 text-sm leading-7 text-[#7A2F2F]">
+                {error}
+              </div>
+            ) : null}
+
+            {liveContent ? (
+              <div className="mt-8 space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-sm font-semibold text-[var(--text)]">{copy.sections.structuralPatterns}</h4>
-                    <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--muted)]">
-                      {styleAnalysis.structural_patterns.map((pattern) => (
-                        <li key={pattern}>{pattern}</li>
-                      ))}
-                    </ul>
+                    <p className="text-sm font-semibold text-[#3B4F7A]">最新主題</p>
+                    <h3 className="text-2xl font-black text-[#1A1A1A]">{topic.trim()}</h3>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-[var(--text)]">{copy.sections.vocabularyNotes}</h4>
-                    <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{styleAnalysis.vocabulary_notes}</p>
+                  <div className="rounded-full bg-[#EEF2F8] px-4 py-2 text-sm font-semibold text-[#425066]">
+                    {status === 'loading' ? '內容整理中' : '已生成可展示內容'}
                   </div>
                 </div>
-              </section>
+
+                <ShowcaseTabs content={liveContent} activeTab={activeLiveTab} onChange={setActiveLiveTab} />
+              </div>
+            ) : (
+              <div className="mt-8 rounded-2xl bg-[#F7F8FB] px-6 py-8 text-sm leading-8 text-[#5B6472]">
+                輸入一個法律主題後，這裡會顯示 Instagram Caption、5 張 Carousel 卡片，以及對應的文章標題與大綱。
+              </div>
             )}
+          </SurfaceCard>
+        </LegalSection>
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_360px]">
-              {content && (
-                <div>
-                  <InstagramResultView content={content} critique={critique ?? ''} />
-                </div>
-              )}
-
-              <div className="space-y-6">
-                {scorecard && (
-                  <div>
-                    <ScorecardRadar scorecard={scorecard} />
-                  </div>
-                )}
-
-                {critique !== null && content && (
-                  <section className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5">
-                    <div className="mb-4">
-                      <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.sections.preview}</span>
-                      <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">{copy.sections.carouselDeck}</h3>
-                    </div>
-                    <CarouselPreview slides={content.carousel_outline} />
-                  </section>
-                )}
-              </div>
+        <LegalSection
+          eyebrow="價值對比"
+          title="把律師時間花在最後把關，而不是從零開始寫"
+          description="這不是要取代律師，而是把原本散落在蒐集資料、整理架構、撰寫初稿的時間集中縮短。"
+        >
+          <SurfaceCard className="overflow-hidden">
+            <div className="grid grid-cols-3 bg-[#F3F5F8] text-sm font-semibold text-[#425066]">
+              <div className="px-5 py-4">項目</div>
+              <div className="px-5 py-4">傳統做法</div>
+              <div className="px-5 py-4">使用 Neoxra</div>
             </div>
-          </section>
-        )}
-          </>
-        ) : null}
+            {[
+              ['一篇 IG 圖文', '1.5–2 小時', '5 分鐘'],
+              ['一篇 SEO 文章', '2–3 小時', '5 分鐘'],
+              ['每月 8 篇內容', '20+ 小時', '< 2 小時'],
+              ['需要的人力', '1 位內容編輯', 'AI 系統 + 律師審稿'],
+            ].map((row, index) => (
+              <div
+                key={row[0]}
+                className={`grid grid-cols-3 text-sm md:text-base ${index !== 3 ? 'border-t' : ''}`}
+                style={{ borderColor: 'rgba(59,79,122,0.08)' }}
+              >
+                <div className="px-5 py-4 font-semibold text-[#1A1A1A]">{row[0]}</div>
+                <div className="px-5 py-4 text-[#5B6472]">{row[1]}</div>
+                <div className="px-5 py-4 font-semibold text-[#1A1A1A]">{row[2]}</div>
+              </div>
+            ))}
+          </SurfaceCard>
+        </LegalSection>
+
+        <section
+          id="cta"
+          className="rounded-[28px] border border-[rgba(59,79,122,0.12)] bg-white px-8 py-10 text-center md:px-12 md:py-14"
+          style={{ boxShadow: '0 16px 40px rgba(59,79,122,0.08)' }}
+        >
+          <div className="mx-auto max-w-3xl space-y-5">
+            <h2 className="text-3xl font-black leading-tight text-[#1A1A1A] md:text-5xl">如果你希望內容穩定產出，現在就安排 2 週免費試用</h2>
+            <p className="text-lg leading-8 text-[#5B6472]">
+              用真實主題測試內容產出速度、律師審稿流程與每月固定欄位規劃，直接評估是否適合導入 NTD 20,000 / 月的 pilot。
+            </p>
+            <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <a
+                href="mailto:support@neoxra.com?subject=%E9%A0%90%E7%B4%84%202%20%E9%80%B1%E5%85%8D%E8%B2%BB%E8%A9%A6%E7%94%A8"
+                className="inline-flex items-center justify-center rounded-[8px] px-7 py-3 text-base font-semibold text-white transition"
+                style={{ background: PRIMARY }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = '#324468'
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = PRIMARY
+                }}
+              >
+                預約 2 週免費試用
+              </a>
+              <Link
+                href="/instagram"
+                className="inline-flex items-center justify-center rounded-full border px-7 py-3 text-base font-semibold text-[#1A1A1A]"
+                style={{ borderColor: PAGE_BORDER, background: '#F7F8FB' }}
+              >
+                看更多內容範例
+              </Link>
+            </div>
+            <p className="text-sm text-[#7A8394]">由 Neoxra 提供技術支援</p>
+          </div>
+        </section>
       </div>
     </main>
   )
