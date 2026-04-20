@@ -12,6 +12,8 @@ def test_usage_events_and_demo_runs_persist_with_sqlite(monkeypatch, tmp_path):
     handle = create_demo_run(
         route="/api/run",
         pipeline="core",
+        organization_id=None,
+        user_id=None,
         surface="landing",
         source="landing",
         visitor_id="visitor-1",

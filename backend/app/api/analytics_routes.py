@@ -81,10 +81,13 @@ async def capture_analytics_event(request: Request, payload: AnalyticsEventReque
         metadata = dict(payload.metadata or {})
         visitor_id = get_visitor_id(request) or metadata.pop("visitor_id", None)
         session_id = get_session_id(request) or metadata.pop("session_id", None)
+        auth = getattr(request.state, "auth", None)
         record_usage_event(
             route=payload.route,
             pipeline="frontend",
             event_name=payload.event_name,
+            organization_id=getattr(auth, "organization_id", None),
+            user_id=getattr(auth, "user_id", None),
             status="tracked",
             locale=payload.locale,
             surface=payload.surface,
