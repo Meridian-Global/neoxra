@@ -30,6 +30,8 @@ const KNOWN_EVENTS = new Set([
   'error',
 ])
 
+const KNOWN_PLATFORMS = new Set<PlatformKey>(['linkedin', 'instagram', 'threads'])
+
 function createDemoCopy(language: 'en' | 'zh-TW') {
   if (language === 'zh-TW') {
     return {
@@ -342,6 +344,7 @@ export function DemoSection() {
           typeof data?.status === 'string' &&
           typeof data?.content === 'string'
         ) {
+          if (!KNOWN_PLATFORMS.has(data.platform as PlatformKey)) continue
           const platform = data.platform as PlatformKey
           setOutputs(prev => ({
             ...prev,

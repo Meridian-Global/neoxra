@@ -5,6 +5,7 @@ any backend change that would break the frontend is caught immediately.
 """
 
 import json
+import unittest.mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -147,11 +148,13 @@ def _parse_sse_stream(raw: str) -> list[dict]:
 
 def _fire_pipeline() -> list[dict]:
     """Mock the core client, hit the route, return parsed SSE events."""
-    instagram_routes._get_core_client = lambda: FakeInstagramCoreClient()
-    resp = client.post(
-        "/api/instagram/generate",
-        json={"topic": "test", "template_text": "template", "locale": "en"},
-    )
+    with unittest.mock.patch.object(
+        instagram_routes, "_get_core_client", return_value=FakeInstagramCoreClient()
+    ):
+        resp = client.post(
+            "/api/instagram/generate",
+            json={"topic": "test", "template_text": "template", "locale": "en"},
+        )
     assert resp.status_code == 200
     return _parse_sse_stream(resp.text)
 
