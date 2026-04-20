@@ -37,6 +37,7 @@ The AI engine lives in the private sibling repo `neoxra-core`.
 Useful docs:
 
 - [docs/architecture.md](./docs/architecture.md)
+- [docs/public-private-boundary.md](./docs/public-private-boundary.md)
 - [docs/deployment.md](./docs/deployment.md)
 - [backend/.env.example](./backend/.env.example)
 

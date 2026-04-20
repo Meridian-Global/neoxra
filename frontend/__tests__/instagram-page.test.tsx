@@ -62,8 +62,8 @@ async function fillAndSubmit() {
 describe('InstagramPage progressive rendering', () => {
   it('shows content sections after generation_completed (no scorecard)', async () => {
     mockEvents([
-      { event: 'style_analysis_completed', data: mockStyleAnalysis },
-      { event: 'generation_completed', data: mockContent },
+      { event: 'style_ready', data: mockStyleAnalysis },
+      { event: 'content_ready', data: mockContent },
     ])
 
     render(<InstagramPage />)
@@ -91,9 +91,9 @@ describe('InstagramPage progressive rendering', () => {
 
   it('shows scorecard bar chart after scoring_completed', async () => {
     mockEvents([
-      { event: 'style_analysis_completed', data: mockStyleAnalysis },
-      { event: 'generation_completed', data: mockContent },
-      { event: 'scoring_completed', data: mockScoreData },
+      { event: 'style_ready', data: mockStyleAnalysis },
+      { event: 'content_ready', data: mockContent },
+      { event: 'score_ready', data: mockScoreData },
     ])
 
     render(<InstagramPage />)
@@ -116,9 +116,9 @@ describe('InstagramPage progressive rendering', () => {
 
   it('shows all sections including carousel deck and critique after pipeline_completed', async () => {
     mockEvents([
-      { event: 'style_analysis_completed', data: mockStyleAnalysis },
-      { event: 'generation_completed', data: mockContent },
-      { event: 'scoring_completed', data: mockScoreData },
+      { event: 'style_ready', data: mockStyleAnalysis },
+      { event: 'content_ready', data: mockContent },
+      { event: 'score_ready', data: mockScoreData },
       { event: 'pipeline_completed', data: mockPipelineResult },
     ])
 
@@ -147,8 +147,8 @@ describe('InstagramPage progressive rendering', () => {
 
   it('shows stage indicator during streaming', async () => {
     mockEvents([
-      { event: 'style_analysis_started', data: {} },
-      { event: 'style_analysis_completed', data: mockStyleAnalysis },
+      { event: 'phase_started', data: { phase: 'analysis' } },
+      { event: 'style_ready', data: mockStyleAnalysis },
     ])
 
     render(<InstagramPage />)
@@ -165,7 +165,7 @@ describe('InstagramPage progressive rendering', () => {
 
   it('renders error banner when backend emits an error event', async () => {
     mockEvents([
-      { event: 'style_analysis_completed', data: mockStyleAnalysis },
+      { event: 'style_ready', data: mockStyleAnalysis },
       { event: 'error', data: { message: 'Rate limit exceeded' } },
     ])
 
@@ -183,7 +183,7 @@ describe('InstagramPage progressive rendering', () => {
 
   it('renders error banner when stream throws a network error', async () => {
     mockStreamSSE.mockImplementation(async function* () {
-      yield { event: 'style_analysis_completed', data: mockStyleAnalysis }
+      yield { event: 'style_ready', data: mockStyleAnalysis }
       throw new Error('Network connection lost')
     })
 
@@ -198,8 +198,8 @@ describe('InstagramPage progressive rendering', () => {
 
   it('treats early stream close without pipeline_completed as an error', async () => {
     mockEvents([
-      { event: 'style_analysis_completed', data: mockStyleAnalysis },
-      { event: 'generation_completed', data: mockContent },
+      { event: 'style_ready', data: mockStyleAnalysis },
+      { event: 'content_ready', data: mockContent },
     ])
 
     render(<InstagramPage />)
@@ -217,7 +217,7 @@ describe('InstagramPage progressive rendering', () => {
 
     mockStreamSSE.mockImplementation(async function* (_url, _body, options) {
       const signal = options instanceof AbortSignal ? options : options?.signal
-      yield { event: 'style_analysis_started', data: {} }
+      yield { event: 'phase_started', data: { phase: 'analysis' } }
       // Hang here until the test aborts via the signal
       await Promise.race([
         blockForever,
@@ -227,7 +227,7 @@ describe('InstagramPage progressive rendering', () => {
       ])
       // If signal was aborted, this should not be consumed
       if (!signal?.aborted) {
-        yield { event: 'generation_completed', data: mockContent }
+        yield { event: 'content_ready', data: mockContent }
       }
     })
 
@@ -250,7 +250,7 @@ describe('InstagramPage progressive rendering', () => {
       expect(screen.getByText('Ready')).toBeInTheDocument()
     })
 
-    // generation_completed was never yielded, so caption should not appear
+    // content_ready was never yielded, so caption should not appear
     expect(screen.queryByText(mockContent.caption)).not.toBeInTheDocument()
 
     // Unblock so the generator can clean up

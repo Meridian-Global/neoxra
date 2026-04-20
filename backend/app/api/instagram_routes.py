@@ -40,6 +40,12 @@ VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+_PUBLIC_PHASE_BY_STAGE = {
+    "style_analysis_started": "analysis",
+    "generation_started": "drafting",
+    "scoring_started": "review",
+}
+
 
 class InstagramGenerateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -124,6 +130,13 @@ def _require_instagram_dependencies(core_client=None) -> None:
 
 def _get_core_client():
     return get_core_client()
+
+
+def _public_phase_event(stage_event: str) -> dict[str, object]:
+    return {
+        "event": "phase_started",
+        "data": {"phase": _PUBLIC_PHASE_BY_STAGE[stage_event]},
+    }
 
 
 def _require_anthropic_api_key() -> None:
@@ -217,7 +230,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 # Step 1: Style analysis
                 tracker.stage_started("style_analysis")
                 _log_instagram_event("style_analysis_started", locale=req.locale, demo_surface=demo_surface)
-                yield _sse("style_analysis_started", {})
+                yield _sse(**_public_phase_event("style_analysis_started"))
                 try:
                     style_data = validate_style_analysis_payload(
                         core_client.analyze_instagram_style(
@@ -263,12 +276,12 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     return
                 tracker.stage_completed("style_analysis")
                 _log_instagram_event("style_analysis_completed", locale=req.locale, demo_surface=demo_surface)
-                yield _sse("style_analysis_completed", style_data)
+                yield _sse("style_ready", style_data)
 
                 # Step 2: Content generation
                 tracker.stage_started("generation")
                 _log_instagram_event("generation_started", locale=req.locale, demo_surface=demo_surface)
-                yield _sse("generation_started", {})
+                yield _sse(**_public_phase_event("generation_started"))
                 try:
                     gen_meta = validate_instagram_generation_payload(
                         core_client.generate_instagram_content(
@@ -316,12 +329,12 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     return
                 tracker.stage_completed("generation")
                 _log_instagram_event("generation_completed", locale=req.locale, demo_surface=demo_surface)
-                yield _sse("generation_completed", gen_meta)
+                yield _sse("content_ready", gen_meta)
 
                 # Step 3: Scoring
                 tracker.stage_started("scoring")
                 _log_instagram_event("scoring_started", locale=req.locale, demo_surface=demo_surface)
-                yield _sse("scoring_started", {})
+                yield _sse(**_public_phase_event("scoring_started"))
                 try:
                     score_data, critique = core_client.score_instagram_content(
                         content=gen_meta,
@@ -366,7 +379,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     return
                 tracker.stage_completed("scoring")
                 _log_instagram_event("scoring_completed", locale=req.locale, demo_surface=demo_surface)
-                yield _sse("scoring_completed", score_data)
+                yield _sse("score_ready", score_data)
 
                 # Final result
                 average = round(

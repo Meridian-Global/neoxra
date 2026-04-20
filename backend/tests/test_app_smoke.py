@@ -52,6 +52,77 @@ def test_core_route_exists(monkeypatch):
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["content-type"]
     assert "X-Request-ID" in response.headers
+    assert "event: planner_started" not in response.text
+    assert "event: phase_started" in response.text
+    assert '"phase": "briefing"' in response.text
+
+
+def test_core_route_maps_internal_events_to_public_sse_contract(monkeypatch):
+    reset_generation_metrics()
+    reset_generation_guards()
+
+    def fake_run_pipeline_stream(idea: str, voice_profile: str = "default", locale: str = "en"):
+        yield {"event": "planner_started", "data": {}}
+        yield {
+            "event": "planner_completed",
+            "data": {
+                "brief": {
+                    "original_idea": "hello",
+                    "core_angle": "angle",
+                    "target_audience": "audience",
+                    "tone": "tone",
+                    "instagram_notes": "ig",
+                    "threads_notes": "th",
+                    "linkedin_notes": "li",
+                }
+            },
+        }
+        yield {"event": "instagram_pass1_started", "data": {}}
+        yield {"event": "instagram_pass1_completed", "data": {"thinking": "t", "output": "ig draft"}}
+        yield {"event": "critic_started", "data": {}}
+        yield {
+            "event": "critic_completed",
+            "data": {
+                "notes": "notes",
+                "instagram_improved": "ig",
+                "threads_improved": "th",
+                "linkedin_improved": "li",
+            },
+        }
+        yield {
+            "event": "pipeline_completed",
+            "data": {
+                "brief": {
+                    "original_idea": "hello",
+                    "core_angle": "angle",
+                    "target_audience": "audience",
+                    "tone": "tone",
+                    "instagram_notes": "ig",
+                    "threads_notes": "th",
+                    "linkedin_notes": "li",
+                },
+                "instagram": "instagram",
+                "threads": "threads",
+                "linkedin": "linkedin",
+                "instagram_final": "instagram_final",
+                "threads_final": "threads_final",
+                "linkedin_final": "linkedin_final",
+                "critic_notes": "notes",
+            },
+        }
+
+    monkeypatch.setattr(core_routes, "_get_core_client", lambda: _make_fake_core_client(fake_run_pipeline_stream))
+
+    client = TestClient(app)
+    response = client.post("/api/run", json={"idea": "hello"})
+
+    assert response.status_code == 200
+    assert "event: brief_ready" in response.text
+    assert "event: platform_output" in response.text
+    assert "event: review_ready" in response.text
+    assert "event: planner_completed" not in response.text
+    assert "event: instagram_pass1_completed" not in response.text
+    assert "event: critic_completed" not in response.text
 
 
 def test_health_route_sets_request_id_header():

@@ -11,6 +11,10 @@ Neoxra is split across two repos:
 - `neoxra-core`
   The private AI engine. This repo contains prompts, skills, models, and generation logic used by the backend.
 
+For the explicit public/private repo rules, see:
+
+- [docs/public-private-boundary.md](./public-private-boundary.md)
+
 ## How The Repos Relate
 
 `neoxra` does not reimplement generation logic. Instead, the backend installs `neoxra-core` as a Python package and calls into it at runtime.
@@ -74,8 +78,10 @@ The backend imports this package and adapts its outputs into the public API cont
 1. frontend sends an idea to the backend
 2. backend validates the request
 3. backend calls the core pipeline
-4. backend streams lifecycle events over SSE
-5. frontend updates the UI only when `pipeline_completed` is received
+4. backend streams product-safe lifecycle events over SSE
+5. frontend updates the UI progressively from product-level events and treats `pipeline_completed` as the final success signal
+
+The public SSE contract is intentionally product-facing. The backend may use richer internal orchestration events, but the public stream should expose product-level phases rather than internal architecture details where possible.
 
 ### `/api/instagram/generate`
 
@@ -86,7 +92,7 @@ The backend imports this package and adapts its outputs into the public API cont
    - Instagram generation
    - content scoring
 4. backend validates the generated payload shape
-5. backend streams the result back over SSE
+5. backend streams the result back over SSE using product-level events such as `phase_started`, `style_ready`, `content_ready`, `score_ready`, and `pipeline_completed`
 
 ## Deployment Shape Today
 
@@ -120,3 +126,19 @@ That is intentional. The current system keeps:
 - core AI as one installed package
 
 This keeps the system simpler for demos, early iteration, and small-team operation.
+
+## Boundary Reminder
+
+The public repo owns:
+
+- product shell code
+- public API contracts
+- safe public SSE semantics
+- deployment and demo config
+
+The private repo owns:
+
+- prompts
+- skills
+- generation heuristics
+- private orchestration logic

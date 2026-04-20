@@ -22,22 +22,10 @@ type OutputState = Record<
 
 const KNOWN_EVENTS = new Set([
   'pipeline_started',
-  'planner_started',
-  'planner_completed',
-  'instagram_pass1_started',
-  'instagram_pass1_completed',
-  'threads_pass1_started',
-  'threads_pass1_completed',
-  'linkedin_pass1_started',
-  'linkedin_pass1_completed',
-  'instagram_pass2_started',
-  'instagram_pass2_completed',
-  'threads_pass2_started',
-  'threads_pass2_completed',
-  'linkedin_pass2_started',
-  'linkedin_pass2_completed',
-  'critic_started',
-  'critic_completed',
+  'phase_started',
+  'brief_ready',
+  'platform_output',
+  'review_ready',
   'pipeline_completed',
   'error',
 ])
@@ -48,23 +36,15 @@ function createDemoCopy(language: 'en' | 'zh-TW') {
       defaultIdea: 'AI 工具如何幫助小團隊在不增加人力的情況下更快推進。',
       stageCopy: {
         pipeline_started: { step: 'planner', message: '正在開啟即時生成流程。' },
-        planner_started: { step: 'planner', message: '正在建立核心訊息與受眾 framing。' },
-        instagram_pass1_started: { step: 'agents', message: '正在起草視覺導向的 Instagram 版本。', platform: 'instagram' },
-        threads_pass1_started: { step: 'agents', message: '正在起草節奏更快的 Threads 版本。', platform: 'threads' },
-        linkedin_pass1_started: { step: 'agents', message: '正在起草專業型 LinkedIn 版本。', platform: 'linkedin' },
-        instagram_pass2_started: { step: 'agents', message: '正在優化 Instagram 的 hook 與結構。', platform: 'instagram' },
-        threads_pass2_started: { step: 'agents', message: '正在優化 Threads 的節奏與可讀性。', platform: 'threads' },
-        linkedin_pass2_started: { step: 'agents', message: '正在優化 LinkedIn 的商業清晰度與權威感。', platform: 'linkedin' },
-        critic_started: { step: 'critic', message: '正在檢查整體品質與一致性。' },
-      } as Record<string, { step: StepId; message: string; platform?: PlatformKey }>,
-      platformEventMap: {
-        linkedin_pass1_completed: { platform: 'linkedin', status: '已起稿' },
-        linkedin_pass2_completed: { platform: 'linkedin', status: '已優化' },
-        instagram_pass1_completed: { platform: 'instagram', status: '已起稿' },
-        instagram_pass2_completed: { platform: 'instagram', status: '已優化' },
-        threads_pass1_completed: { platform: 'threads', status: '已起稿' },
-        threads_pass2_completed: { platform: 'threads', status: '已優化' },
-      } as Record<string, { platform: PlatformKey; status: string }>,
+        briefing: { step: 'planner', message: '正在建立核心訊息與受眾 framing。' },
+        drafting: { step: 'agents', message: '正在為各平台起草第一版內容。' },
+        refining: { step: 'agents', message: '正在優化各平台版本的結構與說服力。' },
+        review: { step: 'critic', message: '正在檢查整體品質與一致性。' },
+      } as Record<string, { step: StepId; message: string }>,
+      platformStatuses: {
+        drafted: '已起稿',
+        refined: '已優化',
+      } as Record<string, string>,
       platformMeta: [
         {
           key: 'linkedin' as const,
@@ -89,9 +69,9 @@ function createDemoCopy(language: 'en' | 'zh-TW') {
         waiting: '等待中',
       },
       steps: {
-        planner: '規劃',
-        agents: '平台代理',
-        critic: '檢查',
+        planner: '訊息策略',
+        agents: '平台輸出',
+        critic: '最終審閱',
         waiting: '等待中',
         completed: '已完成',
         ready: '準備完成',
@@ -112,14 +92,14 @@ function createDemoCopy(language: 'en' | 'zh-TW') {
         title: '展示產品，而不是只講產品。',
         body: '輸入一個想法，觀看 Neoxra 即時產出 planner brief、協調各平台代理，並回傳平台原生內容。',
         tryIdea: '試一個想法',
-        helper: '用既有 SSE pipeline 做即時多平台生成',
+        helper: '以產品層級進度顯示即時多平台生成',
         input: '輸入',
         placeholder: '輸入你想轉成內容系統的主題。',
         generate: '開始生成',
         generating: '生成中…',
         stop: '停止',
         pipelineStatus: '流程狀態',
-        plannerBrief: '規劃 brief',
+        plannerBrief: '策略 brief',
         demoUnavailable: 'Demo 暫時不可用',
         generatedOutputs: '生成結果',
         generatedHelper: '一次生成 LinkedIn、Instagram 與 Threads',
@@ -147,23 +127,15 @@ function createDemoCopy(language: 'en' | 'zh-TW') {
     defaultIdea: 'How AI tools help small teams ship faster without adding headcount.',
     stageCopy: {
       pipeline_started: { step: 'planner', message: 'Opening the live generation workflow.' },
-      planner_started: { step: 'planner', message: 'Building the core message and audience framing.' },
-      instagram_pass1_started: { step: 'agents', message: 'Drafting the visual-first Instagram version.', platform: 'instagram' },
-      threads_pass1_started: { step: 'agents', message: 'Drafting the conversational Threads version.', platform: 'threads' },
-      linkedin_pass1_started: { step: 'agents', message: 'Drafting the professional LinkedIn version.', platform: 'linkedin' },
-      instagram_pass2_started: { step: 'agents', message: 'Refining Instagram for stronger hooks and structure.', platform: 'instagram' },
-      threads_pass2_started: { step: 'agents', message: 'Refining Threads for pace and readability.', platform: 'threads' },
-      linkedin_pass2_started: { step: 'agents', message: 'Refining LinkedIn for business clarity and authority.', platform: 'linkedin' },
-      critic_started: { step: 'critic', message: 'Reviewing the final set for quality and consistency.' },
-    } as Record<string, { step: StepId; message: string; platform?: PlatformKey }>,
-    platformEventMap: {
-      linkedin_pass1_completed: { platform: 'linkedin', status: 'Drafted' },
-      linkedin_pass2_completed: { platform: 'linkedin', status: 'Refined' },
-      instagram_pass1_completed: { platform: 'instagram', status: 'Drafted' },
-      instagram_pass2_completed: { platform: 'instagram', status: 'Refined' },
-      threads_pass1_completed: { platform: 'threads', status: 'Drafted' },
-      threads_pass2_completed: { platform: 'threads', status: 'Refined' },
-    } as Record<string, { platform: PlatformKey; status: string }>,
+      briefing: { step: 'planner', message: 'Building the core message and audience framing.' },
+      drafting: { step: 'agents', message: 'Drafting the first version for each platform.' },
+      refining: { step: 'agents', message: 'Refining each platform version for stronger fit and clarity.' },
+      review: { step: 'critic', message: 'Reviewing the final set for quality and consistency.' },
+    } as Record<string, { step: StepId; message: string }>,
+    platformStatuses: {
+      drafted: 'Drafted',
+      refined: 'Refined',
+    } as Record<string, string>,
     platformMeta: [
       {
         key: 'linkedin' as const,
@@ -188,9 +160,9 @@ function createDemoCopy(language: 'en' | 'zh-TW') {
       waiting: 'Waiting',
     },
     steps: {
-      planner: 'planner',
-      agents: 'agents',
-      critic: 'critic',
+      planner: 'message',
+      agents: 'channels',
+      critic: 'review',
       waiting: 'Waiting',
       completed: 'Completed',
       ready: 'ready',
@@ -209,16 +181,16 @@ function createDemoCopy(language: 'en' | 'zh-TW') {
     section: {
       eyebrow: 'Live demo',
       title: 'Show the product, not the pitch.',
-      body: 'Enter one idea and watch Neoxra stream a planner brief, coordinate platform agents, and return channel-specific outputs in real time.',
+      body: 'Enter one idea and watch Neoxra build a strategy brief, create channel-ready outputs, and return presentation-friendly content in real time.',
       tryIdea: 'Try an idea',
-      helper: 'Live multi-platform generation from the existing SSE pipeline',
+      helper: 'Live multi-platform generation with product-level progress phases',
       input: 'Input',
       placeholder: 'Explain the idea you want to turn into content.',
       generate: 'Generate',
       generating: 'Generating…',
       stop: 'Stop',
       pipelineStatus: 'Pipeline status',
-      plannerBrief: 'Planner brief',
+      plannerBrief: 'Strategy brief',
       demoUnavailable: 'Demo temporarily unavailable',
       generatedOutputs: 'Generated outputs',
       generatedHelper: 'LinkedIn, Instagram, and Threads from one run',
@@ -311,7 +283,7 @@ export function DemoSection() {
 
     setStatus('running')
     setActiveStep('planner')
-    setStageMessage(copy.stageCopy.planner_started.message)
+    setStageMessage(copy.stageCopy.briefing.message)
     setOutputs(createInitialOutputs(copy))
     setCriticNotes('')
     setError('')
@@ -338,14 +310,25 @@ export function DemoSection() {
           break
         }
 
-        const stage = copy.stageCopy[event]
-        if (stage) {
+        if (event === 'pipeline_started') {
+          const stage = copy.stageCopy.pipeline_started
           setActiveStep(stage.step)
           setStageMessage(stage.message)
-          setActivePlatform(stage.platform ?? null)
+          setActivePlatform(null)
         }
 
-        if (event === 'planner_completed' && data?.brief && typeof data.brief === 'object') {
+        if (event === 'phase_started' && typeof data?.phase === 'string') {
+          const stage = copy.stageCopy[data.phase]
+          if (stage) {
+            setActiveStep(stage.step)
+            setStageMessage(stage.message)
+            setActivePlatform(
+              typeof data?.platform === 'string' ? (data.platform as PlatformKey) : null
+            )
+          }
+        }
+
+        if (event === 'brief_ready' && data?.brief && typeof data.brief === 'object') {
           const preview = Object.entries(data.brief)
             .filter(([, value]) => typeof value === 'string' && value.trim())
             .slice(0, 3) as Array<[string, string]>
@@ -353,21 +336,26 @@ export function DemoSection() {
           continue
         }
 
-        const platformEvent = copy.platformEventMap[event]
-        if (platformEvent && typeof data?.output === 'string') {
+        if (
+          event === 'platform_output' &&
+          typeof data?.platform === 'string' &&
+          typeof data?.status === 'string' &&
+          typeof data?.content === 'string'
+        ) {
+          const platform = data.platform as PlatformKey
           setOutputs(prev => ({
             ...prev,
-            [platformEvent.platform]: {
-              ...prev[platformEvent.platform],
-              status: platformEvent.status,
-              content: data.output,
+            [platform]: {
+              ...prev[platform],
+              status: copy.platformStatuses[data.status] ?? data.status,
+              content: data.content,
             },
           }))
-          setActivePlatform(platformEvent.platform)
+          setActivePlatform(platform)
           continue
         }
 
-        if (event === 'critic_completed' && typeof data?.notes === 'string') {
+        if (event === 'review_ready' && typeof data?.notes === 'string') {
           setCriticNotes(data.notes)
           setActivePlatform(null)
           continue

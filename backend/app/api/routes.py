@@ -39,6 +39,17 @@ _PIPELINE_NON_PAYLOAD_EVENTS = frozenset({
     "error",
 })
 
+_PUBLIC_PHASE_BY_INTERNAL_EVENT = {
+    "planner_started": {"phase": "briefing"},
+    "instagram_pass1_started": {"phase": "drafting", "platform": "instagram"},
+    "threads_pass1_started": {"phase": "drafting", "platform": "threads"},
+    "linkedin_pass1_started": {"phase": "drafting", "platform": "linkedin"},
+    "instagram_pass2_started": {"phase": "refining", "platform": "instagram"},
+    "threads_pass2_started": {"phase": "refining", "platform": "threads"},
+    "linkedin_pass2_started": {"phase": "refining", "platform": "linkedin"},
+    "critic_started": {"phase": "review"},
+}
+
 
 class RunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -109,6 +120,53 @@ def _get_core_client():
     return get_core_client()
 
 
+def _translate_public_event(event_name: str, data: dict) -> dict | None:
+    phase = _PUBLIC_PHASE_BY_INTERNAL_EVENT.get(event_name)
+    if phase is not None:
+        return {
+            "event": "phase_started",
+            "data": phase,
+        }
+
+    if event_name == "planner_completed":
+        return {"event": "brief_ready", "data": data}
+
+    if event_name in {
+        "instagram_pass1_completed",
+        "threads_pass1_completed",
+        "linkedin_pass1_completed",
+        "instagram_pass2_completed",
+        "threads_pass2_completed",
+        "linkedin_pass2_completed",
+    }:
+        platform = event_name.split("_", 1)[0]
+        status = "drafted" if "pass1" in event_name else "refined"
+        return {
+            "event": "platform_output",
+            "data": {
+                "platform": platform,
+                "status": status,
+                "content": data.get("output", ""),
+            },
+        }
+
+    if event_name == "critic_completed":
+        return {
+            "event": "review_ready",
+            "data": {
+                "notes": data.get("notes", ""),
+            },
+        }
+
+    if event_name == "pipeline_completed":
+        return {"event": "pipeline_completed", "data": data}
+
+    if event_name == "error":
+        return {"event": "error", "data": data}
+
+    return None
+
+
 def _require_anthropic_api_key() -> None:
     if os.getenv("ANTHROPIC_API_KEY"):
         return
@@ -126,15 +184,12 @@ async def run_pipeline(req: RunRequest, request: Request):
 
     Each event has shape: {"event": "<name>", "data": {...}}
 
-    Events emitted in order:
-      planner_started / planner_completed
-      instagram_pass1_started / instagram_pass1_completed
-      threads_pass1_started / threads_pass1_completed
-      linkedin_pass1_started / linkedin_pass1_completed
-      instagram_pass2_started / instagram_pass2_completed
-      threads_pass2_started / threads_pass2_completed
-      linkedin_pass2_started / linkedin_pass2_completed
-      critic_started / critic_completed
+    Public events emitted in order:
+      pipeline_started
+      phase_started
+      brief_ready
+      platform_output
+      review_ready
       pipeline_completed
     """
     demo_surface = require_demo_access(
@@ -240,7 +295,9 @@ async def run_pipeline(req: RunRequest, request: Request):
                     if event_name == "pipeline_completed":
                         completed = True
                         tracker.complete(voice_profile=req.voice_profile)
-                        yield sse(event)
+                        public_event = _translate_public_event(event_name, event.get("data", {}))
+                        if public_event is not None:
+                            yield sse(public_event)
                         break
                     if event_name == "error":
                         failed = True
@@ -264,7 +321,9 @@ async def run_pipeline(req: RunRequest, request: Request):
                             }
                         )
                         break
-                    yield sse(event)
+                    public_event = _translate_public_event(event_name, event.get("data", {}))
+                    if public_event is not None:
+                        yield sse(public_event)
             except Exception as exc:
                 logger.exception("Core pipeline failed before completion")
                 error_code, safe_message = public_generation_error("pipeline")

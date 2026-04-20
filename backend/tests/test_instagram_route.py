@@ -61,12 +61,12 @@ def _parse_sse_stream(raw: str) -> list[dict]:
 
 EXPECTED_EVENT_ORDER = [
     "pipeline_started",
-    "style_analysis_started",
-    "style_analysis_completed",
-    "generation_started",
-    "generation_completed",
-    "scoring_started",
-    "scoring_completed",
+    "phase_started",
+    "style_ready",
+    "phase_started",
+    "content_ready",
+    "phase_started",
+    "score_ready",
     "pipeline_completed",
 ]
 
@@ -294,9 +294,9 @@ class TestInstagramSSERoute:
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
             "pipeline_started",
-            "style_analysis_started",
-            "style_analysis_completed",
-            "generation_started",
+            "phase_started",
+            "style_ready",
+            "phase_started",
             "error",
         ]
         assert events[-1]["data"] == {
@@ -321,7 +321,7 @@ class TestInstagramSSERoute:
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
             "pipeline_started",
-            "style_analysis_started",
+            "phase_started",
             "error",
         ]
         assert events[-1]["data"] == {
@@ -346,9 +346,9 @@ class TestInstagramSSERoute:
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
             "pipeline_started",
-            "style_analysis_started",
-            "style_analysis_completed",
-            "generation_started",
+            "phase_started",
+            "style_ready",
+            "phase_started",
             "error",
         ]
         assert events[-1]["data"] == {
@@ -373,11 +373,11 @@ class TestInstagramSSERoute:
         events = _parse_sse_stream(resp.text)
         assert [event["event"] for event in events] == [
             "pipeline_started",
-            "style_analysis_started",
-            "style_analysis_completed",
-            "generation_started",
-            "generation_completed",
-            "scoring_started",
+            "phase_started",
+            "style_ready",
+            "phase_started",
+            "content_ready",
+            "phase_started",
             "error",
         ]
         assert events[-1]["data"] == {
