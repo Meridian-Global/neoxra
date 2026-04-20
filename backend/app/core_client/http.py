@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .base import CoreClientNotImplementedError
+from .signing import sign_internal_request_from_env
 from .types import CoreInstagramGenerationRequest
 
 
@@ -14,6 +15,19 @@ class HttpCoreClient:
     def _not_ready(self) -> CoreClientNotImplementedError:
         return CoreClientNotImplementedError(
             "HTTP core adapter is not implemented yet."
+        )
+
+    def build_internal_headers(
+        self,
+        *,
+        method: str,
+        path: str,
+        body: bytes,
+    ) -> dict[str, str]:
+        return sign_internal_request_from_env(
+            method=method,
+            path=path,
+            body=body,
         )
 
     def ensure_pipeline_available(self) -> None:
@@ -70,4 +84,3 @@ class HttpCoreClient:
         goal: str,
     ) -> tuple[dict[str, object], str]:
         raise self._not_ready()
-
