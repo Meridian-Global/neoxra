@@ -362,14 +362,14 @@ export default function LegalDemoPage() {
   const [content, setContent] = useState<InstagramContent | null>(null)
   const [scorecard, setScorecard] = useState<Scorecard | null>(null)
   const [critique, setCritique] = useState<string | null>(null)
-  const [resultOrigin, setResultOrigin] = useState<'live' | 'golden' | null>(null)
+  const [resultOrigin, setResultOrigin] = useState<'live' | 'golden' | 'fallback' | null>(null)
   const [demoToken, setDemoToken] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const latestPreviewRef = useRef(preview)
   const [source, setSource] = useState(() => getStoredDemoSource(demoConfig.apiSurface))
   const fallbackResult = useMemo(
-    () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback.fallback_key ?? null, language),
+    () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback?.fallback_key ?? null, language),
     [clientConfig, language],
   )
 
@@ -500,8 +500,9 @@ export default function LegalDemoPage() {
     setError(null)
     setCurrentStage('')
     setStatus('completed')
-    setResultOrigin('golden')
-  }, [fallbackResult])
+    const fbKey = clientConfig?.deterministic_fallback?.fallback_key
+    setResultOrigin(fbKey === 'legal-golden' ? 'golden' : 'fallback')
+  }, [fallbackResult, clientConfig])
 
   const handleScenarioSelect = useCallback((label: string) => {
     setSelectedScenarioLabel(label)
@@ -730,6 +731,8 @@ export default function LegalDemoPage() {
       </div>
     ) : null
 
+  const fallbackConfig = clientConfig?.deterministic_fallback
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/10" />
@@ -821,7 +824,7 @@ export default function LegalDemoPage() {
                 </div>
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
                   <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--text)]">
-                    {resultOrigin === 'golden' ? copy.header.safe : copy.header.live}
+                    {(resultOrigin === 'golden' || resultOrigin === 'fallback') ? copy.header.safe : copy.header.live}
                   </div>
                   <div className="text-sm text-[var(--subtle)]">{copy.header.mode}</div>
                 </div>
@@ -1067,12 +1070,14 @@ export default function LegalDemoPage() {
               >
                 {copy.sections.reset}
               </button>
+              {fallbackResult && fallbackConfig?.enabled === true && fallbackConfig?.mode === 'manual' && (
                 <button
                   className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
                   onClick={applyConfiguredFallback}
                 >
-                  {clientConfig?.deterministic_fallback.label || copy.sections.useGolden}
+                  {fallbackConfig?.label || copy.sections.useGolden}
                 </button>
+              )}
             </div>
           </div>
         )}

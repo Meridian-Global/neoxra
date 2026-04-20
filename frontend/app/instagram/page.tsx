@@ -309,7 +309,7 @@ export default function InstagramPage() {
   const latestPreviewRef = useRef(preview)
   const [source, setSource] = useState(() => getStoredDemoSource(demoConfig.apiSurface))
   const fallbackResult = useMemo(
-    () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback.fallback_key ?? null, language),
+    () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback?.fallback_key ?? null, language),
     [clientConfig, language],
   )
 
@@ -816,12 +816,12 @@ export default function InstagramPage() {
               >
                 {copy.errorBox.reset}
               </button>
-              {fallbackResult ? (
+              {fallbackResult && clientConfig?.deterministic_fallback?.enabled === true && clientConfig?.deterministic_fallback?.mode === 'manual' ? (
                 <button
                   className="inline-flex items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90"
                   onClick={handleUseSample}
                 >
-                  {clientConfig?.deterministic_fallback.label || copy.errorBox.sample}
+                  {clientConfig?.deterministic_fallback?.label || copy.errorBox.sample}
                 </button>
               ) : null}
             </div>

@@ -85,20 +85,31 @@ def _load_tenant_config(*, demo_key: str, environment: str) -> dict[str, Any] | 
     if not is_database_enabled():
         return None
 
-    session = create_session()
     try:
-        tenant = (
-            session.query(TenantConfig)
-            .filter(TenantConfig.tenant_key == demo_key, TenantConfig.environment == environment)
-            .one_or_none()
-        )
-        if tenant is None:
+        session = create_session()
+        try:
             tenant = (
                 session.query(TenantConfig)
-                .filter(TenantConfig.tenant_key == demo_key, TenantConfig.environment == "default")
+                .filter(
+                    TenantConfig.tenant_key == demo_key,
+                    TenantConfig.environment == environment,
+                    TenantConfig.is_active.is_(True),
+                )
                 .one_or_none()
             )
-        return dict(tenant.config_json or {}) if tenant else None
+            if tenant is None:
+                tenant = (
+                    session.query(TenantConfig)
+                    .filter(
+                        TenantConfig.tenant_key == demo_key,
+                        TenantConfig.environment == "default",
+                        TenantConfig.is_active.is_(True),
+                    )
+                    .one_or_none()
+                )
+            return dict(tenant.config_json or {}) if tenant else None
+        finally:
+            session.close()
     except Exception:
         logger.warning(
             'demo config override unavailable; using defaults',
@@ -106,17 +117,24 @@ def _load_tenant_config(*, demo_key: str, environment: str) -> dict[str, Any] | 
             exc_info=True,
         )
         return None
-    finally:
-        session.close()
 
 
 def get_demo_client_config(*, surface: str, demo_key: str | None, environment: str) -> dict[str, Any]:
-    resolved_key = demo_key or SURFACE_DEFAULT_KEYS.get(surface, "landing-public")
-    base = deepcopy(DEFAULT_DEMO_CONFIGS.get(resolved_key) or DEFAULT_DEMO_CONFIGS[SURFACE_DEFAULT_KEYS[surface]])
+    surface_default_key = SURFACE_DEFAULT_KEYS.get(surface, "landing-public")
+    candidate_key = demo_key or surface_default_key
+
+    candidate_config = DEFAULT_DEMO_CONFIGS.get(candidate_key)
+    # Fall back to the surface default if the candidate key is unknown or
+    # its defined surface does not match the requested surface.
+    if candidate_config is None or candidate_config.get("surface") != surface:
+        resolved_key = surface_default_key
+    else:
+        resolved_key = candidate_key
+
+    base = deepcopy(DEFAULT_DEMO_CONFIGS[resolved_key])
     tenant_overrides = _load_tenant_config(demo_key=resolved_key, environment=environment)
     if tenant_overrides:
         base = _deep_merge(base, tenant_overrides)
     base["demo_key"] = resolved_key
-    base["surface"] = surface
     base["environment"] = environment
     return base
