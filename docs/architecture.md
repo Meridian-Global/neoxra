@@ -14,6 +14,7 @@ Neoxra is split across two repos:
 For the explicit public/private repo rules, see:
 
 - [docs/public-private-boundary.md](./public-private-boundary.md)
+- [docs/core-service-boundary.md](./core-service-boundary.md)
 
 ## How The Repos Relate
 
