@@ -29,7 +29,6 @@ interface SampleCase {
 }
 
 const PRIMARY = '#3B4F7A'
-const PAGE_BG = '#FAFAF9'
 const PAGE_TEXT = '#1A1A1A'
 const PAGE_MUTED = '#6B7280'
 const PAGE_BORDER = 'rgba(59, 79, 122, 0.12)'
@@ -414,29 +413,10 @@ export default function LegalLandingPage() {
 
   return (
     <main
-      className="min-h-screen"
-      style={{ background: PAGE_BG, color: PAGE_TEXT }}
+      className="min-h-screen bg-[var(--bg)]"
+      style={{ color: PAGE_TEXT }}
       lang="zh-Hant"
     >
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-
-        html[data-theme='light'] body {
-          background: #fafaf9 !important;
-          color: #1a1a1a !important;
-        }
-
-        html[data-theme='light'] body,
-        html[data-theme='light'] main[lang='zh-Hant'] {
-          font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Heiti TC', sans-serif !important;
-        }
-
-        html[data-theme='light'] body::before,
-        html[data-theme='light'] body::after {
-          opacity: 0 !important;
-          background: none !important;
-        }
-      `}</style>
       <div className="mx-auto flex max-w-7xl flex-col gap-20 px-6 py-10 md:px-10 md:py-14">
         <section className="grid gap-10 rounded-[28px] border border-[rgba(59,79,122,0.12)] bg-white px-8 py-10 md:grid-cols-[1.05fr,0.95fr] md:px-12 md:py-14" style={{ boxShadow: '0 16px 40px rgba(59,79,122,0.08)' }}>
           <div className="space-y-8">
