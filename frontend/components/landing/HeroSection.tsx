@@ -18,6 +18,7 @@ export function HeroSection() {
           noticePrefix: '內部 demo 頁面在',
           noticeSuffix: '。要進行法律服務 demo 時，請直接輸入這個網址。',
           instagram: 'Instagram',
+          login: '登入',
           what: '它做什麼',
           whatBody: '一個想法進來，三個平台原生版本輸出。',
           why: '為什麼重要',
@@ -34,6 +35,7 @@ export function HeroSection() {
           noticePrefix: 'Internal demo surface is available at',
           noticeSuffix: 'Use that route directly when you want the legal-services walkthrough.',
           instagram: 'Instagram',
+          login: 'Login',
           what: 'What it does',
           whatBody: 'One idea in. Native outputs for three channels out.',
           why: 'Why it matters',
@@ -76,12 +78,20 @@ export function HeroSection() {
           </div>
 
           <div className="mt-4">
-            <Link
-              href="/instagram"
-              className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:bg-[var(--surface)]"
-            >
-              {copy.instagram}
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/instagram"
+                className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:bg-[var(--surface)]"
+              >
+                {copy.instagram}
+              </Link>
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)] px-5 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:bg-[var(--surface)]"
+              >
+                {copy.login}
+              </Link>
+            </div>
           </div>
         </div>
 

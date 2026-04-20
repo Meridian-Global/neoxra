@@ -25,10 +25,12 @@ from fastapi.responses import JSONResponse, Response
 
 from .api.routes import router
 from .api.analytics_routes import router as analytics_router
+from .api.auth_routes import router as auth_router
 from .api.demo_access_routes import router as demo_access_router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
 from .core.demo_access import get_demo_surface_summary, get_runtime_mode
+from .core.auth import attach_auth_context
 from .core.error_handling import json_error_response
 from .core.generation_metrics import get_generation_metrics_snapshot
 from .core.logging_utils import (
@@ -78,6 +80,7 @@ app.add_middleware(
 
 app.include_router(router)
 app.include_router(analytics_router)
+app.include_router(auth_router)
 app.include_router(demo_access_router)
 app.include_router(integrations_router)
 app.include_router(instagram_router)
@@ -150,6 +153,7 @@ async def add_request_context(request: Request, call_next) -> Response:
     request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
     request.state.request_id = request_id
     request.state.client_ip = get_client_ip(request)
+    attach_auth_context(request)
     token = set_request_id(request_id)
     start = time.perf_counter()
 

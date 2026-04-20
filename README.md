@@ -5,6 +5,7 @@ Neoxra helps small teams turn one strong idea into polished, platform-native con
 Today the product focuses on two demo-ready experiences:
 - a multi-platform content workflow that generates coordinated LinkedIn, Instagram, and Threads output
 - a dedicated Instagram Studio that analyzes style, generates a post system, scores it, and streams the result live
+- a lightweight magic-link login path for early customer access and organization-aware onboarding
 
 ## Live demo
 
@@ -133,6 +134,7 @@ Open:
 - `http://localhost:3000/`
 - `http://localhost:3000/instagram`
 - `http://localhost:3000/demo/legal`
+- `http://localhost:3000/login`
 
 ## Demo walkthrough
 
@@ -162,6 +164,9 @@ Most important variables:
 - `ENVIRONMENT`
 - `LOG_LEVEL`
 - `CORS_ALLOWED_ORIGINS`
+- `DATABASE_URL`
+- `FRONTEND_APP_URL`
+- `AUTH_MAGIC_LINK_DEBUG`
 
 Frontend:
 - `NEXT_PUBLIC_API_BASE_URL`
