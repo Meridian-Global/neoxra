@@ -217,7 +217,7 @@ function LoadingPreview() {
   )
 }
 
-function InstagramPreview({ bundle }: { bundle: PreviewBundle }) {
+function InstagramPreview({ bundle, exportDisabled = false }: { bundle: PreviewBundle; exportDisabled?: boolean }) {
   const [carouselTheme, setCarouselTheme] = useState<CarouselThemeId>('professional')
   const firstSentence = splitSentences(bundle.content.caption)[0] ?? bundle.content.caption
   const remainingCaption = bundle.content.caption.replace(firstSentence, '').trim()
@@ -245,6 +245,8 @@ function InstagramPreview({ bundle }: { bundle: PreviewBundle }) {
           slides={bundle.content.carousel_outline}
           selectedTheme={carouselTheme}
           onThemeChange={setCarouselTheme}
+          topicSlug={bundle.topic}
+          exportDisabled={exportDisabled}
         />
       </SectionShell>
 
@@ -648,7 +650,7 @@ export default function InstagramPage() {
                 {isWorking && !streamedContent ? (
                   <LoadingPreview />
                 ) : previewTab === 'instagram' ? (
-                  <InstagramPreview bundle={displayBundle} />
+                  <InstagramPreview bundle={displayBundle} exportDisabled={isWorking} />
                 ) : (
                   <ArticlePreviewPanel bundle={displayBundle} />
                 )}
