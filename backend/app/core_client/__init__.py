@@ -11,7 +11,11 @@ from .compatibility import (
 )
 from .factory import get_core_client, get_core_client_mode, reset_core_client_cache
 from .signing import sign_internal_request, sign_internal_request_from_env
-from .types import CoreInstagramGenerationRequest, CoreSeoGenerationRequest
+from .types import (
+    CoreInstagramGenerationRequest,
+    CoreSeoGenerationRequest,
+    CoreThreadsGenerationRequest,
+)
 
 __all__ = [
     "CoreClient",
@@ -22,6 +26,7 @@ __all__ = [
     "CoreCompatibilityResult",
     "CoreInstagramGenerationRequest",
     "CoreSeoGenerationRequest",
+    "CoreThreadsGenerationRequest",
     "evaluate_core_compatibility",
     "get_core_client",
     "get_core_client_mode",

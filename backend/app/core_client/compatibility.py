@@ -12,6 +12,7 @@ DEFAULT_REQUIRED_CAPABILITIES = frozenset(
         "instagram.content.generate",
         "instagram.content.score",
         "seo.article.generate",
+        "threads.content.generate",
     }
 )
 

@@ -15,6 +15,7 @@ def test_core_compatibility_accepts_matching_metadata():
                 "instagram.content.generate",
                 "instagram.content.score",
                 "seo.article.generate",
+                "threads.content.generate",
             ],
         }
     )

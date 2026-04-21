@@ -11,7 +11,7 @@ from fastapi import HTTPException, Request
 
 
 SUPPORTED_ENV_MODES = {"local", "public-demo", "internal-demo", "production"}
-SUPPORTED_DEMO_SURFACES = {"landing", "instagram", "legal"}
+SUPPORTED_DEMO_SURFACES = {"landing", "instagram", "threads", "legal"}
 SUPPORTED_ACCESS_MODES = {"public", "gated"}
 
 
@@ -39,10 +39,10 @@ def get_runtime_mode() -> str:
 
 def _default_access_mode(surface: str, runtime_mode: str) -> str:
     defaults = {
-        "local": {"landing": "public", "instagram": "public", "legal": "public"},
-        "public-demo": {"landing": "public", "instagram": "public", "legal": "gated"},
-        "internal-demo": {"landing": "public", "instagram": "public", "legal": "public"},
-        "production": {"landing": "public", "instagram": "public", "legal": "gated"},
+        "local": {"landing": "public", "instagram": "public", "threads": "public", "legal": "public"},
+        "public-demo": {"landing": "public", "instagram": "public", "threads": "public", "legal": "gated"},
+        "internal-demo": {"landing": "public", "instagram": "public", "threads": "public", "legal": "public"},
+        "production": {"landing": "public", "instagram": "public", "threads": "public", "legal": "gated"},
     }
     return defaults.get(runtime_mode, defaults["production"]).get(surface, "public")
 
