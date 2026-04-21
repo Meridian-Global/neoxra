@@ -1,8 +1,10 @@
 import json
 import logging
 import os
+import base64
 
-from fastapi import HTTPException, Request
+from fastapi import File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
@@ -40,6 +42,9 @@ from ..services import create_demo_run, mark_demo_run_completed, record_usage_ev
 from .access_groups import build_gated_demo_router
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
+REFERENCE_IMAGE_ALLOWED_TYPES = {"image/png", "image/jpeg"}
+REFERENCE_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+REFERENCE_IMAGE_DESCRIPTION_MAX_LENGTH = 3000
 
 router = build_gated_demo_router()
 logger = logging.getLogger(__name__)
@@ -59,6 +64,7 @@ class InstagramGenerateRequest(BaseModel):
     goal: str = "engagement"
     style_examples: list[str] = Field(default_factory=list)
     locale: str = DEFAULT_LOCALE
+    reference_image_description: str = ""
 
     @field_validator("topic", "template_text")
     @classmethod
@@ -72,6 +78,15 @@ class InstagramGenerateRequest(BaseModel):
                 f"template_text must be <= {get_max_template_text_length()} characters"
             )
         return v
+
+    @field_validator("reference_image_description")
+    @classmethod
+    def reference_image_description_must_be_bounded(cls, v: str) -> str:
+        if len(v.strip()) > REFERENCE_IMAGE_DESCRIPTION_MAX_LENGTH:
+            raise ValueError(
+                f"reference_image_description must be <= {REFERENCE_IMAGE_DESCRIPTION_MAX_LENGTH} characters"
+            )
+        return v.strip()
 
     @field_validator("goal")
     @classmethod
@@ -153,6 +168,95 @@ def _require_anthropic_api_key() -> None:
     )
 
 
+def _extract_anthropic_text(response) -> str:
+    text_parts = []
+    for block in getattr(response, "content", []) or []:
+        text = getattr(block, "text", None)
+        if isinstance(text, str) and text.strip():
+            text_parts.append(text.strip())
+    return "\n".join(text_parts).strip()
+
+
+async def _describe_reference_image(file: UploadFile) -> str:
+    if file.content_type not in REFERENCE_IMAGE_ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="Only PNG and JPG reference images are supported.",
+        )
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=422, detail="Reference image cannot be empty.")
+    if len(image_bytes) > REFERENCE_IMAGE_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Reference image must be 5MB or smaller.",
+        )
+
+    _require_anthropic_api_key()
+
+    try:
+        from anthropic import Anthropic
+
+        client = Anthropic()
+        response = client.messages.create(
+            model=os.getenv("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-20250514"),
+            max_tokens=600,
+            temperature=0,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": file.content_type,
+                                "data": base64.b64encode(image_bytes).decode("ascii"),
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "Describe the visual style of this Instagram reference image for a carousel generator. "
+                                "Focus only on layout, colors, typography feel, spacing, hierarchy, text density, image usage, and overall mood. "
+                                "Do not identify private people or infer sensitive attributes. "
+                                "Return 4-6 concise bullet points in Traditional Chinese."
+                            ),
+                        },
+                    ],
+                }
+            ],
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Reference image analysis failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Reference image analysis is temporarily unavailable.",
+        ) from exc
+
+    description = _extract_anthropic_text(response)
+    if not description:
+        raise HTTPException(
+            status_code=503,
+            detail="Reference image analysis returned no usable description.",
+        )
+    return description[:REFERENCE_IMAGE_DESCRIPTION_MAX_LENGTH]
+
+
+@router.post("/api/instagram/upload-reference")
+async def upload_instagram_reference(request: Request, file: UploadFile = File(...)):
+    require_demo_access(
+        request,
+        default_surface="instagram",
+        allowed_surfaces={"instagram", "legal"},
+    )
+    description = await _describe_reference_image(file)
+    return JSONResponse({"description": description})
+
+
 @router.post("/api/instagram/generate")
 async def instagram_generate(req: InstagramGenerateRequest, request: Request):
     core_client = _get_core_client()
@@ -183,6 +287,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                 "demo_source": demo_source,
                 "runtime_mode": getattr(request.state, "runtime_mode", "unknown"),
                 "style_examples": len(req.style_examples),
+                "has_reference_image": bool(req.reference_image_description),
                 "path": request.url.path,
             }
         ),
@@ -202,6 +307,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
             "topic_length": len(req.topic),
             "goal": req.goal,
             "style_examples": len(req.style_examples),
+            "has_reference_image": bool(req.reference_image_description),
         },
     )
     record_usage_event(
@@ -220,6 +326,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
             "goal": req.goal,
             "topic_length": len(req.topic),
             "style_examples": len(req.style_examples),
+            "has_reference_image": bool(req.reference_image_description),
             "core_client_mode": core_client.mode,
         },
         demo_run_handle=demo_run_handle,
@@ -231,6 +338,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
             template_text=req.template_text,
             style_examples=req.style_examples,
             goal=req.goal,
+            reference_image_description=req.reference_image_description,
         )
     except ValueError as exc:
         raise HTTPException(
@@ -313,6 +421,7 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                         core_client.analyze_instagram_style(
                             template_text=generation_request.template_text,
                             style_examples=generation_request.style_examples,
+                            reference_image_description=generation_request.reference_image_description,
                         )
                     )
                 except ValidationError:

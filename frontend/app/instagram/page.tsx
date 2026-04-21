@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DemoAccessGate } from '../../components/DemoAccessGate'
+import { FileUpload } from '../../components/FileUpload'
 import { GlobalNav } from '../../components/GlobalNav'
 import { VisualCarouselRenderer } from '../../components/VisualCarouselRenderer'
 import { API_BASE_URL } from '../../lib/api'
@@ -18,6 +19,7 @@ import type { DemoClientConfig } from '../../lib/demo-config'
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
 type PreviewTab = 'instagram' | 'article'
 type SubmitPayload = { topic: string; goal: string }
+type ReferenceUploadStatus = 'idle' | 'analyzing' | 'ready' | 'error'
 
 interface ArticlePreview {
   seoTitle: string
@@ -329,8 +331,14 @@ export default function InstagramPage() {
   const [lastSubmittedTopic, setLastSubmittedTopic] = useState(DEFAULT_PREVIEW.topic)
   const [demoToken, setDemoToken] = useState<string | null>(null)
   const [source, setSource] = useState(() => getStoredDemoSource(demoConfig.apiSurface))
+  const [referencePreviewUrl, setReferencePreviewUrl] = useState<string | null>(null)
+  const [referenceFileName, setReferenceFileName] = useState<string | null>(null)
+  const [referenceImageDescription, setReferenceImageDescription] = useState('')
+  const [referenceUploadStatus, setReferenceUploadStatus] = useState<ReferenceUploadStatus>('idle')
+  const [referenceUploadError, setReferenceUploadError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const latestTopicRef = useRef(topic)
+  const referencePreviewUrlRef = useRef<string | null>(null)
 
   const fallbackResult = useMemo(
     () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback?.fallback_key ?? null, 'zh-TW'),
@@ -354,6 +362,14 @@ export default function InstagramPage() {
   useEffect(() => {
     latestTopicRef.current = topic
   }, [topic])
+
+  useEffect(() => {
+    return () => {
+      if (referencePreviewUrlRef.current) {
+        URL.revokeObjectURL(referencePreviewUrlRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     setSource(getStoredDemoSource(demoConfig.apiSurface))
@@ -382,12 +398,83 @@ export default function InstagramPage() {
 
   const needsAccess = demoConfig.accessMode === 'gated' && !demoToken
   const isWorking = status === 'loading' || status === 'streaming'
+  const isReferenceAnalyzing = referenceUploadStatus === 'analyzing'
   const displayBundle = useMemo(() => {
     if (streamedContent) {
       return toPreviewBundle(lastSubmittedTopic, streamedContent)
     }
     return previewBundle
   }, [lastSubmittedTopic, previewBundle, streamedContent])
+
+  function clearReferenceImage() {
+    if (referencePreviewUrlRef.current) {
+      URL.revokeObjectURL(referencePreviewUrlRef.current)
+      referencePreviewUrlRef.current = null
+    }
+    setReferencePreviewUrl(null)
+    setReferenceFileName(null)
+    setReferenceImageDescription('')
+    setReferenceUploadStatus('idle')
+    setReferenceUploadError(null)
+  }
+
+  async function handleReferenceFileSelect(file: File) {
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      setReferenceUploadStatus('error')
+      setReferenceUploadError('請上傳 PNG 或 JPG 圖片。')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setReferenceUploadStatus('error')
+      setReferenceUploadError('圖片大小需小於 5MB。')
+      return
+    }
+
+    if (referencePreviewUrlRef.current) {
+      URL.revokeObjectURL(referencePreviewUrlRef.current)
+    }
+
+    const previewUrl = URL.createObjectURL(file)
+    referencePreviewUrlRef.current = previewUrl
+    setReferencePreviewUrl(previewUrl)
+    setReferenceFileName(file.name)
+    setReferenceImageDescription('')
+    setReferenceUploadStatus('analyzing')
+    setReferenceUploadError(null)
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/instagram/upload-reference`, {
+        method: 'POST',
+        headers: buildDemoHeaders(demoConfig.apiSurface, demoToken),
+        body: formData,
+      })
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          clearStoredDemoToken(demoConfig.apiSurface)
+          setDemoToken(null)
+        }
+        throw new Error(typeof payload?.detail === 'string' ? payload.detail : '圖片風格分析失敗，請換一張圖片再試。')
+      }
+
+      const description = typeof payload?.description === 'string' ? payload.description : ''
+      if (!description.trim()) {
+        throw new Error('圖片風格分析沒有回傳可用描述。')
+      }
+
+      setReferenceImageDescription(description)
+      setReferenceUploadStatus('ready')
+    } catch (err) {
+      setReferenceImageDescription('')
+      setReferenceUploadStatus('error')
+      setReferenceUploadError(err instanceof Error ? err.message : '圖片風格分析失敗，請稍後再試。')
+    }
+  }
 
   const handleSubmit = useCallback(
     async (payload: SubmitPayload) => {
@@ -416,6 +503,7 @@ export default function InstagramPage() {
             template_text: createTemplate(trimmedTopic, payload.goal),
             goal: payload.goal,
             locale: 'zh-TW',
+            reference_image_description: referenceImageDescription,
           },
           {
             signal: abort.signal,
@@ -500,7 +588,7 @@ export default function InstagramPage() {
         trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: 'zh-TW' })
       }
     },
-    [clientConfig?.deterministic_fallback?.mode, demoConfig.apiSurface, demoToken, fallbackResult, source, streamedContent],
+    [clientConfig?.deterministic_fallback?.mode, demoConfig.apiSurface, demoToken, fallbackResult, referenceImageDescription, source, streamedContent],
   )
 
   function handleGenerate() {
@@ -557,6 +645,28 @@ export default function InstagramPage() {
                   />
                 </div>
 
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-secondary)]">參考圖片風格</p>
+                    <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+                      選填。上傳一張參考圖，系統會分析版面、色彩與文字風格。
+                    </p>
+                  </div>
+                  <FileUpload
+                    previewUrl={referencePreviewUrl}
+                    fileName={referenceFileName}
+                    isAnalyzing={isReferenceAnalyzing}
+                    error={referenceUploadError}
+                    onFileSelect={(file) => void handleReferenceFileSelect(file)}
+                    onRemove={clearReferenceImage}
+                  />
+                  {referenceUploadStatus === 'ready' ? (
+                    <div className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-xs leading-6 text-[var(--text-secondary)]">
+                      已完成風格分析，下一次產生內容會套用這張參考圖的視覺方向。
+                    </div>
+                  ) : null}
+                </div>
+
                 <div className="flex flex-wrap gap-3">
                   {PRESET_TOPICS.map((preset) => (
                     <button
@@ -592,7 +702,7 @@ export default function InstagramPage() {
                   <button
                     type="button"
                     onClick={handleGenerate}
-                    disabled={isWorking || !topic.trim()}
+                    disabled={isWorking || isReferenceAnalyzing || !topic.trim()}
                     className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[var(--bg-accent)] px-6 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isWorking ? (

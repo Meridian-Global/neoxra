@@ -39,6 +39,7 @@ class CoreClient(Protocol):
         template_text: str,
         goal: str,
         style_examples: list[str],
+        reference_image_description: str = "",
     ) -> CoreInstagramGenerationRequest: ...
 
     def analyze_instagram_style(
@@ -46,6 +47,7 @@ class CoreClient(Protocol):
         *,
         template_text: str,
         style_examples: list[str],
+        reference_image_description: str = "",
     ) -> dict[str, object]: ...
 
     def generate_instagram_content(
@@ -63,4 +65,3 @@ class CoreClient(Protocol):
         content: dict[str, object],
         goal: str,
     ) -> tuple[dict[str, object], str]: ...
-
