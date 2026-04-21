@@ -61,7 +61,7 @@ export function GlobalNav() {
           products: 'Products',
           useCases: 'Use Cases',
           instagram: 'Instagram Studio',
-          articles: 'Articles',
+          articles: 'SEO Articles',
           threads: 'Threads',
           lawFirms: '法律事務所',
           moreVerticals: '更多產業即將推出',
@@ -71,7 +71,7 @@ export function GlobalNav() {
           products: 'Products',
           useCases: 'Use Cases',
           instagram: 'Instagram Studio',
-          articles: 'Articles',
+          articles: 'SEO Articles',
           threads: 'Threads',
           lawFirms: 'Law Firms',
           moreVerticals: 'More verticals coming soon',
@@ -95,7 +95,7 @@ export function GlobalNav() {
             label={copy.products}
             items={[
               { label: copy.instagram, href: '/instagram' },
-              { label: copy.articles, soon: true },
+              { label: copy.articles, href: '/seo' },
               { label: copy.threads, soon: true },
             ]}
           />
