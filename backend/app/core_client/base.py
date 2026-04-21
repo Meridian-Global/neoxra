@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Generator, Protocol
 
-from .types import CoreInstagramGenerationRequest
+from .types import CoreInstagramGenerationRequest, CoreSeoGenerationRequest
 
 
 class CoreClientError(RuntimeError):
@@ -65,3 +65,21 @@ class CoreClient(Protocol):
         content: dict[str, object],
         goal: str,
     ) -> tuple[dict[str, object], str]: ...
+
+    def ensure_seo_available(self) -> None: ...
+
+    def build_seo_generation_request(
+        self,
+        *,
+        topic: str,
+        goal: str,
+        locale: str,
+    ) -> CoreSeoGenerationRequest: ...
+
+    def generate_seo_article(
+        self,
+        *,
+        generation_request: CoreSeoGenerationRequest,
+        brief_context: dict[str, object],
+        voice_profile: dict[str, object] | None = None,
+    ) -> dict[str, object]: ...

@@ -33,7 +33,8 @@ The future private core service should expose a private metadata response shaped
     "core.pipeline.stream",
     "instagram.style.analyze",
     "instagram.content.generate",
-    "instagram.content.score"
+    "instagram.content.score",
+    "seo.article.generate"
   ]
 }
 ```
