@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .base import CoreClientNotImplementedError
 from .signing import sign_internal_request_from_env
-from .types import CoreInstagramGenerationRequest
+from .types import CoreInstagramGenerationRequest, CoreSeoGenerationRequest
 
 
 class HttpCoreClient:
@@ -86,4 +86,25 @@ class HttpCoreClient:
         content: dict[str, object],
         goal: str,
     ) -> tuple[dict[str, object], str]:
+        raise self._not_ready()
+
+    def ensure_seo_available(self) -> None:
+        raise self._not_ready()
+
+    def build_seo_generation_request(
+        self,
+        *,
+        topic: str,
+        goal: str,
+        locale: str,
+    ) -> CoreSeoGenerationRequest:
+        return CoreSeoGenerationRequest(topic=topic, goal=goal, locale=locale)
+
+    def generate_seo_article(
+        self,
+        *,
+        generation_request: CoreSeoGenerationRequest,
+        brief_context: dict[str, object],
+        voice_profile: dict[str, object] | None = None,
+    ) -> dict[str, object]:
         raise self._not_ready()

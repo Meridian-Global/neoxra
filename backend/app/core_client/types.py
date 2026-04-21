@@ -10,3 +10,10 @@ class CoreInstagramGenerationRequest:
     goal: str
     style_examples: list[str] = field(default_factory=list)
     reference_image_description: str = ""
+
+
+@dataclass(frozen=True)
+class CoreSeoGenerationRequest:
+    topic: str
+    goal: str
+    locale: str = "en"

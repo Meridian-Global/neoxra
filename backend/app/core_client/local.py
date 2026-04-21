@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .base import CoreClientUnavailableError
-from .types import CoreInstagramGenerationRequest
+from .types import CoreInstagramGenerationRequest, CoreSeoGenerationRequest
 
 _LOCAL_IMPORT_ERROR = None
 try:
@@ -17,6 +17,13 @@ except Exception as exc:  # pragma: no cover - exercised via adapter availabilit
     InstagramGenerationSkill = None
     StyleAnalysisSkill = None
     _LOCAL_IMPORT_ERROR = exc
+
+_LOCAL_SEO_IMPORT_ERROR = None
+try:
+    from neoxra_core.pipeline.seo import SeoPipeline
+except Exception as exc:  # pragma: no cover - exercised via adapter availability checks
+    SeoPipeline = None
+    _LOCAL_SEO_IMPORT_ERROR = exc
 
 
 class LocalCoreClient:
@@ -138,3 +145,43 @@ class LocalCoreClient:
             )
         )
         return scoring_output.metadata["scorecard"], scoring_output.text
+
+    def ensure_seo_available(self) -> None:
+        if SeoPipeline is None:
+            raise CoreClientUnavailableError(
+                "Local SEO generation dependencies are unavailable."
+            ) from _LOCAL_SEO_IMPORT_ERROR
+
+    def build_seo_generation_request(
+        self,
+        *,
+        topic: str,
+        goal: str,
+        locale: str,
+    ) -> CoreSeoGenerationRequest:
+        self.ensure_seo_available()
+        if not topic.strip():
+            raise ValueError("topic must not be empty")
+        if not goal.strip():
+            raise ValueError("goal must not be empty")
+        return CoreSeoGenerationRequest(
+            topic=topic.strip(),
+            goal=goal.strip(),
+            locale=locale,
+        )
+
+    def generate_seo_article(
+        self,
+        *,
+        generation_request: CoreSeoGenerationRequest,
+        brief_context: dict[str, object],
+        voice_profile: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        self.ensure_seo_available()
+        pipeline = SeoPipeline()
+        article = pipeline.run(
+            topic=generation_request.topic,
+            brief_context=brief_context,
+            voice_profile=voice_profile,
+        )
+        return article.to_dict()
