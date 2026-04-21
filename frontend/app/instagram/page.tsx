@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DemoAccessGate } from '../../components/DemoAccessGate'
 import { GlobalNav } from '../../components/GlobalNav'
+import { VisualCarouselRenderer } from '../../components/VisualCarouselRenderer'
 import { API_BASE_URL } from '../../lib/api'
 import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../lib/analytics'
+import type { CarouselThemeId } from '../../lib/carousel-themes'
 import { buildDemoHeaders, clearStoredDemoToken, getStoredDemoSource } from '../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { fetchDemoClientConfig } from '../../lib/demo-client-config'
 import { getDeterministicFallbackResult } from '../../lib/demo-fallbacks'
 import { APIError, streamSSE } from '../../lib/sse'
-import type { CarouselSlide, InstagramContent, Scorecard, StyleAnalysis } from '../../lib/instagram-types'
+import type { InstagramContent, Scorecard, StyleAnalysis } from '../../lib/instagram-types'
 import type { DemoClientConfig } from '../../lib/demo-config'
 
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
@@ -216,6 +218,7 @@ function LoadingPreview() {
 }
 
 function InstagramPreview({ bundle }: { bundle: PreviewBundle }) {
+  const [carouselTheme, setCarouselTheme] = useState<CarouselThemeId>('professional')
   const firstSentence = splitSentences(bundle.content.caption)[0] ?? bundle.content.caption
   const remainingCaption = bundle.content.caption.replace(firstSentence, '').trim()
   const allSlidesText = bundle.content.carousel_outline
@@ -238,19 +241,11 @@ function InstagramPreview({ bundle }: { bundle: PreviewBundle }) {
         title="📱 Carousel（1-5）"
         action={<CopyButton label="複製全部卡片" value={allSlidesText} />}
       >
-        <div className="space-y-4">
-          {bundle.content.carousel_outline.map((slide, index) => (
-            <div
-              key={`${slide.title}-${index}`}
-              className="min-h-[180px] rounded-[var(--card-radius)] border border-[var(--carousel-border)] px-6 pb-10 pt-6 shadow-[var(--shadow-sm)]"
-              style={{ background: index % 2 === 0 ? 'var(--bg-sunken)' : 'var(--bg-elevated)' }}
-            >
-              <div className="text-xs font-medium text-[var(--text-tertiary)]">{index + 1}/5</div>
-              <h4 className="mt-5 text-[22px] font-bold leading-snug text-[var(--text-primary)]">{slide.title}</h4>
-              <p className="mt-4 line-clamp-2 text-[15px] leading-6 text-[var(--text-secondary)]">{slide.body}</p>
-            </div>
-          ))}
-        </div>
+        <VisualCarouselRenderer
+          slides={bundle.content.carousel_outline}
+          selectedTheme={carouselTheme}
+          onThemeChange={setCarouselTheme}
+        />
       </SectionShell>
 
       <SectionShell
@@ -266,6 +261,15 @@ function InstagramPreview({ bundle }: { bundle: PreviewBundle }) {
               {tag}
             </span>
           ))}
+        </div>
+      </SectionShell>
+
+      <SectionShell
+        title="🎬 Reel Script"
+        action={<CopyButton label="複製腳本" value={bundle.content.reel_script} />}
+      >
+        <div className="rounded-[8px] bg-[var(--bg-sunken)] p-4 text-[15px] leading-[1.7] text-[var(--text-secondary)]">
+          {bundle.content.reel_script}
         </div>
       </SectionShell>
     </div>
