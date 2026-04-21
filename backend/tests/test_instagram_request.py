@@ -15,6 +15,7 @@ class TestInstagramGenerateRequestValid:
         assert req.goal == "engagement"
         assert req.style_examples == []
         assert req.locale == "en"
+        assert req.reference_image_description == ""
 
     def test_all_fields_provided(self):
         req = InstagramGenerateRequest(
@@ -23,10 +24,12 @@ class TestInstagramGenerateRequestValid:
             goal="authority",
             style_examples=["example one"],
             locale="zh-TW",
+            reference_image_description="Minimal cream carousel with large centered headlines.",
         )
         assert req.goal == "authority"
         assert req.style_examples == ["example one"]
         assert req.locale == "zh-TW"
+        assert "centered headlines" in req.reference_image_description
 
     def test_each_valid_goal_accepted(self):
         for goal in ("engagement", "authority", "conversion", "save", "share"):
@@ -64,6 +67,15 @@ class TestInstagramGenerateRequestInvalid:
         with pytest.raises(ValidationError) as exc_info:
             InstagramGenerateRequest(topic="x", template_text="y", locale="zh-CN")
         assert "locale" in str(exc_info.value)
+
+    def test_reference_image_description_length_limit_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            InstagramGenerateRequest(
+                topic="x",
+                template_text="y",
+                reference_image_description="x" * 3001,
+            )
+        assert "reference_image_description must be <=" in str(exc_info.value)
 
     def test_topic_length_limit_rejected(self):
         with pytest.raises(ValidationError) as exc_info:

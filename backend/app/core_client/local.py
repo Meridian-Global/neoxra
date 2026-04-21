@@ -55,6 +55,7 @@ class LocalCoreClient:
         template_text: str,
         goal: str,
         style_examples: list[str],
+        reference_image_description: str = "",
     ) -> CoreInstagramGenerationRequest:
         self.ensure_instagram_available()
         request = GenerationRequest(
@@ -62,12 +63,14 @@ class LocalCoreClient:
             template_text=template_text,
             style_examples=style_examples,
             goal=goal,
+            reference_image_description=reference_image_description,
         )
         return CoreInstagramGenerationRequest(
             topic=request.topic,
             template_text=request.template_text,
             goal=request.goal,
             style_examples=list(request.style_examples),
+            reference_image_description=request.reference_image_description,
         )
 
     def analyze_instagram_style(
@@ -75,13 +78,17 @@ class LocalCoreClient:
         *,
         template_text: str,
         style_examples: list[str],
+        reference_image_description: str = "",
     ) -> dict[str, object]:
         self.ensure_instagram_available()
         style_skill = StyleAnalysisSkill()
         style_output = style_skill.run(
             SkillInput(
                 text=template_text,
-                context={"style_examples": style_examples},
+                context={
+                    "style_examples": style_examples,
+                    "reference_image_description": reference_image_description,
+                },
             )
         )
         return style_output.metadata["style_analysis"]
@@ -104,6 +111,7 @@ class LocalCoreClient:
                     "goal": generation_request.goal,
                     "locale": locale,
                     "style_analysis": style_analysis,
+                    "reference_image_description": generation_request.reference_image_description,
                 },
             )
         )
@@ -130,4 +138,3 @@ class LocalCoreClient:
             )
         )
         return scoring_output.metadata["scorecard"], scoring_output.text
-

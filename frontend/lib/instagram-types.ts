@@ -7,6 +7,8 @@ export interface StyleAnalysis {
 export interface CarouselSlide {
   title: string;
   body: string;
+  text_alignment?: 'left' | 'center' | 'right';
+  emphasis?: 'normal' | 'strong' | 'quiet';
 }
 
 export interface Scorecard {

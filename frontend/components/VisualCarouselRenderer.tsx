@@ -63,6 +63,16 @@ export function VisualCarouselRenderer({
 
   function renderSlide(slide: CarouselSlide | undefined, index: number, mode: 'preview' | 'export') {
     const isExport = mode === 'export'
+    const textAlignment = slide?.text_alignment ?? 'center'
+    const emphasis = slide?.emphasis ?? 'normal'
+    const alignmentClass =
+      textAlignment === 'left' ? 'items-start text-left' : textAlignment === 'right' ? 'items-end text-right' : 'items-center text-center'
+    const headlineClass =
+      emphasis === 'strong'
+        ? isExport ? 'text-[104px]' : 'text-[34px] sm:text-[40px]'
+        : emphasis === 'quiet'
+          ? isExport ? 'text-[76px]' : 'text-[26px] sm:text-[32px]'
+          : isExport ? 'text-[92px]' : 'text-[30px] sm:text-[36px]'
 
     return (
       <div
@@ -76,10 +86,10 @@ export function VisualCarouselRenderer({
           {index + 1}/{slides.length || 1}
         </div>
 
-        <div className={`flex flex-col justify-center ${isExport ? 'h-[calc(100%-92px)]' : 'h-[calc(100%-2.25rem)]'}`}>
+        <div className={`flex flex-col justify-center ${alignmentClass} ${isExport ? 'h-[calc(100%-92px)]' : 'h-[calc(100%-2.25rem)]'}`}>
           <h4
             className={`max-w-[92%] font-bold tracking-[-0.03em] ${
-              isExport ? 'text-[92px] leading-[1.05]' : 'text-[30px] leading-[1.08] sm:text-[36px]'
+              isExport ? `${headlineClass} leading-[1.05]` : `${headlineClass} leading-[1.08]`
             }`}
           >
             {slide?.title ?? '內容重點'}

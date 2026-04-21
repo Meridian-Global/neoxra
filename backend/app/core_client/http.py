@@ -51,12 +51,14 @@ class HttpCoreClient:
         template_text: str,
         goal: str,
         style_examples: list[str],
+        reference_image_description: str = "",
     ) -> CoreInstagramGenerationRequest:
         return CoreInstagramGenerationRequest(
             topic=topic,
             template_text=template_text,
             goal=goal,
             style_examples=list(style_examples),
+            reference_image_description=reference_image_description,
         )
 
     def analyze_instagram_style(
@@ -64,6 +66,7 @@ class HttpCoreClient:
         *,
         template_text: str,
         style_examples: list[str],
+        reference_image_description: str = "",
     ) -> dict[str, object]:
         raise self._not_ready()
 

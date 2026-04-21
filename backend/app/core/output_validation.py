@@ -51,12 +51,28 @@ class CarouselSlidePayload(BaseModel):
 
     title: str
     body: str
+    text_alignment: str = "center"
+    emphasis: str = "normal"
 
-    @field_validator("title", "body")
+    @field_validator("title", "body", "text_alignment", "emphasis")
     @classmethod
     def _not_blank(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("slide fields must not be blank")
+        return value
+
+    @field_validator("text_alignment")
+    @classmethod
+    def _valid_alignment(cls, value: str) -> str:
+        if value not in {"left", "center", "right"}:
+            return "center"
+        return value
+
+    @field_validator("emphasis")
+    @classmethod
+    def _valid_emphasis(cls, value: str) -> str:
+        if value not in {"normal", "strong", "quiet"}:
+            return "normal"
         return value
 
 

@@ -9,4 +9,4 @@ class CoreInstagramGenerationRequest:
     template_text: str
     goal: str
     style_examples: list[str] = field(default_factory=list)
-
+    reference_image_description: str = ""

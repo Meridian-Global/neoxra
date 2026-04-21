@@ -88,19 +88,36 @@ class FakeInstagramCoreClient:
         self.last_generation_request = None
         self.last_localized_template_text = None
         self.last_locale = None
+        self.last_reference_image_description = None
 
     def ensure_instagram_available(self):
         return None
 
-    def build_instagram_generation_request(self, *, topic: str, template_text: str, goal: str, style_examples: list[str]):
+    def build_instagram_generation_request(
+        self,
+        *,
+        topic: str,
+        template_text: str,
+        goal: str,
+        style_examples: list[str],
+        reference_image_description: str = "",
+    ):
         return CoreInstagramGenerationRequest(
             topic=topic,
             template_text=template_text,
             goal=goal,
             style_examples=list(style_examples),
+            reference_image_description=reference_image_description,
         )
 
-    def analyze_instagram_style(self, *, template_text: str, style_examples: list[str]):
+    def analyze_instagram_style(
+        self,
+        *,
+        template_text: str,
+        style_examples: list[str],
+        reference_image_description: str = "",
+    ):
+        self.last_reference_image_description = reference_image_description
         if isinstance(self.style_result, Exception):
             raise self.style_result
         return self.style_result
@@ -248,6 +265,23 @@ class TestInstagramSSERoute:
         content = final["data"]["content"]
         for field in ("caption", "hook_options", "hashtags", "carousel_outline", "reel_script"):
             assert field in content
+
+    def test_reference_image_description_is_passed_to_core(self, monkeypatch):
+        reset_generation_metrics()
+        reset_generation_guards()
+        fake = _use_fake_core_client(monkeypatch, FakeInstagramCoreClient())
+        resp = client.post(
+            "/api/instagram/generate",
+            json={
+                "topic": "test",
+                "template_text": "template",
+                "reference_image_description": "Cream background with centered headline.",
+            },
+        )
+
+        assert resp.status_code == 200
+        assert fake.last_generation_request.reference_image_description == "Cream background with centered headline."
+        assert fake.last_reference_image_description == "Cream background with centered headline."
 
     def test_locale_is_included_in_pipeline_started_event(self, monkeypatch):
         reset_generation_metrics()
@@ -476,3 +510,39 @@ class TestInstagramSSERoute:
         assert response.status_code == 413
         assert response.json()["detail"] == "Request body too large for generation endpoint."
         assert response.json()["error_code"] == "REQUEST_BODY_TOO_LARGE"
+
+
+class TestInstagramReferenceUpload:
+    def test_upload_reference_accepts_png(self, monkeypatch):
+        async def fake_describe_reference_image(file):
+            return "Cream layout with centered headline."
+
+        monkeypatch.setattr(
+            instagram_routes,
+            "_describe_reference_image",
+            fake_describe_reference_image,
+        )
+
+        response = client.post(
+            "/api/instagram/upload-reference",
+            files={"file": ("reference.png", b"fake-png", "image/png")},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"description": "Cream layout with centered headline."}
+
+    def test_upload_reference_rejects_non_image(self):
+        response = client.post(
+            "/api/instagram/upload-reference",
+            files={"file": ("reference.txt", b"not image", "text/plain")},
+        )
+
+        assert response.status_code == 415
+
+    def test_upload_reference_rejects_oversized_image(self):
+        response = client.post(
+            "/api/instagram/upload-reference",
+            files={"file": ("reference.jpg", b"x" * (5 * 1024 * 1024 + 1), "image/jpeg")},
+        )
+
+        assert response.status_code == 413
