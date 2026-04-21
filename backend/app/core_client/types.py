@@ -17,3 +17,10 @@ class CoreSeoGenerationRequest:
     topic: str
     goal: str
     locale: str = "en"
+
+
+@dataclass(frozen=True)
+class CoreThreadsGenerationRequest:
+    topic: str
+    goal: str
+    locale: str = "en"

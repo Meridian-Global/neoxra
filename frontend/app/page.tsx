@@ -11,7 +11,7 @@ type LocalizedCopy = {
     useCases: string
     instagramStudio: string
     articlesSoon: string
-    threadsSoon: string
+    threadsStudio: string
     lawFirms: string
     moreVerticalsSoon: string
   }
@@ -74,7 +74,7 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       useCases: 'Use Cases',
       instagramStudio: 'Instagram Studio',
       articlesSoon: 'Articles（即將推出）',
-      threadsSoon: 'Threads（即將推出）',
+      threadsStudio: 'Threads Studio',
       lawFirms: '法律事務所',
       moreVerticalsSoon: '更多產業即將推出',
     },
@@ -133,8 +133,8 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
         {
           name: 'Threads',
           description: '快速對話式內容',
-          cta: '即將推出',
-          soon: true,
+          cta: '開始使用 →',
+          href: '/threads',
         },
         {
           name: 'LinkedIn',
@@ -178,7 +178,7 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       useCases: 'Use Cases',
       instagramStudio: 'Instagram Studio',
       articlesSoon: 'Articles (coming soon)',
-      threadsSoon: 'Threads (coming soon)',
+      threadsStudio: 'Threads Studio',
       lawFirms: 'Law Firms',
       moreVerticalsSoon: 'More verticals coming soon',
     },
@@ -238,8 +238,8 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
         {
           name: 'Threads',
           description: 'Fast conversational content',
-          cta: 'Coming soon',
-          soon: true,
+          cta: 'Start now →',
+          href: '/threads',
         },
         {
           name: 'LinkedIn',

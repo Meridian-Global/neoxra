@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from .base import CoreClientNotImplementedError
 from .signing import sign_internal_request_from_env
-from .types import CoreInstagramGenerationRequest, CoreSeoGenerationRequest
+from .types import (
+    CoreInstagramGenerationRequest,
+    CoreSeoGenerationRequest,
+    CoreThreadsGenerationRequest,
+)
 
 
 class HttpCoreClient:
@@ -104,6 +108,27 @@ class HttpCoreClient:
         self,
         *,
         generation_request: CoreSeoGenerationRequest,
+        brief_context: dict[str, object],
+        voice_profile: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        raise self._not_ready()
+
+    def ensure_threads_available(self) -> None:
+        raise self._not_ready()
+
+    def build_threads_generation_request(
+        self,
+        *,
+        topic: str,
+        goal: str,
+        locale: str,
+    ) -> CoreThreadsGenerationRequest:
+        return CoreThreadsGenerationRequest(topic=topic, goal=goal, locale=locale)
+
+    def generate_threads_content(
+        self,
+        *,
+        generation_request: CoreThreadsGenerationRequest,
         brief_context: dict[str, object],
         voice_profile: dict[str, object] | None = None,
     ) -> dict[str, object]:

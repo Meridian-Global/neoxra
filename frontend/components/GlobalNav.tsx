@@ -96,7 +96,7 @@ export function GlobalNav() {
             items={[
               { label: copy.instagram, href: '/instagram' },
               { label: copy.articles, href: '/seo' },
-              { label: copy.threads, soon: true },
+              { label: copy.threads, href: '/threads' },
             ]}
           />
           <NavDropdown

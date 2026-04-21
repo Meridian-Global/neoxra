@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Generator, Protocol
 
-from .types import CoreInstagramGenerationRequest, CoreSeoGenerationRequest
+from .types import (
+    CoreInstagramGenerationRequest,
+    CoreSeoGenerationRequest,
+    CoreThreadsGenerationRequest,
+)
 
 
 class CoreClientError(RuntimeError):
@@ -80,6 +84,24 @@ class CoreClient(Protocol):
         self,
         *,
         generation_request: CoreSeoGenerationRequest,
+        brief_context: dict[str, object],
+        voice_profile: dict[str, object] | None = None,
+    ) -> dict[str, object]: ...
+
+    def ensure_threads_available(self) -> None: ...
+
+    def build_threads_generation_request(
+        self,
+        *,
+        topic: str,
+        goal: str,
+        locale: str,
+    ) -> CoreThreadsGenerationRequest: ...
+
+    def generate_threads_content(
+        self,
+        *,
+        generation_request: CoreThreadsGenerationRequest,
         brief_context: dict[str, object],
         voice_profile: dict[str, object] | None = None,
     ) -> dict[str, object]: ...

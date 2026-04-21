@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from .base import CoreClientUnavailableError
-from .types import CoreInstagramGenerationRequest, CoreSeoGenerationRequest
+from .types import (
+    CoreInstagramGenerationRequest,
+    CoreSeoGenerationRequest,
+    CoreThreadsGenerationRequest,
+)
 
 _LOCAL_IMPORT_ERROR = None
 try:
@@ -24,6 +28,13 @@ try:
 except Exception as exc:  # pragma: no cover - exercised via adapter availability checks
     SeoPipeline = None
     _LOCAL_SEO_IMPORT_ERROR = exc
+
+_LOCAL_THREADS_IMPORT_ERROR = None
+try:
+    from neoxra_core.skills.threads_generation import ThreadsGenerationSkill
+except Exception as exc:  # pragma: no cover - exercised via adapter availability checks
+    ThreadsGenerationSkill = None
+    _LOCAL_THREADS_IMPORT_ERROR = exc
 
 
 class LocalCoreClient:
@@ -185,3 +196,48 @@ class LocalCoreClient:
             voice_profile=voice_profile,
         )
         return article.to_dict()
+
+    def ensure_threads_available(self) -> None:
+        if ThreadsGenerationSkill is None or SkillInput is None:
+            raise CoreClientUnavailableError(
+                "Local Threads generation dependencies are unavailable."
+            ) from _LOCAL_THREADS_IMPORT_ERROR
+
+    def build_threads_generation_request(
+        self,
+        *,
+        topic: str,
+        goal: str,
+        locale: str,
+    ) -> CoreThreadsGenerationRequest:
+        self.ensure_threads_available()
+        if not topic.strip():
+            raise ValueError("topic must not be empty")
+        if not goal.strip():
+            raise ValueError("goal must not be empty")
+        return CoreThreadsGenerationRequest(
+            topic=topic.strip(),
+            goal=goal.strip(),
+            locale=locale,
+        )
+
+    def generate_threads_content(
+        self,
+        *,
+        generation_request: CoreThreadsGenerationRequest,
+        brief_context: dict[str, object],
+        voice_profile: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        self.ensure_threads_available()
+        skill = ThreadsGenerationSkill()
+        output = skill.run(
+            SkillInput(
+                text=generation_request.topic,
+                context={
+                    "goal": generation_request.goal,
+                    "brief_context": brief_context,
+                    "voice_profile": voice_profile,
+                },
+            )
+        )
+        return output.metadata["thread"]
