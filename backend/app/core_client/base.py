@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Generator, Protocol
 
 from .types import (
+    CoreFacebookGenerationRequest,
     CoreInstagramGenerationRequest,
     CoreSeoGenerationRequest,
     CoreThreadsGenerationRequest,
@@ -103,5 +104,24 @@ class CoreClient(Protocol):
         *,
         generation_request: CoreThreadsGenerationRequest,
         brief_context: dict[str, object],
+        voice_profile: dict[str, object] | None = None,
+    ) -> dict[str, object]: ...
+
+    def ensure_facebook_available(self) -> None: ...
+
+    def build_facebook_generation_request(
+        self,
+        *,
+        topic: str,
+        locale: str,
+    ) -> CoreFacebookGenerationRequest: ...
+
+    def generate_facebook_content(
+        self,
+        *,
+        generation_request: CoreFacebookGenerationRequest,
+        brief_context: dict[str, object],
+        instagram_caption: str,
+        carousel_summary: str,
         voice_profile: dict[str, object] | None = None,
     ) -> dict[str, object]: ...

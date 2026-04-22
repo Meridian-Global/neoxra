@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .base import CoreClientUnavailableError
 from .types import (
+    CoreFacebookGenerationRequest,
     CoreInstagramGenerationRequest,
     CoreSeoGenerationRequest,
     CoreThreadsGenerationRequest,
@@ -35,6 +36,13 @@ try:
 except Exception as exc:  # pragma: no cover - exercised via adapter availability checks
     ThreadsGenerationSkill = None
     _LOCAL_THREADS_IMPORT_ERROR = exc
+
+_LOCAL_FACEBOOK_IMPORT_ERROR = None
+try:
+    from neoxra_core.skills.facebook_adapter import FacebookAdapterSkill
+except Exception as exc:  # pragma: no cover - exercised via adapter availability checks
+    FacebookAdapterSkill = None
+    _LOCAL_FACEBOOK_IMPORT_ERROR = exc
 
 
 class LocalCoreClient:
@@ -241,3 +249,44 @@ class LocalCoreClient:
             )
         )
         return output.metadata["thread"]
+
+    def ensure_facebook_available(self) -> None:
+        if FacebookAdapterSkill is None or SkillInput is None:
+            raise CoreClientUnavailableError(
+                "Local Facebook adapter dependencies are unavailable."
+            ) from _LOCAL_FACEBOOK_IMPORT_ERROR
+
+    def build_facebook_generation_request(
+        self,
+        *,
+        topic: str,
+        locale: str,
+    ) -> CoreFacebookGenerationRequest:
+        self.ensure_facebook_available()
+        if not topic.strip():
+            raise ValueError("topic must not be empty")
+        return CoreFacebookGenerationRequest(topic=topic.strip(), locale=locale)
+
+    def generate_facebook_content(
+        self,
+        *,
+        generation_request: CoreFacebookGenerationRequest,
+        brief_context: dict[str, object],
+        instagram_caption: str,
+        carousel_summary: str,
+        voice_profile: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        self.ensure_facebook_available()
+        skill = FacebookAdapterSkill()
+        output = skill.run(
+            SkillInput(
+                text=generation_request.topic,
+                context={
+                    "brief_context": brief_context,
+                    "instagram_caption": instagram_caption,
+                    "carousel_summary": carousel_summary,
+                    "voice_profile": voice_profile,
+                },
+            )
+        )
+        return output.metadata["facebook_post"]

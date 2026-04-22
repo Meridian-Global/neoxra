@@ -63,6 +63,7 @@ export function GlobalNav() {
           instagram: 'Instagram Studio',
           articles: 'SEO Articles',
           threads: 'Threads',
+          facebook: 'Facebook',
           lawFirms: '法律事務所',
           moreVerticals: '更多產業即將推出',
         }
@@ -73,6 +74,7 @@ export function GlobalNav() {
           instagram: 'Instagram Studio',
           articles: 'SEO Articles',
           threads: 'Threads',
+          facebook: 'Facebook',
           lawFirms: 'Law Firms',
           moreVerticals: 'More verticals coming soon',
         }
@@ -97,6 +99,7 @@ export function GlobalNav() {
               { label: copy.instagram, href: '/instagram' },
               { label: copy.articles, href: '/seo' },
               { label: copy.threads, href: '/threads' },
+              { label: copy.facebook, href: '/facebook' },
             ]}
           />
           <NavDropdown
