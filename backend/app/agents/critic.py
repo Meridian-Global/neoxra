@@ -2,10 +2,14 @@ from .base import BaseAgent
 from ..core.brief import Brief
 from ..core.localization import DEFAULT_LOCALE, locale_instruction
 import json
+import logging
 
 # Re-export from neoxra-core. Local imports (e.g. from ..agents.critic import CriticReview)
 # continue to work unchanged during migration.
 from neoxra_core.models.outputs import CriticReview
+
+logger = logging.getLogger(__name__)
+JSON_RETRY_INSTRUCTION = "\n\nYour previous response was not valid JSON. Return valid JSON only, with no markdown fences or commentary."
 
 
 class CriticAgent(BaseAgent):
@@ -96,25 +100,36 @@ Return ONLY the JSON, no other text.
             voice_profile=voice_profile,
             locale=locale,
         )
-        response = self.generate(prompt, max_tokens=6000)
+        last_response = ""
+        improved_data = None
+        for attempt in range(3):
+            response = self.generate(prompt if attempt == 0 else prompt + JSON_RETRY_INSTRUCTION, max_tokens=6000)
+            last_response = response
 
-        # Strip markdown code blocks if present
-        response = response.strip()
-        if response.startswith("```json"):
-            response = response[7:]
-        if response.startswith("```"):
-            response = response[3:]
-        if response.endswith("```"):
-            response = response[:-3]
-        response = response.strip()
+            # Strip markdown code blocks if present
+            response = response.strip()
+            if response.startswith("```json"):
+                response = response[7:]
+            if response.startswith("```"):
+                response = response[3:]
+            if response.endswith("```"):
+                response = response[:-3]
+            response = response.strip()
 
-        try:
-            improved_data = json.loads(response)
-        except json.JSONDecodeError:
             try:
-                improved_data = json.loads(response, strict=False)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Critic did not return valid JSON. Error: {e}. Response: {response[:500]}")
+                improved_data = json.loads(response)
+                break
+            except json.JSONDecodeError:
+                try:
+                    improved_data = json.loads(response, strict=False)
+                    break
+                except json.JSONDecodeError:
+                    if attempt < 2:
+                        logger.warning("agent JSON retry agent=Critic attempt=%s reason=decode_failed", attempt + 1)
+                        continue
+
+        if improved_data is None:
+            raise ValueError(f"Critic did not return valid JSON. Response: {last_response[:500]}")
 
         try:
             return CriticReview(

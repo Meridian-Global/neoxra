@@ -2,16 +2,21 @@
 
 Neoxra helps small teams turn one strong idea into polished, platform-native content they can ship immediately.
 
-Today the product focuses on two demo-ready experiences:
-- a multi-platform content workflow that generates coordinated LinkedIn, Instagram, and Threads output
-- a dedicated Instagram Studio that analyzes style, generates a post system, scores it, and streams the result live
+Today the product focuses on demo-ready content generation:
+- Generate All: one idea becomes Instagram, SEO, Threads, and Facebook output
+- Instagram Studio: visual carousel generation, style references, and PNG export
+- SEO Studio, Threads Studio, and Facebook Adapter product surfaces
 - a lightweight magic-link login path for early customer access and organization-aware onboarding
 
 ## Live demo
 
 - Frontend: https://neoxra.com/
 - Backend: https://api.neoxra.com/
+- Generate All: https://neoxra.com/generate
 - Instagram Studio: https://neoxra.com/instagram
+- SEO Studio: https://neoxra.com/seo
+- Threads Studio: https://neoxra.com/threads
+- Facebook Adapter: https://neoxra.com/facebook
 - Legal Demo: https://neoxra.com/demo/legal
 
 ## What the product does
@@ -50,6 +55,17 @@ Useful docs:
 `/` is the main Neoxra landing page and product demo entrypoint.
 
 It introduces the multi-platform workflow and links into the Instagram Studio.
+
+### Generate All
+
+`/generate` is the main YC/client demo surface.
+
+It supports:
+- one idea input
+- industry, goal, audience, and voice profile controls
+- Planner → Instagram → SEO → Threads → Facebook progress
+- four platform result tabs
+- `Download All` ZIP export containing Instagram PNG slides, caption, SEO Markdown/HTML, Threads, and Facebook copy
 
 ### Instagram Studio
 
@@ -132,7 +148,11 @@ npm run dev
 
 Open:
 - `http://localhost:3000/`
+- `http://localhost:3000/generate`
 - `http://localhost:3000/instagram`
+- `http://localhost:3000/seo`
+- `http://localhost:3000/threads`
+- `http://localhost:3000/facebook`
 - `http://localhost:3000/demo/legal`
 - `http://localhost:3000/login`
 
@@ -144,8 +164,24 @@ For a quick local demo:
 2. start the frontend on `localhost:3000`
 3. open one of:
    - `/`
+   - `/generate`
    - `/instagram`
    - `/demo/legal`
+
+For the strongest law-firm client demo:
+
+1. open `/generate`
+2. select `Legal：車禍理賠`
+3. click `Generate All`
+4. review all four tabs
+5. click `下載全部 ZIP`
+6. unzip the delivery package and confirm it includes:
+   - `instagram/slide-01.png` through the final slide
+   - `instagram/caption.txt`
+   - `seo-article.md`
+   - `seo-article.html`
+   - `threads.txt`
+   - `facebook.txt`
 
 For backend demo readiness checks:
 
@@ -170,6 +206,21 @@ Most important variables:
 
 Frontend:
 - `NEXT_PUBLIC_API_BASE_URL`
+
+## Voice profiles
+
+Voice profiles live in `backend/voice_profiles/`.
+
+Current profiles:
+- `default.yaml` — grounded founder/operator voice
+- `law_firm.yaml` — professional law-firm partner voice with required legal-information disclaimer
+
+To add a profile:
+
+1. create `backend/voice_profiles/<profile_name>.yaml`
+2. include `creator`, `voice`, `signature_moves`, and `content_rules`
+3. add the profile key to any frontend selector or backend allowlist that should expose it
+4. test with `/generate`
 
 ## Deployment
 

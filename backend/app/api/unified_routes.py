@@ -23,8 +23,9 @@ router = build_gated_demo_router()
 logger = logging.getLogger(__name__)
 
 VALID_INDUSTRIES = {"legal", "tech", "health", "real_estate", "general"}
-VALID_VOICE_PROFILES = {"default", "professional", "friendly", "founder", "legal"}
+VALID_VOICE_PROFILES = {"default", "law_firm"}
 VALID_GOALS = {"traffic", "authority", "conversion", "education"}
+LAW_FIRM_DISCLAIMER = "本內容為一般法律資訊分享，非針對個案之法律意見。如有具體法律問題，建議諮詢專業律師。"
 
 
 class UnifiedGenerateRequest(BaseModel):
@@ -116,13 +117,17 @@ def _require_unified_dependencies(core_client) -> None:
 
 
 def _voice_context(req: UnifiedGenerateRequest) -> dict[str, object]:
-    return {
+    context: dict[str, object] = {
         "name": req.voice_profile,
         "industry": req.industry,
         "audience": req.audience,
         "goal": req.goal,
         "locale": req.locale,
     }
+    if req.voice_profile == "law_firm":
+        context["required_disclaimer"] = LAW_FIRM_DISCLAIMER
+        context["tone"] = "professional, approachable, knowledgeable, reassuring"
+    return context
 
 
 def _planner_idea(req: UnifiedGenerateRequest) -> str:
@@ -133,6 +138,7 @@ def _planner_idea(req: UnifiedGenerateRequest) -> str:
         f"目標受眾：{audience}\n"
         f"內容目標：{req.goal}\n"
         f"語氣設定：{req.voice_profile}\n"
+        f"{'必要聲明：' + LAW_FIRM_DISCLAIMER if req.voice_profile == 'law_firm' else ''}\n"
         "請規劃成可延展到 Instagram、SEO 文章、Threads 與 Facebook 的內容 brief。"
     )
 
@@ -170,9 +176,43 @@ def _instagram_template(req: UnifiedGenerateRequest, brief: dict[str, object]) -
         f"受眾：{audience}\n"
         f"內容目標：{req.goal}\n"
         f"語氣：{req.voice_profile}\n"
+        f"{'每份法律內容都必須自然包含這段聲明：' + LAW_FIRM_DISCLAIMER if req.voice_profile == 'law_firm' else ''}\n"
         f"Brief：{json.dumps(brief, ensure_ascii=False)}\n"
         "輸出需包含 caption、5 張 carousel、hashtags 與 reel script。"
     )
+
+
+def _append_disclaimer(text: object) -> str:
+    value = text.strip() if isinstance(text, str) else ""
+    if LAW_FIRM_DISCLAIMER in value:
+        return value
+    return f"{value}\n\n{LAW_FIRM_DISCLAIMER}".strip()
+
+
+def _apply_law_firm_disclaimer(
+    req: UnifiedGenerateRequest,
+    platform: str,
+    content: dict[str, object],
+) -> dict[str, object]:
+    if req.voice_profile != "law_firm":
+        return content
+
+    next_content = dict(content)
+    if platform == "instagram":
+        next_content["caption"] = _append_disclaimer(next_content.get("caption"))
+    elif platform == "seo":
+        next_content["cta"] = _append_disclaimer(next_content.get("cta"))
+    elif platform == "threads":
+        posts = next_content.get("posts")
+        if isinstance(posts, list) and posts:
+            next_posts = [dict(post) if isinstance(post, dict) else post for post in posts]
+            last_post = next_posts[-1]
+            if isinstance(last_post, dict):
+                last_post["content"] = _append_disclaimer(last_post.get("content"))
+                next_content["posts"] = next_posts
+    elif platform == "facebook":
+        next_content["body"] = _append_disclaimer(next_content.get("body"))
+    return next_content
 
 
 def _generate_instagram(core_client, req: UnifiedGenerateRequest, brief: dict[str, object]) -> dict[str, object]:
@@ -186,7 +226,7 @@ def _generate_instagram(core_client, req: UnifiedGenerateRequest, brief: dict[st
         template_text=generation_request.template_text,
         style_examples=generation_request.style_examples,
     )
-    return core_client.generate_instagram_content(
+    content = core_client.generate_instagram_content(
         generation_request=generation_request,
         localized_template_text=append_locale_instruction(
             generation_request.template_text,
@@ -195,6 +235,7 @@ def _generate_instagram(core_client, req: UnifiedGenerateRequest, brief: dict[st
         style_analysis=style_analysis,
         locale=req.locale,
     )
+    return _apply_law_firm_disclaimer(req, "instagram", content)
 
 
 def _generate_seo(core_client, req: UnifiedGenerateRequest, brief: dict[str, object]) -> dict[str, object]:
@@ -203,7 +244,7 @@ def _generate_seo(core_client, req: UnifiedGenerateRequest, brief: dict[str, obj
         goal="conversion" if req.goal == "conversion" else "authority",
         locale=req.locale,
     )
-    return core_client.generate_seo_article(
+    content = core_client.generate_seo_article(
         generation_request=generation_request,
         brief_context={
             "brief": brief,
@@ -215,6 +256,7 @@ def _generate_seo(core_client, req: UnifiedGenerateRequest, brief: dict[str, obj
         },
         voice_profile=_voice_context(req),
     )
+    return _apply_law_firm_disclaimer(req, "seo", content)
 
 
 def _generate_threads(core_client, req: UnifiedGenerateRequest, brief: dict[str, object]) -> dict[str, object]:
@@ -223,7 +265,7 @@ def _generate_threads(core_client, req: UnifiedGenerateRequest, brief: dict[str,
         goal="share" if req.goal == "traffic" else "engagement",
         locale=req.locale,
     )
-    return core_client.generate_threads_content(
+    content = core_client.generate_threads_content(
         generation_request=generation_request,
         brief_context={
             "brief": brief,
@@ -235,6 +277,7 @@ def _generate_threads(core_client, req: UnifiedGenerateRequest, brief: dict[str,
         },
         voice_profile=_voice_context(req),
     )
+    return _apply_law_firm_disclaimer(req, "threads", content)
 
 
 def _extract_instagram_caption(instagram_content: dict[str, object]) -> str:
@@ -270,7 +313,7 @@ def _generate_facebook(
         topic=req.idea,
         locale=req.locale,
     )
-    return core_client.generate_facebook_content(
+    content = core_client.generate_facebook_content(
         generation_request=generation_request,
         brief_context={
             "brief": brief,
@@ -285,6 +328,7 @@ def _generate_facebook(
         carousel_summary=_build_carousel_summary(instagram_content),
         voice_profile=_voice_context(req),
     )
+    return _apply_law_firm_disclaimer(req, "facebook", content)
 
 
 async def _run_platform(name: str, func, *args):

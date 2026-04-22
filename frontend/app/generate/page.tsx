@@ -1,14 +1,17 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type MutableRefObject } from 'react'
 import { GlobalNav } from '../../components/GlobalNav'
 import { PipelineProgress, type PipelineStep, type PipelineStepStatus } from '../../components/PipelineProgress'
 import { PlatformTabs, type PlatformErrors, type PlatformResults, type PlatformStatuses } from '../../components/PlatformTabs'
 import { API_BASE_URL } from '../../lib/api'
+import { getCarouselTheme } from '../../lib/carousel-themes'
 import { buildDemoHeaders } from '../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../lib/demo-config'
+import { DEMO_SCENARIOS, type DemoScenario } from '../../lib/demo-scenarios'
+import { downloadAllOutputs } from '../../lib/export-all'
 import type { FacebookPost } from '../../lib/facebook-types'
-import type { InstagramContent } from '../../lib/instagram-types'
+import type { CarouselSlide, InstagramContent } from '../../lib/instagram-types'
 import type { SeoArticle } from '../../lib/seo-types'
 import { APIError, streamSSE } from '../../lib/sse'
 import type { ThreadsThread } from '../../lib/threads-types'
@@ -32,11 +35,10 @@ const GOAL_OPTIONS = [
 
 const VOICE_OPTIONS = [
   { value: 'default', label: '清楚直接' },
-  { value: 'professional', label: '專業穩重' },
-  { value: 'friendly', label: '親民好懂' },
-  { value: 'founder', label: '創辦人觀點' },
-  { value: 'legal', label: '法律專業' },
+  { value: 'law_firm', label: '法律事務所' },
 ] as const
+
+const EXPORT_THEME = getCarouselTheme('professional')
 
 const INITIAL_PLATFORM_STATUSES: PlatformStatuses = {
   instagram: 'waiting',
@@ -97,13 +99,62 @@ function SelectField({
   )
 }
 
+function HiddenInstagramSlides({
+  slides,
+  slideRefs,
+}: {
+  slides: CarouselSlide[]
+  slideRefs: MutableRefObject<HTMLDivElement[]>
+}) {
+  return (
+    <div className="pointer-events-none fixed left-[-12000px] top-0 z-[-1]">
+      {slides.map((slide, index) => (
+        <div
+          key={`${slide.title}-generate-export-${index}`}
+          ref={(element) => {
+            if (element) slideRefs.current[index] = element
+          }}
+          className="h-[1080px] w-[1080px] overflow-hidden"
+        >
+          <div
+            className="relative flex h-full w-full flex-col p-[88px]"
+            style={{ background: EXPORT_THEME.bgColor, color: EXPORT_THEME.textColor }}
+          >
+            <div
+              className="inline-flex self-start rounded-full px-8 py-3 text-[32px] font-bold"
+              style={{ background: EXPORT_THEME.accentColor, color: '#111827' }}
+            >
+              {index + 1}/{slides.length}
+            </div>
+            <div className="flex flex-1 flex-col items-center justify-center text-center">
+              <h4 className="max-w-[92%] text-[92px] font-bold leading-[1.05] tracking-[-0.03em]">
+                {slide.title}
+              </h4>
+              <p
+                className="mt-8 max-w-[92%] text-[44px] font-medium leading-[1.42]"
+                style={{ color: EXPORT_THEME.subtextColor }}
+              >
+                {slide.body}
+              </p>
+            </div>
+            <div
+              className="absolute bottom-[88px] left-[88px] h-3 w-44 rounded-full"
+              style={{ background: EXPORT_THEME.accentColor }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function GeneratePage() {
   const demoConfig = useMemo(() => getDemoSurfaceConfig('landing'), [])
   const [idea, setIdea] = useState('車禍理賠流程')
   const [industry, setIndustry] = useState('legal')
   const [audience, setAudience] = useState('正在處理事故理賠的一般民眾')
   const [goal, setGoal] = useState('traffic')
-  const [voiceProfile, setVoiceProfile] = useState('professional')
+  const [voiceProfile, setVoiceProfile] = useState('law_firm')
   const [pageStatus, setPageStatus] = useState<PageStatus>('idle')
   const [plannerStatus, setPlannerStatus] = useState<PipelineStepStatus>('waiting')
   const [platformStatuses, setPlatformStatuses] = useState<PlatformStatuses>(INITIAL_PLATFORM_STATUSES)
@@ -111,9 +162,13 @@ export default function GeneratePage() {
   const [errors, setErrors] = useState<PlatformErrors>({})
   const [brief, setBrief] = useState<Record<string, unknown> | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const runSlugRef = useRef<string>('')
+  const exportSlideRefs = useRef<HTMLDivElement[]>([])
   const isGenerating = pageStatus === 'loading' || pageStatus === 'streaming'
+  const hasAnyResult = Boolean(results.instagram || results.seo || results.threads || results.facebook)
 
   const progressSteps: PipelineStep[] = [
     { id: 'planner', label: 'Planner', status: plannerStatus },
@@ -130,6 +185,8 @@ export default function GeneratePage() {
     setErrors({})
     setBrief(null)
     setPageError(null)
+    setDownloadError(null)
+    exportSlideRefs.current = []
   }
 
   function setPlatformStatus(platform: keyof PlatformStatuses, status: PipelineStepStatus) {
@@ -138,6 +195,35 @@ export default function GeneratePage() {
 
   function setPlatformResult(platform: keyof PlatformResults, value: PlatformResults[keyof PlatformResults]) {
     setResults((current) => ({ ...current, [platform]: value }))
+  }
+
+  function applyScenario(scenario: DemoScenario) {
+    setIdea(scenario.idea)
+    setIndustry(scenario.industry)
+    setAudience(scenario.audience)
+    setGoal(scenario.goal)
+    setVoiceProfile(scenario.voiceProfile)
+  }
+
+  async function handleDownloadAll() {
+    if (!hasAnyResult || isDownloading) return
+
+    setIsDownloading(true)
+    setDownloadError(null)
+
+    try {
+      await downloadAllOutputs(
+        {
+          ...results,
+          instagramSlideElements: exportSlideRefs.current.slice(0, results.instagram?.carousel_outline.length ?? 0),
+        },
+        runSlugRef.current || slugify(idea),
+      )
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : '匯出 ZIP 失敗，請稍後再試。')
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   async function handleGenerate() {
@@ -265,6 +351,22 @@ export default function GeneratePage() {
             </div>
 
             <div className="space-y-3">
+              <p className="text-sm font-semibold text-[var(--text-secondary)]">Demo 情境</p>
+              <div className="flex flex-wrap gap-2">
+                {DEMO_SCENARIOS.map((scenario) => (
+                  <button
+                    key={scenario.name}
+                    type="button"
+                    onClick={() => applyScenario(scenario)}
+                    className="rounded-full border border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:bg-[var(--bg-elevated)]"
+                  >
+                    {scenario.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
               <InputLabel htmlFor="generate-idea">核心想法</InputLabel>
               <textarea
                 id="generate-idea"
@@ -363,9 +465,40 @@ export default function GeneratePage() {
               topicSlug={runSlugRef.current}
               isGenerating={isGenerating}
             />
+
+            <div className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-[var(--text-primary)]">交付包</h2>
+                  <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                    一鍵下載 Instagram 圖片、caption、SEO Markdown/HTML、Threads 與 Facebook 文案。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadAll()}
+                  disabled={!hasAnyResult || isGenerating || isDownloading}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] bg-[var(--bg-accent)] px-6 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isDownloading ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      打包中…
+                    </>
+                  ) : (
+                    '下載全部 ZIP'
+                  )}
+                </button>
+              </div>
+              {downloadError ? <p className="mt-3 text-sm text-[var(--text-secondary)]">{downloadError}</p> : null}
+            </div>
           </section>
         </section>
       </div>
+
+      {results.instagram ? (
+        <HiddenInstagramSlides slides={results.instagram.carousel_outline} slideRefs={exportSlideRefs} />
+      ) : null}
     </main>
   )
 }

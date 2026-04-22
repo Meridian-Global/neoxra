@@ -26,7 +26,7 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   })
 }
 
-async function renderSlideToPng(slideElement: HTMLElement): Promise<Blob> {
+export async function renderCarouselSlideToPng(slideElement: HTMLElement): Promise<Blob> {
   const sourceCanvas = await html2canvas(slideElement, {
     backgroundColor: null,
     scale: 2,
@@ -63,7 +63,7 @@ export async function exportCarousel(slideElements: HTMLElement[], topicSlug: st
   const zip = new JSZip()
 
   for (const [index, slideElement] of validSlideElements.entries()) {
-    const pngBlob = await renderSlideToPng(slideElement)
+    const pngBlob = await renderCarouselSlideToPng(slideElement)
     zip.file(`slide-${String(index + 1).padStart(2, '0')}.png`, pngBlob)
   }
 

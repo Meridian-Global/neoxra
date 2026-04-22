@@ -4,34 +4,31 @@ This file provides guidance to Claude Code when working in this repository.
 
 ## Project Overview
 
-Neoxra is a multi-agent content system that transforms one idea into platform-native content for Instagram, Threads, and LinkedIn.
+Neoxra is an AI content engine that transforms one idea into platform-native content for Instagram, SEO Articles, Threads, and Facebook.
 
 The system is centered around a structured **Brief** object:
 - A Planner agent turns a raw idea into a structured brief
 - Platform agents use the brief to generate native content
 - A Critic agent reviews all outputs against the creator's brand voice
 
-The goal is to build a working MVP quickly, not a production-grade system.
+The public `neoxra` repo is the product shell. Private generation logic lives behind the `core_client` abstraction and the private `neoxra-core` package.
 
 ## Current Goal
 
-Build a usable MVP within 10 days that can:
-1. Take one idea as input
-2. Generate content for Instagram, Threads, and LinkedIn
-3. Keep a visible record of agent collaboration
-4. Be usable personally before adding publishing automation
+Keep the demo surfaces reliable enough for founder, YC, and early customer conversations:
+1. `/generate` — one idea, four platform outputs, downloadable client package
+2. `/instagram` — Instagram Studio with visual carousel renderer and export
+3. `/seo`, `/threads`, `/facebook` — focused single-platform studios
+4. `/demo/legal` — law-firm vertical sales page
 
 ## Development Priorities
 
 Priority order:
-1. CLI demo
-2. Planner agent
-3. Instagram / Threads / LinkedIn agents
-4. Critic agent
-5. Pipeline Coordinator
-6. FastAPI endpoint
-7. Frontend
-8. Scheduling / publishing integrations
+1. Demo safety and reliability
+2. Clear product UX over engineering dashboards
+3. Open-core boundaries through `backend/app/core_client`
+4. Durable usage and growth instrumentation
+5. Small, incremental auth/tenant foundations
 
 Do not overengineer early versions.
 
@@ -64,24 +61,29 @@ It should contain:
 - tone
 - per-platform notes
 
-### Agent Roles
+### Product Orchestration
 
 Planner → creates Brief  
-Platform agents → generate content  
-Critic → reviews outputs  
+Instagram / SEO / Threads → generate in parallel  
+Facebook → adapts from Instagram output  
+Critic/retry logic → keeps legacy agent JSON output stable
 
 ## Brand Voice
 
-Defined in backend/voice_profiles/default.yaml
+Defined in `backend/voice_profiles/`.
+
+Current profiles:
+- `default.yaml`
+- `law_firm.yaml`
 
 ## Tech Stack
 
 - Claude API
 - Python
 - FastAPI
-- Next.js (later)
-- SQLite (optional)
-- YAML config
+- Next.js
+- Postgres + Alembic
+- YAML voice profiles
 
 Avoid heavy frameworks.
 
@@ -94,8 +96,33 @@ Avoid heavy frameworks.
 
 ## Commands
 
-cd backend && python scripts/run_cli.py "your idea here"
+Backend:
+
+```bash
+cd backend
+uvicorn app.main:app --reload
+python -m pytest backend/tests/test_unified_route.py
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run dev
+npm run build
+```
+
+Demo:
+
+```text
+/generate
+/instagram
+/seo
+/threads
+/facebook
+/demo/legal
+```
 
 ## Notes
 
-This is a fast prototype. Optimize for speed and iteration.
+Keep the public shell practical and disciplined. Do not move private prompts or business logic from `neoxra-core` into this repo unless the boundary doc explicitly allows it.

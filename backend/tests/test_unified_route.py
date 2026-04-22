@@ -14,6 +14,7 @@ from app.core_client import (
 from app.main import app
 
 client = TestClient(app)
+LAW_FIRM_DISCLAIMER = "本內容為一般法律資訊分享，非針對個案之法律意見。如有具體法律問題，建議諮詢專業律師。"
 
 INSTAGRAM_CONTENT = {
     "caption": "車禍後先報警、拍照、就醫，再談理賠。",
@@ -175,7 +176,7 @@ def test_generate_all_streams_all_platform_results(monkeypatch):
             "industry": "legal",
             "audience": "事故當事人",
             "goal": "traffic",
-            "voice_profile": "professional",
+            "voice_profile": "law_firm",
             "locale": "zh-TW",
         },
     )
@@ -189,8 +190,13 @@ def test_generate_all_streams_all_platform_results(monkeypatch):
     assert "threads_ready" in event_names
     assert "facebook_ready" in event_names
     assert event_names[-1] == "all_completed"
-    assert fake.facebook_caption == INSTAGRAM_CONTENT["caption"]
+    assert INSTAGRAM_CONTENT["caption"] in fake.facebook_caption
     assert events[-1]["data"]["errors"] == {}
+    outputs = events[-1]["data"]["outputs"]
+    assert LAW_FIRM_DISCLAIMER in outputs["instagram"]["caption"]
+    assert LAW_FIRM_DISCLAIMER in outputs["seo"]["cta"]
+    assert LAW_FIRM_DISCLAIMER in outputs["threads"]["posts"][-1]["content"]
+    assert LAW_FIRM_DISCLAIMER in outputs["facebook"]["body"]
 
 
 def test_generate_all_keeps_partial_results_when_one_platform_fails(monkeypatch):
