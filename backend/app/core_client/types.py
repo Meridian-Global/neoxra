@@ -24,3 +24,9 @@ class CoreThreadsGenerationRequest:
     topic: str
     goal: str
     locale: str = "en"
+
+
+@dataclass(frozen=True)
+class CoreFacebookGenerationRequest:
+    topic: str
+    locale: str = "en"

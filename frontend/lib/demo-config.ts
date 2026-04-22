@@ -1,5 +1,5 @@
 export type DemoEnvironmentMode = 'local' | 'public-demo' | 'internal-demo' | 'production'
-export type DemoSurfaceId = 'landing' | 'instagram' | 'threads' | 'legal'
+export type DemoSurfaceId = 'landing' | 'instagram' | 'threads' | 'facebook' | 'legal'
 export type DemoAccessMode = 'public' | 'gated'
 export type DemoProfile = 'public' | 'client'
 
@@ -47,24 +47,28 @@ function defaultAccessMode(surface: DemoSurfaceId, mode: DemoEnvironmentMode): D
       landing: 'public',
       instagram: 'public',
       threads: 'public',
+      facebook: 'public',
       legal: 'public',
     },
     'public-demo': {
       landing: 'public',
       instagram: 'public',
       threads: 'public',
+      facebook: 'public',
       legal: 'gated',
     },
     'internal-demo': {
       landing: 'public',
       instagram: 'public',
       threads: 'public',
+      facebook: 'public',
       legal: 'public',
     },
     production: {
       landing: 'public',
       instagram: 'public',
       threads: 'public',
+      facebook: 'public',
       legal: 'gated',
     },
   }
@@ -80,7 +84,9 @@ function getSurfaceAccessMode(surface: DemoSurfaceId, mode: DemoEnvironmentMode)
         ? process.env.NEXT_PUBLIC_INSTAGRAM_DEMO_ACCESS_MODE
         : surface === 'threads'
           ? process.env.NEXT_PUBLIC_THREADS_DEMO_ACCESS_MODE
-          : process.env.NEXT_PUBLIC_LEGAL_DEMO_ACCESS_MODE
+          : surface === 'facebook'
+            ? process.env.NEXT_PUBLIC_FACEBOOK_DEMO_ACCESS_MODE
+            : process.env.NEXT_PUBLIC_LEGAL_DEMO_ACCESS_MODE
   )?.trim()
   if (raw === 'public' || raw === 'gated') {
     return raw
@@ -100,7 +106,9 @@ function getConfiguredDemoKey(surface: DemoSurfaceId): string {
         ? process.env.NEXT_PUBLIC_INSTAGRAM_DEMO_KEY
         : surface === 'threads'
           ? process.env.NEXT_PUBLIC_THREADS_DEMO_KEY
-          : process.env.NEXT_PUBLIC_LEGAL_DEMO_KEY
+          : surface === 'facebook'
+            ? process.env.NEXT_PUBLIC_FACEBOOK_DEMO_KEY
+            : process.env.NEXT_PUBLIC_LEGAL_DEMO_KEY
   )?.trim()
 
   if (raw) return raw
@@ -108,6 +116,7 @@ function getConfiguredDemoKey(surface: DemoSurfaceId): string {
   if (surface === 'landing') return 'landing-public'
   if (surface === 'instagram') return 'instagram-public'
   if (surface === 'threads') return 'threads-public'
+  if (surface === 'facebook') return 'facebook-public'
   return 'legal-client'
 }
 

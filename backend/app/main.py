@@ -27,6 +27,7 @@ from .api.routes import router
 from .api.analytics_routes import router as analytics_router
 from .api.auth_routes import router as auth_router
 from .api.demo_config_routes import router as demo_config_router
+from .api.facebook_routes import router as facebook_router
 from .api.demo_access_routes import router as demo_access_router
 from .api.health_routes import internal_router as internal_health_router
 from .api.health_routes import public_router as health_router
@@ -87,6 +88,7 @@ app.include_router(analytics_router)
 app.include_router(auth_router)
 app.include_router(demo_config_router)
 app.include_router(demo_access_router)
+app.include_router(facebook_router)
 app.include_router(health_router)
 app.include_router(internal_health_router)
 app.include_router(integrations_router)

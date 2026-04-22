@@ -12,6 +12,7 @@ from .compatibility import (
 from .factory import get_core_client, get_core_client_mode, reset_core_client_cache
 from .signing import sign_internal_request, sign_internal_request_from_env
 from .types import (
+    CoreFacebookGenerationRequest,
     CoreInstagramGenerationRequest,
     CoreSeoGenerationRequest,
     CoreThreadsGenerationRequest,
@@ -24,6 +25,7 @@ __all__ = [
     "CoreClientUnavailableError",
     "CoreCompatibilityExpectation",
     "CoreCompatibilityResult",
+    "CoreFacebookGenerationRequest",
     "CoreInstagramGenerationRequest",
     "CoreSeoGenerationRequest",
     "CoreThreadsGenerationRequest",
