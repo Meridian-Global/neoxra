@@ -1,6 +1,7 @@
 """Tests for POST /api/generate-all unified SSE orchestration."""
 
 import json
+from json import JSONDecodeError
 
 from fastapi.testclient import TestClient
 
@@ -93,8 +94,9 @@ class FakeUnifiedCoreClient:
     mode = "local"
     requires_local_api_key = False
 
-    def __init__(self, *, fail_threads: bool = False):
+    def __init__(self, *, fail_threads: bool = False, fail_threads_build: bool = False):
         self.fail_threads = fail_threads
+        self.fail_threads_build = fail_threads_build
         self.facebook_caption = None
 
     def ensure_pipeline_available(self):
@@ -149,6 +151,8 @@ class FakeUnifiedCoreClient:
         return dict(SEO_ARTICLE)
 
     def build_threads_generation_request(self, *, topic: str, goal: str, locale: str):
+        if self.fail_threads_build:
+            raise JSONDecodeError("invalid json", "{", 0)
         return CoreThreadsGenerationRequest(topic=topic, goal=goal, locale=locale)
 
     def generate_threads_content(self, **kwargs):
@@ -215,9 +219,29 @@ def test_generate_all_keeps_partial_results_when_one_platform_fails(monkeypatch)
     assert response.status_code == 200
     events = _parse_sse_stream(response.text)
     event_names = [event["event"] for event in events]
-    assert "platform_error" in event_names
+    assert "threads_ready" in event_names
     assert "instagram_ready" in event_names
     assert "seo_ready" in event_names
     assert "facebook_ready" in event_names
     assert event_names[-1] == "all_completed"
-    assert events[-1]["data"]["errors"]["threads"]["stage"] == "threads"
+    outputs = events[-1]["data"]["outputs"]
+    assert outputs["threads"]["error"] is True
+    assert outputs["threads"]["stage"] == "threads"
+    assert "warning" in outputs["threads"]
+
+
+def test_generate_all_platform_error_includes_reason(monkeypatch):
+    _use_fake_core_client(monkeypatch, FakeUnifiedCoreClient(fail_threads_build=True))
+
+    response = client.post(
+        "/api/generate-all",
+        headers={"X-Neoxra-Demo-Surface": "landing"},
+        json={"idea": "車禍理賠流程", "industry": "legal", "goal": "authority"},
+    )
+
+    assert response.status_code == 200
+    events = _parse_sse_stream(response.text)
+    platform_errors = [event for event in events if event["event"] == "platform_error"]
+    assert platform_errors
+    threads_error = next(event for event in platform_errors if event["data"]["platform"] == "threads")
+    assert threads_error["data"]["reason"] == "malformed_response"

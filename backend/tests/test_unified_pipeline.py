@@ -5,6 +5,7 @@ from app.api.unified_routes import (
     _build_brief,
     _generate_facebook,
     _generate_instagram,
+    _generate_validated_platform,
     _generate_seo,
     _generate_threads,
 )
@@ -134,3 +135,49 @@ def test_unified_pipeline_produces_all_valid_platform_outputs():
     assert validate_seo_article_payload(seo)
     assert validate_threads_content_payload(threads)
     assert validate_facebook_post_payload(facebook)
+
+
+def test_generate_validated_platform_retries_generation_value_error():
+    calls = {"count": 0}
+
+    def generate_content():
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise ValueError("temporary malformed response")
+        return MockUnifiedCoreClient().generate_threads_content()
+
+    result = _generate_validated_platform("threads", generate_content)
+
+    assert calls["count"] == 2
+    assert validate_threads_content_payload(result)
+
+
+def test_generate_validated_platform_retries_generation_runtime_error():
+    calls = {"count": 0}
+
+    def generate_content():
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("provider crashed")
+        return MockUnifiedCoreClient().generate_facebook_content()
+
+    result = _generate_validated_platform("facebook", generate_content)
+
+    assert calls["count"] == 2
+    assert validate_facebook_post_payload(result)
+
+
+def test_generate_validated_platform_returns_warning_after_two_failures():
+    calls = {"count": 0}
+
+    def generate_content():
+        calls["count"] += 1
+        return {"metadata": {"title": "too short"}}
+
+    result = _generate_validated_platform("seo", generate_content)
+
+    assert calls["count"] == 2
+    assert result["error"] is True
+    assert result["stage"] == "seo"
+    assert "warning" in result
+    assert result["partial"] == {"metadata": {"title": "too short"}}

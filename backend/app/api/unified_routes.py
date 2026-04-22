@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from json import JSONDecodeError
 
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -235,19 +236,40 @@ def _validate_platform_output(platform: str, content: dict[str, object]) -> dict
 
 def _generate_validated_platform(platform: str, generate_content) -> dict[str, object]:
     last_content = None
+    last_error = None
     for attempt in range(2):
-        content = generate_content()
-        last_content = content
         try:
+            content = generate_content()
+            last_content = content
             return _validate_platform_output(platform, content)
-        except ValueError:
+        except Exception as exc:
+            last_error = exc
             if attempt == 0:
-                logger.warning("unified %s output validation failed; retrying once", platform)
+                logger.warning(
+                    "unified %s generation/validation failed (attempt 1); retrying: %s",
+                    platform,
+                    str(exc)[:200],
+                )
                 continue
-            logger.exception("unified %s output validation failed after retry", platform)
-            partial = dict(last_content or {})
-            partial["warning"] = "Output did not pass strict validation after retry."
-            return partial
+            logger.exception("unified %s failed after retry", platform)
+
+    return {
+        "error": True,
+        "stage": platform,
+        "message": str(last_error) if last_error else "Generation failed after retry.",
+        "warning": f"Output did not pass generation/validation after retry: {str(last_error)[:200]}",
+        "partial": last_content if isinstance(last_content, dict) else None,
+    }
+
+
+def _platform_error_reason(exc: Exception) -> str:
+    if isinstance(exc, JSONDecodeError):
+        return "malformed_response"
+    if isinstance(exc, (ConnectionError, TimeoutError)):
+        return "llm_unavailable"
+    if isinstance(exc, ValueError):
+        return "validation_failed"
+    return "generation_failed"
 
 
 def _generate_instagram(core_client, req: UnifiedGenerateRequest, brief: dict[str, object]) -> dict[str, object]:
@@ -454,6 +476,7 @@ async def generate_all(req: UnifiedGenerateRequest, request: Request):
                             "stage": platform,
                             "error_code": error_code,
                             "message": safe_message,
+                            "reason": _platform_error_reason(exc),
                         }
                         yield _sse(
                             "platform_error",
@@ -467,6 +490,7 @@ async def generate_all(req: UnifiedGenerateRequest, request: Request):
                                 "stage": "facebook",
                                 "error_code": "FACEBOOK_SOURCE_UNAVAILABLE",
                                 "message": "Facebook generation needs Instagram output first.",
+                                "reason": "source_unavailable",
                             }
                             yield _sse(
                                 "platform_error",
