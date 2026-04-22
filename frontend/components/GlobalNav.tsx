@@ -5,10 +5,10 @@ import { LanguageToggle } from './LanguageToggle'
 import { useLanguage } from './LanguageProvider'
 import { ThemeToggle } from './landing/ThemeToggle'
 
-function ComingSoonBadge() {
+function ComingSoonBadge({ label }: { label: string }) {
   return (
     <span className="inline-flex rounded-full bg-[var(--bg-sunken)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)]">
-      即將推出
+      {label}
     </span>
   )
 }
@@ -16,9 +16,11 @@ function ComingSoonBadge() {
 function NavDropdown({
   label,
   items,
+  soonLabel,
 }: {
   label: string
   items: Array<{ label: string; href?: string; soon?: boolean }>
+  soonLabel: string
 }) {
   return (
     <details className="group relative">
@@ -42,7 +44,7 @@ function NavDropdown({
               className="flex items-center justify-between gap-3 rounded-[10px] px-3 py-2.5 text-sm text-[var(--text-secondary)]"
             >
               <span>{item.label}</span>
-              {item.soon ? <ComingSoonBadge /> : null}
+              {item.soon ? <ComingSoonBadge label={soonLabel} /> : null}
             </div>
           ),
         )}
@@ -67,6 +69,7 @@ export function GlobalNav() {
           facebook: 'Facebook',
           lawFirms: '法律事務所',
           moreVerticals: '更多產業即將推出',
+          soon: '即將推出',
         }
       : {
           brand: 'Neoxra',
@@ -79,6 +82,7 @@ export function GlobalNav() {
           facebook: 'Facebook',
           lawFirms: 'Law Firms',
           moreVerticals: 'More verticals coming soon',
+          soon: 'Coming soon',
         }
 
   return (
@@ -103,6 +107,7 @@ export function GlobalNav() {
           </Link>
           <NavDropdown
             label={copy.products}
+            soonLabel={copy.soon}
             items={[
               { label: copy.instagram, href: '/instagram' },
               { label: copy.articles, href: '/seo' },
@@ -112,6 +117,7 @@ export function GlobalNav() {
           />
           <NavDropdown
             label={copy.useCases}
+            soonLabel={copy.soon}
             items={[
               { label: copy.lawFirms, href: '/demo/legal' },
               { label: copy.moreVerticals, soon: true },

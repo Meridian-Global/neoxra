@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { FacebookPreview } from './FacebookPreview'
+import { useLanguage } from './LanguageProvider'
 import { SeoArticlePreview } from './SeoArticlePreview'
 import { ThreadsPreview } from './ThreadsPreview'
 import { VisualCarouselRenderer } from './VisualCarouselRenderer'
@@ -14,6 +15,7 @@ import type { SeoArticle } from '../lib/seo-types'
 import type { ThreadsThread } from '../lib/threads-types'
 
 export type PlatformId = 'instagram' | 'seo' | 'threads' | 'facebook'
+type Language = 'en' | 'zh-TW'
 
 export interface PlatformResults {
   instagram?: InstagramContent
@@ -32,6 +34,31 @@ const TABS: Array<{ id: PlatformId; label: string; icon: string }> = [
   { id: 'facebook', label: 'Facebook', icon: 'f' },
 ]
 
+const COPY: Record<Language, Record<string, string>> = {
+  'zh-TW': {
+    copied: '已複製',
+    failed: '產生失敗',
+    incomplete: '尚未完成',
+    waiting: '按下 Generate All 後，完成的內容會自動出現在這裡。',
+    copyCaption: '複製 caption',
+    copySlides: '複製輪播文字',
+    copyHashtags: '複製 hashtags',
+    copyMarkdown: '複製 Markdown',
+    copyHtml: '複製 HTML',
+  },
+  en: {
+    copied: 'Copied',
+    failed: 'failed',
+    incomplete: 'not ready yet',
+    waiting: 'After you press Generate All, completed content will appear here automatically.',
+    copyCaption: 'Copy caption',
+    copySlides: 'Copy slide text',
+    copyHashtags: 'Copy hashtags',
+    copyMarkdown: 'Copy Markdown',
+    copyHtml: 'Copy HTML',
+  },
+}
+
 function statusBadge(status: PipelineStepStatus) {
   if (status === 'running') return <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-bold)] border-t-[var(--accent)]" />
   if (status === 'complete') return <span className="text-emerald-500">✓</span>
@@ -39,7 +66,7 @@ function statusBadge(status: PipelineStepStatus) {
   return <span className="h-2 w-2 rounded-full bg-[var(--text-tertiary)]" />
 }
 
-function CopyButton({ label, value }: { label: string; value: string }) {
+function CopyButton({ label, value, copiedLabel }: { label: string; value: string; copiedLabel: string }) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
@@ -54,19 +81,19 @@ function CopyButton({ label, value }: { label: string; value: string }) {
       onClick={() => void handleCopy()}
       className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-sunken)]"
     >
-      {copied ? '已複製' : label}
+      {copied ? copiedLabel : label}
     </button>
   )
 }
 
-function EmptyState({ label, error }: { label: string; error?: string }) {
+function EmptyState({ label, error, copy }: { label: string; error?: string; copy: Record<string, string> }) {
   return (
     <div className="rounded-[20px] border border-dashed border-[var(--border-bold)] bg-[var(--bg-sunken)] p-8 text-center">
       <p className="text-base font-semibold text-[var(--text-primary)]">
-        {error ? `${label} 產生失敗` : `${label} 尚未完成`}
+        {error ? `${label} ${copy.failed}` : `${label} ${copy.incomplete}`}
       </p>
       <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-        {error ?? '按下 Generate All 後，完成的內容會自動出現在這裡。'}
+        {error ?? copy.waiting}
       </p>
     </div>
   )
@@ -76,14 +103,16 @@ function InstagramTab({
   content,
   topicSlug,
   exportDisabled,
+  copy,
 }: {
   content?: InstagramContent
   topicSlug: string
   exportDisabled: boolean
+  copy: Record<string, string>
 }) {
   const [theme, setTheme] = useState<CarouselThemeId>('professional')
 
-  if (!content) return <EmptyState label="Instagram" />
+  if (!content) return <EmptyState label="Instagram" copy={copy} />
 
   const slidesText = content.carousel_outline
     .map((slide, index) => `${index + 1}/${content.carousel_outline.length}\n${slide.title}\n${slide.body}`)
@@ -94,7 +123,7 @@ function InstagramTab({
       <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-lg font-bold text-[var(--text-primary)]">Caption</h3>
-          <CopyButton label="複製 caption" value={content.caption} />
+          <CopyButton label={copy.copyCaption} copiedLabel={copy.copied} value={content.caption} />
         </div>
         <p className="mt-4 whitespace-pre-wrap rounded-[14px] bg-[var(--bg-sunken)] p-4 text-[15px] leading-7 text-[var(--text-secondary)]">
           {content.caption}
@@ -104,7 +133,7 @@ function InstagramTab({
       <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-lg font-bold text-[var(--text-primary)]">Carousel</h3>
-          <CopyButton label="複製輪播文字" value={slidesText} />
+          <CopyButton label={copy.copySlides} copiedLabel={copy.copied} value={slidesText} />
         </div>
         <VisualCarouselRenderer
           slides={content.carousel_outline}
@@ -118,7 +147,7 @@ function InstagramTab({
       <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-lg font-bold text-[var(--text-primary)]">Hashtags</h3>
-          <CopyButton label="複製 hashtags" value={content.hashtags.join(' ')} />
+          <CopyButton label={copy.copyHashtags} copiedLabel={copy.copied} value={content.hashtags.join(' ')} />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {content.hashtags.map((tag) => (
@@ -132,14 +161,14 @@ function InstagramTab({
   )
 }
 
-function SeoTab({ article }: { article?: SeoArticle }) {
-  if (!article) return <EmptyState label="SEO" />
+function SeoTab({ article, copy }: { article?: SeoArticle; copy: Record<string, string> }) {
+  if (!article) return <EmptyState label="SEO" copy={copy} />
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap justify-end gap-2 rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 shadow-[var(--shadow-sm)]">
-        <CopyButton label="複製 Markdown" value={toMarkdown(article)} />
-        <CopyButton label="複製 HTML" value={toHTML(article)} />
+        <CopyButton label={copy.copyMarkdown} copiedLabel={copy.copied} value={toMarkdown(article)} />
+        <CopyButton label={copy.copyHtml} copiedLabel={copy.copied} value={toHTML(article)} />
       </div>
       <SeoArticlePreview article={article} />
     </div>
@@ -159,6 +188,8 @@ export function PlatformTabs({
   topicSlug: string
   isGenerating: boolean
 }) {
+  const { language } = useLanguage()
+  const copy = COPY[language]
   const [activeTab, setActiveTab] = useState<PlatformId>('instagram')
   const active = TABS.find((tab) => tab.id === activeTab) ?? TABS[0]
 
@@ -190,17 +221,17 @@ export function PlatformTabs({
 
       <div className="p-5 sm:p-6">
         {errors[active.id] ? (
-          <EmptyState label={active.label} error={errors[active.id]} />
+          <EmptyState label={active.label} error={errors[active.id]} copy={copy} />
         ) : active.id === 'instagram' ? (
-          <InstagramTab content={results.instagram} topicSlug={topicSlug} exportDisabled={isGenerating} />
+          <InstagramTab content={results.instagram} topicSlug={topicSlug} exportDisabled={isGenerating} copy={copy} />
         ) : active.id === 'seo' ? (
-          <SeoTab article={results.seo} />
+          <SeoTab article={results.seo} copy={copy} />
         ) : active.id === 'threads' ? (
-          results.threads ? <ThreadsPreview thread={results.threads} /> : <EmptyState label={active.label} />
+          results.threads ? <ThreadsPreview thread={results.threads} /> : <EmptyState label={active.label} copy={copy} />
         ) : results.facebook ? (
           <FacebookPreview post={results.facebook} />
         ) : (
-          <EmptyState label={active.label} />
+          <EmptyState label={active.label} copy={copy} />
         )}
       </div>
     </section>

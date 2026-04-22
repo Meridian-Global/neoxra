@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DemoAccessGate } from '../../components/DemoAccessGate'
 import { FileUpload } from '../../components/FileUpload'
 import { GlobalNav } from '../../components/GlobalNav'
+import { useLanguage } from '../../components/LanguageProvider'
 import { VisualCarouselRenderer } from '../../components/VisualCarouselRenderer'
 import { API_BASE_URL } from '../../lib/api'
 import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../lib/analytics'
@@ -17,6 +18,7 @@ import type { InstagramContent, Scorecard, StyleAnalysis } from '../../lib/insta
 import type { DemoClientConfig } from '../../lib/demo-config'
 
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
+type Language = 'en' | 'zh-TW'
 type PreviewTab = 'instagram' | 'article'
 type SubmitPayload = { topic: string; goal: string }
 type ReferenceUploadStatus = 'idle' | 'analyzing' | 'ready' | 'error'
@@ -33,61 +35,286 @@ interface PreviewBundle {
   article: ArticlePreview
 }
 
-const GOAL_OPTIONS = [
-  { value: 'engagement', label: '互動' },
-  { value: 'authority', label: '專業感' },
-  { value: 'conversion', label: '轉換' },
-] as const
+type InstagramCopy = {
+  goalOptions: Array<{ value: string; label: string }>
+  presetTopics: string[]
+  defaultPreview: PreviewBundle
+  access: {
+    eyebrow: string
+    title: string
+    body: string
+    inputLabel: string
+    inputPlaceholder: string
+    submitLabel: string
+    loadingLabel: string
+    signedLinkLoaded: string
+    invalidCode: string
+    clearAccess: string
+  }
+  labels: {
+    topic: string
+    topicPlaceholder: string
+    referenceTitle: string
+    referenceBody: string
+    referenceReady: string
+    goal: string
+    generate: string
+    cancel: string
+    currentTopic: string
+    articleTab: string
+    articleTitle: string
+    seoTitle: string
+    outline: string
+    intro: string
+    copyCaption: string
+    copySlides: string
+    copyHashtags: string
+    copyScript: string
+    copyAll: string
+    copied: string
+  }
+  fileUpload: {
+    previewAlt: string
+    analyzing: string
+    ready: string
+    remove: string
+    uploadTitle: string
+    uploadBody: string
+  }
+  errors: {
+    imageType: string
+    imageSize: string
+    imageAnalysis: string
+    imageEmpty: string
+    imageGeneric: string
+    invalidTopic: string
+    unavailable: string
+    generic: string
+    timeout: string
+    generation: string
+    noContent: string
+    access: string
+  }
+  templateGoal: Record<string, string>
+  template: (topic: string, goalText: string) => string
+  articleCoreQuestion: (topic: string) => string
+  articleFallback: (topic: string) => string
+  articleSeoTitle: (topic: string) => string
+}
 
-const PRESET_TOPICS = ['車禍理賠', '租約糾紛', '勞資爭議', '遺產繼承', '新創內容行銷'] as const
+const DEFAULT_PREVIEWS: Record<Language, PreviewBundle> = {
+  'zh-TW': {
+    topic: '車禍理賠流程',
+    content: {
+      caption:
+        '車禍後千萬別急著簽和解書。真正影響理賠結果的，往往不是對方先開多少，而是你有沒有先把證據、醫療資料與時間點整理完整。先報警、拍照、就醫，再把診斷證明、收據與請假紀錄留下來，後面談保險理賠與損害賠償才不會落入被動。如果你想知道自己的案件大概能主張哪些項目，先把這五個步驟看完。',
+      hook_options: ['車禍後別急著和解，很多權利是一簽就回不來。'],
+      hashtags: ['#法律常識', '#車禍理賠', '#交通事故', '#損害賠償', '#律師說法'],
+      carousel_outline: [
+        { title: '車禍後別急和解', body: '先確認安全、報警備案，再談後續責任與金額。' },
+        { title: '先把證據留完整', body: '現場照片、車損、行車紀錄器、診斷證明都很關鍵。' },
+        { title: '理賠與求償分開看', body: '保險理賠不等於完整賠償，醫療與工作損失也要算。' },
+        { title: '時效不要拖過', body: '無論是告訴期間或民事求償，時間一過就會更被動。' },
+        { title: '需要協助就早一點問', body: '涉及受傷、失能或責任爭議時，先讓律師幫你看方向。' },
+      ],
+      reel_script:
+        '車禍後別急著簽和解。先做三件事：報警、拍照、就醫。再把診斷證明、收據和工作損失整理好，後面談理賠才不會吃虧。',
+    },
+    article: {
+      seoTitle: '車禍理賠怎麼算？完整流程、時效與注意事項一次看懂',
+      outline: ['車禍發生後第一時間該做什麼', '保險理賠與民事求償差在哪裡', '醫療費、工作損失與慰撫金如何整理', '什麼情況下應該提早找律師'],
+      firstParagraph:
+        '車禍理賠最常見的問題，不是有沒有保險，而是資料是否在第一時間整理完整。只要前期證據、醫療文件與時效觀念沒掌握好，後續談判與求償就會被拉進不必要的消耗戰。',
+    },
+  },
+  en: {
+    topic: 'Car accident compensation process',
+    content: {
+      caption:
+        'After a car accident, do not rush into signing a settlement. The outcome often depends less on the first number offered and more on whether you preserve evidence, medical records, and timing from the start. Report it, take photos, get medical care, and organize receipts before negotiating compensation.',
+      hook_options: ['Do not rush into settlement after a car accident.'],
+      hashtags: ['#LegalTips', '#CarAccident', '#Compensation', '#InsuranceClaims', '#LawFirm'],
+      carousel_outline: [
+        { title: 'Do Not Settle Too Fast', body: 'Check safety, report the accident, and preserve the record first.' },
+        { title: 'Keep Evidence Complete', body: 'Photos, repairs, dashcam clips, and medical records matter.' },
+        { title: 'Claims Are Not Full Recovery', body: 'Insurance coverage may not include every loss you can claim.' },
+        { title: 'Watch The Timeline', body: 'Deadlines can affect your options if you wait too long.' },
+        { title: 'Ask Early When It Matters', body: 'Injury, disability, or disputed fault deserves early review.' },
+      ],
+      reel_script:
+        'Do not rush into settlement after a car accident. Start with three steps: report it, take photos, and get medical care. Then organize receipts and work-loss records before negotiating.',
+    },
+    article: {
+      seoTitle: 'How Car Accident Compensation Works: Process, Timing, and Key Documents',
+      outline: ['What to do right after the accident', 'Insurance claims versus civil compensation', 'How to document medical costs and lost income', 'When to speak with a lawyer early'],
+      firstParagraph:
+        'Car accident compensation is rarely just about whether insurance pays. The stronger question is whether your evidence, medical records, and timeline are organized early enough to support a fair recovery.',
+    },
+  },
+}
 
-const DEFAULT_PREVIEW: PreviewBundle = {
-  topic: '車禍理賠流程',
-  content: {
-    caption:
-      '車禍後千萬別急著簽和解書。真正影響理賠結果的，往往不是對方先開多少，而是你有沒有先把證據、醫療資料與時間點整理完整。先報警、拍照、就醫，再把診斷證明、收據與請假紀錄留下來，後面談保險理賠與損害賠償才不會落入被動。如果你想知道自己的案件大概能主張哪些項目，先把這五個步驟看完。',
-    hook_options: ['車禍後別急著和解，很多權利是一簽就回不來。'],
-    hashtags: ['#法律常識', '#車禍理賠', '#交通事故', '#損害賠償', '#律師說法'],
-    carousel_outline: [
-      { title: '車禍後別急和解', body: '先確認安全、報警備案，再談後續責任與金額。' },
-      { title: '先把證據留完整', body: '現場照片、車損、行車紀錄器、診斷證明都很關鍵。' },
-      { title: '理賠與求償分開看', body: '保險理賠不等於完整賠償，醫療與工作損失也要算。' },
-      { title: '時效不要拖過', body: '無論是告訴期間或民事求償，時間一過就會更被動。' },
-      { title: '需要協助就早一點問', body: '涉及受傷、失能或責任爭議時，先讓律師幫你看方向。' },
+const COPY: Record<Language, InstagramCopy> = {
+  'zh-TW': {
+    goalOptions: [
+      { value: 'engagement', label: '互動' },
+      { value: 'authority', label: '專業感' },
+      { value: 'conversion', label: '轉換' },
     ],
-    reel_script:
-      '車禍後別急著簽和解。先做三件事：報警、拍照、就醫。再把診斷證明、收據和工作損失整理好，後面談理賠才不會吃虧。',
+    presetTopics: ['車禍理賠', '租約糾紛', '勞資爭議', '遺產繼承', '新創內容行銷'],
+    defaultPreview: DEFAULT_PREVIEWS['zh-TW'],
+    access: {
+      eyebrow: '客戶 demo 存取',
+      title: '這個 demo 需要存取碼或授權連結。',
+      body: '如果這是客戶展示環境，請輸入 access code，或直接使用已簽章的連結進入。',
+      inputLabel: 'Demo access code',
+      inputPlaceholder: '輸入這次 demo 的 access code',
+      submitLabel: '解鎖 demo',
+      loadingLabel: '驗證中…',
+      signedLinkLoaded: '如果你是從 signed link 進入，系統會自動保留這次存取。',
+      invalidCode: 'Access code 無效，或這個連結已過期。',
+      clearAccess: '清除存取',
+    },
+    labels: {
+      topic: '主題',
+      topicPlaceholder: '輸入主題，例如：車禍理賠流程',
+      referenceTitle: '參考圖片風格',
+      referenceBody: '選填。上傳一張參考圖，系統會分析版面、色彩與文字風格。',
+      referenceReady: '已完成風格分析，下一次產生內容會套用這張參考圖的視覺方向。',
+      goal: '內容目標',
+      generate: '產生內容',
+      cancel: '取消本次生成',
+      currentTopic: '目前主題',
+      articleTab: '文章',
+      articleTitle: '文章',
+      seoTitle: 'SEO 標題',
+      outline: '文章大綱',
+      intro: '首段',
+      copyCaption: '複製 caption',
+      copySlides: '複製全部卡片',
+      copyHashtags: '複製 hashtags',
+      copyScript: '複製腳本',
+      copyAll: '複製全部',
+      copied: '已複製',
+    },
+    fileUpload: {
+      previewAlt: '參考圖片預覽',
+      analyzing: '正在分析圖片風格…',
+      ready: '已加入參考圖片風格',
+      remove: '移除',
+      uploadTitle: '上傳參考圖片',
+      uploadBody: '拖曳 PNG / JPG 到這裡，或點擊選擇圖片。最多 5MB。',
+    },
+    errors: {
+      imageType: '請上傳 PNG 或 JPG 圖片。',
+      imageSize: '圖片大小需小於 5MB。',
+      imageAnalysis: '圖片風格分析失敗，請換一張圖片再試。',
+      imageEmpty: '圖片風格分析沒有回傳可用描述。',
+      imageGeneric: '圖片風格分析失敗，請稍後再試。',
+      invalidTopic: '請輸入更明確的主題後再試一次。',
+      unavailable: '系統目前較忙，請稍後再試。',
+      generic: '目前無法完成內容產生，請稍後再試。',
+      timeout: '生成時間過長，請重新嘗試。',
+      generation: '內容產生失敗。',
+      noContent: '目前無法取得可展示的內容，請稍後再試。',
+      access: '這個 demo 需要有效的存取權限，請重新輸入 access code。',
+    },
+    templateGoal: {
+      authority: '建立專業可信度',
+      conversion: '促使讀者私訊、預約或採取下一步',
+      engagement: '提高留言、收藏與分享',
+    },
+    template: (topic, goalText) =>
+      `請以台灣專業服務品牌的 Instagram 內容風格，為主題「${topic}」生成內容。目標是：${goalText}。請用繁體中文、先講結論，再拆成 5 張適合輪播的重點，語氣專業但好懂，最後補上 5 個適合台灣 Instagram 的 hashtag。`,
+    articleCoreQuestion: (topic) => `${topic}的核心問題是什麼`,
+    articleFallback: (topic) => `如果你正在處理「${topic}」相關問題，先把流程、資料與風險整理清楚，會比急著做決定更重要。`,
+    articleSeoTitle: (topic) => `${topic}怎麼處理？流程、重點與注意事項一次看`,
   },
-  article: {
-    seoTitle: '車禍理賠怎麼算？完整流程、時效與注意事項一次看懂',
-    outline: ['車禍發生後第一時間該做什麼', '保險理賠與民事求償差在哪裡', '醫療費、工作損失與慰撫金如何整理', '什麼情況下應該提早找律師'],
-    firstParagraph:
-      '車禍理賠最常見的問題，不是有沒有保險，而是資料是否在第一時間整理完整。只要前期證據、醫療文件與時效觀念沒掌握好，後續談判與求償就會被拉進不必要的消耗戰。',
+  en: {
+    goalOptions: [
+      { value: 'engagement', label: 'Engagement' },
+      { value: 'authority', label: 'Authority' },
+      { value: 'conversion', label: 'Conversion' },
+    ],
+    presetTopics: ['Car accident claims', 'Lease disputes', 'Labor disputes', 'Inheritance process', 'Startup content marketing'],
+    defaultPreview: DEFAULT_PREVIEWS.en,
+    access: {
+      eyebrow: 'Client demo access',
+      title: 'This demo requires an access code or signed link.',
+      body: 'If this is a client demo environment, enter the access code or use the signed link provided for this session.',
+      inputLabel: 'Demo access code',
+      inputPlaceholder: 'Enter this demo access code',
+      submitLabel: 'Unlock demo',
+      loadingLabel: 'Verifying…',
+      signedLinkLoaded: 'If you entered through a signed link, this access will be saved automatically.',
+      invalidCode: 'The access code is invalid or the link has expired.',
+      clearAccess: 'Clear access',
+    },
+    labels: {
+      topic: 'Topic',
+      topicPlaceholder: 'Enter a topic, e.g. car accident compensation process',
+      referenceTitle: 'Reference image style',
+      referenceBody: 'Optional. Upload one reference image so the system can analyze layout, color, and typography style.',
+      referenceReady: 'Style analysis is complete. The next generation will use this visual direction.',
+      goal: 'Content goal',
+      generate: 'Generate content',
+      cancel: 'Cancel generation',
+      currentTopic: 'Current topic',
+      articleTab: 'Article',
+      articleTitle: 'Article',
+      seoTitle: 'SEO title',
+      outline: 'Article outline',
+      intro: 'Opening paragraph',
+      copyCaption: 'Copy caption',
+      copySlides: 'Copy all slides',
+      copyHashtags: 'Copy hashtags',
+      copyScript: 'Copy script',
+      copyAll: 'Copy all',
+      copied: 'Copied',
+    },
+    fileUpload: {
+      previewAlt: 'Reference image preview',
+      analyzing: 'Analyzing image style…',
+      ready: 'Reference image style added',
+      remove: 'Remove',
+      uploadTitle: 'Upload reference image',
+      uploadBody: 'Drag a PNG / JPG here, or click to choose an image. Max 5MB.',
+    },
+    errors: {
+      imageType: 'Please upload a PNG or JPG image.',
+      imageSize: 'Image size must be under 5MB.',
+      imageAnalysis: 'Image style analysis failed. Please try another image.',
+      imageEmpty: 'Image style analysis did not return a usable description.',
+      imageGeneric: 'Image style analysis failed. Please try again later.',
+      invalidTopic: 'Please enter a more specific topic and try again.',
+      unavailable: 'The system is busy right now. Please try again shortly.',
+      generic: 'Content generation could not finish right now. Please try again later.',
+      timeout: 'Generation took too long. Please try again.',
+      generation: 'Content generation failed.',
+      noContent: 'No demo-ready content was returned. Please try again later.',
+      access: 'This demo requires valid access. Please enter the access code again.',
+    },
+    templateGoal: {
+      authority: 'build professional authority',
+      conversion: 'encourage readers to message, book, or take the next step',
+      engagement: 'increase comments, saves, and shares',
+    },
+    template: (topic, goalText) =>
+      `Generate Instagram content for the topic "${topic}" in a professional services brand style. The goal is to ${goalText}. Use English, lead with the conclusion, break the idea into 5 carousel-ready points, keep the tone professional and easy to understand, and add 5 relevant Instagram hashtags.`,
+    articleCoreQuestion: (topic) => `What is the core issue behind ${topic}?`,
+    articleFallback: (topic) => `If you are dealing with "${topic}", clarifying the process, documents, and risks before making decisions is usually the better first move.`,
+    articleSeoTitle: (topic) => `How to Handle ${topic}: Process, Key Points, and What to Watch`,
   },
 }
 
-const ACCESS_COPY = {
-  eyebrow: '客戶 demo 存取',
-  title: '這個 demo 需要存取碼或授權連結。',
-  body: '如果這是客戶展示環境，請輸入 access code，或直接使用已簽章的連結進入。',
-  inputLabel: 'Demo access code',
-  inputPlaceholder: '輸入這次 demo 的 access code',
-  submitLabel: '解鎖 demo',
-  loadingLabel: '驗證中…',
-  signedLinkLoaded: '如果你是從 signed link 進入，系統會自動保留這次存取。',
-  invalidCode: 'Access code 無效，或這個連結已過期。',
-  clearAccess: '清除存取',
-}
-
-function createTemplate(topic: string, goal: string) {
+function createTemplate(topic: string, goal: string, copy: InstagramCopy) {
   const goalText =
     goal === 'authority'
-      ? '建立專業可信度'
+      ? copy.templateGoal.authority
       : goal === 'conversion'
-        ? '促使讀者私訊、預約或採取下一步'
-        : '提高留言、收藏與分享'
+        ? copy.templateGoal.conversion
+        : copy.templateGoal.engagement
 
-  return `請以台灣專業服務品牌的 Instagram 內容風格，為主題「${topic}」生成內容。目標是：${goalText}。請用繁體中文、先講結論，再拆成 5 張適合輪播的重點，語氣專業但好懂，最後補上 5 個適合台灣 Instagram 的 hashtag。`
+  return copy.template(topic, goalText)
 }
 
 function splitSentences(text: string) {
@@ -98,46 +325,46 @@ function splitSentences(text: string) {
     .filter(Boolean)
 }
 
-function deriveArticlePreview(topic: string, content: InstagramContent): ArticlePreview {
+function deriveArticlePreview(topic: string, content: InstagramContent, copy: InstagramCopy): ArticlePreview {
   const outline = [
-    `${topic}的核心問題是什麼`,
+    copy.articleCoreQuestion(topic),
     ...content.carousel_outline.slice(1, 4).map((slide) => slide.title),
   ].slice(0, 4)
 
   const firstParagraph =
     splitSentences(content.caption).slice(0, 3).join('') ||
-    `如果你正在處理「${topic}」相關問題，先把流程、資料與風險整理清楚，會比急著做決定更重要。`
+    copy.articleFallback(topic)
 
   return {
-    seoTitle: `${topic}怎麼處理？流程、重點與注意事項一次看`,
+    seoTitle: copy.articleSeoTitle(topic),
     outline,
     firstParagraph,
   }
 }
 
-function toPreviewBundle(topic: string, content: InstagramContent): PreviewBundle {
+function toPreviewBundle(topic: string, content: InstagramContent, copy: InstagramCopy): PreviewBundle {
   return {
     topic,
     content,
-    article: deriveArticlePreview(topic, content),
+    article: deriveArticlePreview(topic, content, copy),
   }
 }
 
-function toFriendlyError(error: unknown): string {
+function toFriendlyError(error: unknown, copy: InstagramCopy): string {
   if (error instanceof APIError) {
-    if (error.status === 422) return '請輸入更明確的主題後再試一次。'
-    if (error.status === 503) return '系統目前較忙，請稍後再試。'
-    return '目前無法完成內容產生，請稍後再試。'
+    if (error.status === 422) return copy.errors.invalidTopic
+    if (error.status === 503) return copy.errors.unavailable
+    return copy.errors.generic
   }
 
   if (error instanceof Error && error.message.includes('timed out')) {
-    return '生成時間過長，請重新嘗試。'
+    return copy.errors.timeout
   }
 
-  return '目前無法完成內容產生，請稍後再試。'
+  return copy.errors.generic
 }
 
-function CopyButton({ label, value }: { label: string; value: string }) {
+function CopyButton({ label, value, copiedLabel }: { label: string; value: string; copiedLabel: string }) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
@@ -155,7 +382,7 @@ function CopyButton({ label, value }: { label: string; value: string }) {
       className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--text-tertiary)] transition hover:bg-[var(--bg-sunken)]"
     >
       <span aria-hidden="true">📋</span>
-      {copied ? '已複製' : label}
+      {copied ? copiedLabel : label}
     </button>
   )
 }
@@ -219,7 +446,7 @@ function LoadingPreview() {
   )
 }
 
-function InstagramPreview({ bundle, exportDisabled = false }: { bundle: PreviewBundle; exportDisabled?: boolean }) {
+function InstagramPreview({ bundle, copy, exportDisabled = false }: { bundle: PreviewBundle; copy: InstagramCopy; exportDisabled?: boolean }) {
   const [carouselTheme, setCarouselTheme] = useState<CarouselThemeId>('professional')
   const firstSentence = splitSentences(bundle.content.caption)[0] ?? bundle.content.caption
   const remainingCaption = bundle.content.caption.replace(firstSentence, '').trim()
@@ -231,7 +458,7 @@ function InstagramPreview({ bundle, exportDisabled = false }: { bundle: PreviewB
     <div className="space-y-8">
       <SectionShell
         title="📝 Caption"
-        action={<CopyButton label="複製 caption" value={bundle.content.caption} />}
+        action={<CopyButton label={copy.labels.copyCaption} copiedLabel={copy.labels.copied} value={bundle.content.caption} />}
       >
         <div className="rounded-[8px] bg-[var(--bg-sunken)] p-4 text-[15px] leading-[1.7] text-[var(--text-secondary)]">
           <p className="font-semibold text-[var(--text-primary)]">{firstSentence}</p>
@@ -241,7 +468,7 @@ function InstagramPreview({ bundle, exportDisabled = false }: { bundle: PreviewB
 
       <SectionShell
         title="📱 Carousel（1-5）"
-        action={<CopyButton label="複製全部卡片" value={allSlidesText} />}
+        action={<CopyButton label={copy.labels.copySlides} copiedLabel={copy.labels.copied} value={allSlidesText} />}
       >
         <VisualCarouselRenderer
           slides={bundle.content.carousel_outline}
@@ -254,7 +481,7 @@ function InstagramPreview({ bundle, exportDisabled = false }: { bundle: PreviewB
 
       <SectionShell
         title="# Hashtags"
-        action={<CopyButton label="複製 hashtags" value={bundle.content.hashtags.join(' ')} />}
+        action={<CopyButton label={copy.labels.copyHashtags} copiedLabel={copy.labels.copied} value={bundle.content.hashtags.join(' ')} />}
       >
         <div className="flex flex-wrap gap-2">
           {bundle.content.hashtags.map((tag) => (
@@ -270,7 +497,7 @@ function InstagramPreview({ bundle, exportDisabled = false }: { bundle: PreviewB
 
       <SectionShell
         title="🎬 Reel Script"
-        action={<CopyButton label="複製腳本" value={bundle.content.reel_script} />}
+        action={<CopyButton label={copy.labels.copyScript} copiedLabel={copy.labels.copied} value={bundle.content.reel_script} />}
       >
         <div className="rounded-[8px] bg-[var(--bg-sunken)] p-4 text-[15px] leading-[1.7] text-[var(--text-secondary)]">
           {bundle.content.reel_script}
@@ -280,23 +507,23 @@ function InstagramPreview({ bundle, exportDisabled = false }: { bundle: PreviewB
   )
 }
 
-function ArticlePreviewPanel({ bundle }: { bundle: PreviewBundle }) {
+function ArticlePreviewPanel({ bundle, copy }: { bundle: PreviewBundle; copy: InstagramCopy }) {
   const articleCopy = [bundle.article.seoTitle, ...bundle.article.outline.map((item) => `H2｜${item}`), bundle.article.firstParagraph].join('\n\n')
 
   return (
     <div className="space-y-6">
       <SectionShell
-        title="文章"
-        action={<CopyButton label="複製全部" value={articleCopy} />}
+        title={copy.labels.articleTitle}
+        action={<CopyButton label={copy.labels.copyAll} copiedLabel={copy.labels.copied} value={articleCopy} />}
       >
         <div className="space-y-5 rounded-[var(--card-radius)] bg-[var(--bg-sunken)] p-5">
           <div>
-            <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">SEO 標題</div>
+            <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">{copy.labels.seoTitle}</div>
             <h3 className="mt-2 text-[20px] font-bold leading-snug text-[var(--text-primary)]">{bundle.article.seoTitle}</h3>
           </div>
 
           <div>
-            <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">文章大綱</div>
+            <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">{copy.labels.outline}</div>
             <div className="mt-3 space-y-3">
               {bundle.article.outline.map((item, index) => (
                 <div key={`${item}-${index}`} className="rounded-[10px] bg-[var(--bg-elevated)] px-4 py-3 text-sm font-medium text-[var(--text-primary)]">
@@ -307,7 +534,7 @@ function ArticlePreviewPanel({ bundle }: { bundle: PreviewBundle }) {
           </div>
 
           <div>
-            <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">首段</div>
+            <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">{copy.labels.intro}</div>
             <p className="mt-3 text-[15px] leading-7 text-[var(--text-secondary)]">{bundle.article.firstParagraph}</p>
           </div>
         </div>
@@ -317,6 +544,8 @@ function ArticlePreviewPanel({ bundle }: { bundle: PreviewBundle }) {
 }
 
 export default function InstagramPage() {
+  const { language } = useLanguage()
+  const copy = COPY[language]
   const demoConfig = useMemo(() => getDemoSurfaceConfig('instagram'), [])
   const [clientConfig, setClientConfig] = useState<DemoClientConfig | null>(null)
   const [topic, setTopic] = useState('')
@@ -327,8 +556,8 @@ export default function InstagramPage() {
   const [streamedContent, setStreamedContent] = useState<InstagramContent | null>(null)
   const [styleAnalysis, setStyleAnalysis] = useState<StyleAnalysis | null>(null)
   const [scorecard, setScorecard] = useState<Scorecard | null>(null)
-  const [previewBundle, setPreviewBundle] = useState<PreviewBundle>(DEFAULT_PREVIEW)
-  const [lastSubmittedTopic, setLastSubmittedTopic] = useState(DEFAULT_PREVIEW.topic)
+  const [previewBundle, setPreviewBundle] = useState<PreviewBundle>(copy.defaultPreview)
+  const [lastSubmittedTopic, setLastSubmittedTopic] = useState(copy.defaultPreview.topic)
   const [demoToken, setDemoToken] = useState<string | null>(null)
   const [source, setSource] = useState(() => getStoredDemoSource(demoConfig.apiSurface))
   const [referencePreviewUrl, setReferencePreviewUrl] = useState<string | null>(null)
@@ -341,9 +570,15 @@ export default function InstagramPage() {
   const referencePreviewUrlRef = useRef<string | null>(null)
 
   const fallbackResult = useMemo(
-    () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback?.fallback_key ?? null, 'zh-TW'),
-    [clientConfig],
+    () => getDeterministicFallbackResult(clientConfig?.deterministic_fallback?.fallback_key ?? null, language),
+    [clientConfig, language],
   )
+
+  useEffect(() => {
+    setPreviewBundle(copy.defaultPreview)
+    setLastSubmittedTopic(copy.defaultPreview.topic)
+    setStreamedContent(null)
+  }, [copy.defaultPreview])
 
   useEffect(() => {
     let cancelled = false
@@ -378,13 +613,13 @@ export default function InstagramPage() {
   useEffect(() => {
     function handlePageHide() {
       if (status !== 'loading' && status !== 'streaming') return
-      trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: 'zh-TW' })
+      trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: language })
       sendBeaconAnalyticsEvent({
         eventName: 'demo_abandoned',
         route: '/instagram',
         surface: demoConfig.apiSurface,
         source,
-        locale: 'zh-TW',
+        locale: language,
         metadata: {
           reason: 'pagehide',
           topic_length: latestTopicRef.current.trim().length,
@@ -394,17 +629,17 @@ export default function InstagramPage() {
 
     window.addEventListener('pagehide', handlePageHide)
     return () => window.removeEventListener('pagehide', handlePageHide)
-  }, [demoConfig.apiSurface, source, status])
+  }, [demoConfig.apiSurface, language, source, status])
 
   const needsAccess = demoConfig.accessMode === 'gated' && !demoToken
   const isWorking = status === 'loading' || status === 'streaming'
   const isReferenceAnalyzing = referenceUploadStatus === 'analyzing'
   const displayBundle = useMemo(() => {
     if (streamedContent) {
-      return toPreviewBundle(lastSubmittedTopic, streamedContent)
+      return toPreviewBundle(lastSubmittedTopic, streamedContent, copy)
     }
     return previewBundle
-  }, [lastSubmittedTopic, previewBundle, streamedContent])
+  }, [copy, lastSubmittedTopic, previewBundle, streamedContent])
 
   function clearReferenceImage() {
     if (referencePreviewUrlRef.current) {
@@ -421,13 +656,13 @@ export default function InstagramPage() {
   async function handleReferenceFileSelect(file: File) {
     if (!['image/png', 'image/jpeg'].includes(file.type)) {
       setReferenceUploadStatus('error')
-      setReferenceUploadError('請上傳 PNG 或 JPG 圖片。')
+      setReferenceUploadError(copy.errors.imageType)
       return
     }
 
     if (file.size > 5 * 1024 * 1024) {
       setReferenceUploadStatus('error')
-      setReferenceUploadError('圖片大小需小於 5MB。')
+      setReferenceUploadError(copy.errors.imageSize)
       return
     }
 
@@ -459,12 +694,12 @@ export default function InstagramPage() {
           clearStoredDemoToken(demoConfig.apiSurface)
           setDemoToken(null)
         }
-        throw new Error(typeof payload?.detail === 'string' ? payload.detail : '圖片風格分析失敗，請換一張圖片再試。')
+        throw new Error(typeof payload?.detail === 'string' ? payload.detail : copy.errors.imageAnalysis)
       }
 
       const description = typeof payload?.description === 'string' ? payload.description : ''
       if (!description.trim()) {
-        throw new Error('圖片風格分析沒有回傳可用描述。')
+        throw new Error(copy.errors.imageEmpty)
       }
 
       setReferenceImageDescription(description)
@@ -472,7 +707,7 @@ export default function InstagramPage() {
     } catch (err) {
       setReferenceImageDescription('')
       setReferenceUploadStatus('error')
-      setReferenceUploadError(err instanceof Error ? err.message : '圖片風格分析失敗，請稍後再試。')
+      setReferenceUploadError(err instanceof Error ? err.message : copy.errors.imageGeneric)
     }
   }
 
@@ -488,7 +723,7 @@ export default function InstagramPage() {
       setStyleAnalysis(null)
       setScorecard(null)
       setLastSubmittedTopic(trimmedTopic)
-      trackPlausibleEvent('demo_started', { surface: demoConfig.apiSurface, source, locale: 'zh-TW' })
+      trackPlausibleEvent('demo_started', { surface: demoConfig.apiSurface, source, locale: language })
 
       const abort = new AbortController()
       abortRef.current = abort
@@ -500,9 +735,9 @@ export default function InstagramPage() {
           `${API_BASE_URL}/api/instagram/generate`,
           {
             topic: trimmedTopic,
-            template_text: createTemplate(trimmedTopic, payload.goal),
+            template_text: createTemplate(trimmedTopic, payload.goal, copy),
             goal: payload.goal,
-            locale: 'zh-TW',
+            locale: language,
             reference_image_description: referenceImageDescription,
           },
           {
@@ -522,7 +757,7 @@ export default function InstagramPage() {
           if (chunk.event === 'content_ready') {
             const nextContent = chunk.data as InstagramContent
             setStreamedContent(nextContent)
-            setPreviewBundle(toPreviewBundle(trimmedTopic, nextContent))
+            setPreviewBundle(toPreviewBundle(trimmedTopic, nextContent, copy))
             continue
           }
 
@@ -535,16 +770,16 @@ export default function InstagramPage() {
             const nextContent = chunk.data?.content as InstagramContent | undefined
             if (nextContent) {
               setStreamedContent(nextContent)
-              setPreviewBundle(toPreviewBundle(trimmedTopic, nextContent))
+              setPreviewBundle(toPreviewBundle(trimmedTopic, nextContent, copy))
             }
             setStatus('completed')
             completed = true
-            trackPlausibleEvent('demo_completed', { surface: demoConfig.apiSurface, source, locale: 'zh-TW' })
+            trackPlausibleEvent('demo_completed', { surface: demoConfig.apiSurface, source, locale: language })
             break
           }
 
           if (chunk.event === 'error') {
-            throw new Error(typeof chunk.data?.message === 'string' ? chunk.data.message : '內容產生失敗。')
+            throw new Error(typeof chunk.data?.message === 'string' ? chunk.data.message : copy.errors.generation)
           }
         }
 
@@ -552,12 +787,12 @@ export default function InstagramPage() {
           if (streamedContent) {
             setStatus('completed')
           } else if (clientConfig?.deterministic_fallback?.mode === 'auto' && fallbackResult) {
-            setPreviewBundle(toPreviewBundle(trimmedTopic, fallbackResult.content))
+            setPreviewBundle(toPreviewBundle(trimmedTopic, fallbackResult.content, copy))
             setStreamedContent(fallbackResult.content)
             setStatus('completed')
           } else {
             setStatus('error')
-            setError('目前無法取得可展示的內容，請稍後再試。')
+            setError(copy.errors.noContent)
             failed = true
           }
         }
@@ -567,28 +802,28 @@ export default function InstagramPage() {
             clearStoredDemoToken(demoConfig.apiSurface)
             setDemoToken(null)
             setStatus('error')
-            setError('這個 demo 需要有效的存取權限，請重新輸入 access code。')
+            setError(copy.errors.access)
             return
           }
 
           if (clientConfig?.deterministic_fallback?.mode === 'auto' && fallbackResult) {
-            setPreviewBundle(toPreviewBundle(trimmedTopic, fallbackResult.content))
+            setPreviewBundle(toPreviewBundle(trimmedTopic, fallbackResult.content, copy))
             setStreamedContent(fallbackResult.content)
             setStatus('completed')
             setError(null)
           } else {
             setStatus('error')
-            setError(toFriendlyError(err))
+            setError(toFriendlyError(err, copy))
             failed = true
           }
         }
       }
 
       if (failed) {
-        trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: 'zh-TW' })
+        trackPlausibleEvent('demo_failed', { surface: demoConfig.apiSurface, source, locale: language })
       }
     },
-    [clientConfig?.deterministic_fallback?.mode, demoConfig.apiSurface, demoToken, fallbackResult, referenceImageDescription, source, streamedContent],
+    [clientConfig?.deterministic_fallback?.mode, copy, demoConfig.apiSurface, demoToken, fallbackResult, language, referenceImageDescription, source, streamedContent],
   )
 
   function handleGenerate() {
@@ -599,13 +834,13 @@ export default function InstagramPage() {
     abortRef.current?.abort()
     setStatus('idle')
     setError(null)
-    trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: 'zh-TW' })
+    trackPlausibleEvent('demo_abandoned', { surface: demoConfig.apiSurface, source, locale: language })
     sendBeaconAnalyticsEvent({
       eventName: 'demo_abandoned',
       route: '/instagram',
       surface: demoConfig.apiSurface,
       source,
-      locale: 'zh-TW',
+      locale: language,
       metadata: {
         reason: 'manual_stop',
         topic_length: latestTopicRef.current.trim().length,
@@ -622,7 +857,7 @@ export default function InstagramPage() {
           <section className="pt-10">
             <DemoAccessGate
               surface={demoConfig.apiSurface}
-              copy={ACCESS_COPY}
+              copy={copy.access}
               onAccessReady={setDemoToken}
             />
           </section>
@@ -634,22 +869,22 @@ export default function InstagramPage() {
               <div className="space-y-6 rounded-[20px] bg-transparent pr-0 lg:pr-6">
                 <div className="space-y-4">
                   <label htmlFor="instagram-topic" className="block text-sm font-medium text-[var(--text-secondary)]">
-                    主題
+                    {copy.labels.topic}
                   </label>
                   <input
                     id="instagram-topic"
                     value={topic}
                     onChange={(event) => setTopic(event.target.value)}
-                    placeholder="輸入主題，例如：車禍理賠流程"
+                    placeholder={copy.labels.topicPlaceholder}
                     className="h-14 w-full rounded-[14px] border border-[var(--border)] bg-[var(--bg-sunken)] px-5 text-base text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
                   />
                 </div>
 
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm font-medium text-[var(--text-secondary)]">參考圖片風格</p>
+                    <p className="text-sm font-medium text-[var(--text-secondary)]">{copy.labels.referenceTitle}</p>
                     <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                      選填。上傳一張參考圖，系統會分析版面、色彩與文字風格。
+                      {copy.labels.referenceBody}
                     </p>
                   </div>
                   <FileUpload
@@ -657,18 +892,19 @@ export default function InstagramPage() {
                     fileName={referenceFileName}
                     isAnalyzing={isReferenceAnalyzing}
                     error={referenceUploadError}
+                    copy={copy.fileUpload}
                     onFileSelect={(file) => void handleReferenceFileSelect(file)}
                     onRemove={clearReferenceImage}
                   />
                   {referenceUploadStatus === 'ready' ? (
                     <div className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-xs leading-6 text-[var(--text-secondary)]">
-                      已完成風格分析，下一次產生內容會套用這張參考圖的視覺方向。
+                      {copy.labels.referenceReady}
                     </div>
                   ) : null}
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  {PRESET_TOPICS.map((preset) => (
+                  {copy.presetTopics.map((preset) => (
                     <button
                       key={preset}
                       type="button"
@@ -682,7 +918,7 @@ export default function InstagramPage() {
 
                 <div className="space-y-3">
                   <label htmlFor="instagram-goal" className="block text-sm font-medium text-[var(--text-secondary)]">
-                    內容目標
+                    {copy.labels.goal}
                   </label>
                   <select
                     id="instagram-goal"
@@ -690,7 +926,7 @@ export default function InstagramPage() {
                     onChange={(event) => setGoal(event.target.value)}
                     className="h-12 w-full rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] px-4 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-bold)]"
                   >
-                    {GOAL_OPTIONS.map((option) => (
+                    {copy.goalOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -710,7 +946,7 @@ export default function InstagramPage() {
                         <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                       </>
                     ) : (
-                      '產生內容'
+                      copy.labels.generate
                     )}
                   </button>
 
@@ -720,7 +956,7 @@ export default function InstagramPage() {
                       onClick={handleCancel}
                       className="inline-flex h-11 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-5 text-sm font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
                     >
-                      取消本次生成
+                      {copy.labels.cancel}
                     </button>
                   ) : null}
 
@@ -735,13 +971,13 @@ export default function InstagramPage() {
               <div className="rounded-[20px] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-sm)]">
                 <div className="sticky top-[72px] z-10 mb-6 flex items-end justify-between gap-4 border-b border-[var(--border)] bg-[var(--bg-elevated)] pb-4">
                   <div>
-                    <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">目前主題</div>
+                    <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">{copy.labels.currentTopic}</div>
                     <h2 className="mt-2 text-2xl font-bold leading-tight text-[var(--text-primary)]">{displayBundle.topic}</h2>
                   </div>
                   <div className="inline-flex gap-5">
                     {([
                       ['instagram', 'Instagram'],
-                      ['article', '文章'],
+                      ['article', copy.labels.articleTab],
                     ] as const).map(([key, label]) => (
                       <button
                         key={key}
@@ -760,9 +996,9 @@ export default function InstagramPage() {
                 {isWorking && !streamedContent ? (
                   <LoadingPreview />
                 ) : previewTab === 'instagram' ? (
-                  <InstagramPreview bundle={displayBundle} exportDisabled={isWorking} />
+                  <InstagramPreview bundle={displayBundle} copy={copy} exportDisabled={isWorking} />
                 ) : (
-                  <ArticlePreviewPanel bundle={displayBundle} />
+                  <ArticlePreviewPanel bundle={displayBundle} copy={copy} />
                 )}
               </div>
             </section>
