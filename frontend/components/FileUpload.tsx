@@ -7,6 +7,14 @@ interface FileUploadProps {
   fileName: string | null
   isAnalyzing?: boolean
   error?: string | null
+  copy?: {
+    previewAlt: string
+    analyzing: string
+    ready: string
+    remove: string
+    uploadTitle: string
+    uploadBody: string
+  }
   onFileSelect: (file: File) => void
   onRemove: () => void
 }
@@ -18,6 +26,14 @@ export function FileUpload({
   fileName,
   isAnalyzing = false,
   error = null,
+  copy = {
+    previewAlt: '參考圖片預覽',
+    analyzing: '正在分析圖片風格…',
+    ready: '已加入參考圖片風格',
+    remove: '移除',
+    uploadTitle: '上傳參考圖片',
+    uploadBody: '拖曳 PNG / JPG 到這裡，或點擊選擇圖片。最多 5MB。',
+  },
   onFileSelect,
   onRemove,
 }: FileUploadProps) {
@@ -70,13 +86,13 @@ export function FileUpload({
           <div className="flex items-center gap-4">
             <img
               src={previewUrl}
-              alt="參考圖片預覽"
+              alt={copy.previewAlt}
               className="h-20 w-20 rounded-[12px] object-cover shadow-[var(--shadow-sm)]"
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{fileName}</p>
               <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                {isAnalyzing ? '正在分析圖片風格…' : '已加入參考圖片風格'}
+                {isAnalyzing ? copy.analyzing : copy.ready}
               </p>
             </div>
             <button
@@ -87,14 +103,14 @@ export function FileUpload({
               }}
               className="rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--bg-sunken)]"
             >
-              移除
+              {copy.remove}
             </button>
           </div>
         ) : (
           <div className="py-2 text-center">
-            <p className="text-sm font-semibold text-[var(--text-primary)]">上傳參考圖片</p>
+            <p className="text-sm font-semibold text-[var(--text-primary)]">{copy.uploadTitle}</p>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              拖曳 PNG / JPG 到這裡，或點擊選擇圖片。最多 5MB。
+              {copy.uploadBody}
             </p>
           </div>
         )}

@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useRef, useState, type MutableRefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import { GlobalNav } from '../../components/GlobalNav'
+import { useLanguage } from '../../components/LanguageProvider'
 import { PipelineProgress, type PipelineStep, type PipelineStepStatus } from '../../components/PipelineProgress'
 import { PlatformTabs, type PlatformErrors, type PlatformResults, type PlatformStatuses } from '../../components/PlatformTabs'
 import { API_BASE_URL } from '../../lib/api'
@@ -17,26 +18,154 @@ import { APIError, streamSSE } from '../../lib/sse'
 import type { ThreadsThread } from '../../lib/threads-types'
 
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
+type Language = 'en' | 'zh-TW'
 
-const INDUSTRY_OPTIONS = [
-  { value: 'legal', label: '法律服務' },
-  { value: 'tech', label: '科技 / SaaS' },
-  { value: 'health', label: '健康 / 醫療' },
-  { value: 'real_estate', label: '房地產' },
-  { value: 'general', label: '一般品牌' },
-] as const
+type GenerateCopy = {
+  defaultIdea: string
+  defaultAudience: string
+  eyebrow: string
+  title: string
+  subtitle: string
+  scenariosLabel: string
+  scenarios: DemoScenario[]
+  ideaLabel: string
+  ideaPlaceholder: string
+  industryLabel: string
+  goalLabel: string
+  audienceLabel: string
+  audiencePlaceholder: string
+  voiceLabel: string
+  generating: string
+  generateButton: string
+  briefLabel: string
+  briefReady: string
+  deliveryTitle: string
+  deliveryBody: string
+  packing: string
+  downloadAll: string
+  errors: {
+    unavailable: string
+    invalid: string
+    rateLimited: string
+    timeout: string
+    generic: string
+    zip: string
+    platform: string
+    stream: string
+  }
+  industryOptions: Array<{ value: string; label: string }>
+  goalOptions: Array<{ value: string; label: string }>
+  voiceOptions: Array<{ value: string; label: string }>
+}
 
-const GOAL_OPTIONS = [
-  { value: 'traffic', label: '帶來流量' },
-  { value: 'authority', label: '建立專業權威' },
-  { value: 'conversion', label: '引導諮詢轉換' },
-  { value: 'education', label: '教育市場' },
-] as const
-
-const VOICE_OPTIONS = [
-  { value: 'default', label: '清楚直接' },
-  { value: 'law_firm', label: '法律事務所' },
-] as const
+const COPY: Record<Language, GenerateCopy> = {
+  'zh-TW': {
+    defaultIdea: '車禍理賠流程',
+    defaultAudience: '正在處理事故理賠的一般民眾',
+    eyebrow: 'GENERATE ALL',
+    title: '一個想法，產出四個平台',
+    subtitle: '輸入一個核心 idea，Neoxra 會同時產出 Instagram、SEO、Threads 與 Facebook 版本。',
+    scenariosLabel: 'Demo 情境',
+    scenarios: DEMO_SCENARIOS,
+    ideaLabel: '核心想法',
+    ideaPlaceholder: '例如：車禍理賠流程',
+    industryLabel: '產業',
+    goalLabel: '內容目標',
+    audienceLabel: '目標受眾',
+    audiencePlaceholder: '例如：正在處理事故理賠的一般民眾',
+    voiceLabel: '語氣設定',
+    generating: '生成中…',
+    generateButton: 'Generate All',
+    briefLabel: 'BRIEF',
+    briefReady: 'Planner 已完成方向規劃，四個平台會依同一份策略 brief 產出不同格式。',
+    deliveryTitle: '交付包',
+    deliveryBody: '一鍵下載 Instagram 圖片、caption、SEO Markdown/HTML、Threads 與 Facebook 文案。',
+    packing: '打包中…',
+    downloadAll: '下載全部 ZIP',
+    errors: {
+      unavailable: 'Generate All 服務目前尚未開啟，請確認 core 能力與 API key。',
+      invalid: '請確認主題、產業與語氣設定後再試一次。',
+      rateLimited: '目前請求量較高，請稍後再試。',
+      timeout: '整體生成時間過長，請縮短主題或重新嘗試。',
+      generic: '目前無法完成 Generate All，請稍後再試。',
+      zip: '匯出 ZIP 失敗，請稍後再試。',
+      platform: '此平台產生失敗。',
+      stream: 'Generate All 失敗。',
+    },
+    industryOptions: [
+      { value: 'legal', label: '法律服務' },
+      { value: 'tech', label: '科技 / SaaS' },
+      { value: 'health', label: '健康 / 醫療' },
+      { value: 'real_estate', label: '房地產' },
+      { value: 'general', label: '一般品牌' },
+    ],
+    goalOptions: [
+      { value: 'traffic', label: '帶來流量' },
+      { value: 'authority', label: '建立專業權威' },
+      { value: 'conversion', label: '引導諮詢轉換' },
+      { value: 'education', label: '教育市場' },
+    ],
+    voiceOptions: [
+      { value: 'default', label: '清楚直接' },
+      { value: 'law_firm', label: '法律事務所' },
+    ],
+  },
+  en: {
+    defaultIdea: 'Car accident compensation process',
+    defaultAudience: 'People dealing with accident claims',
+    eyebrow: 'GENERATE ALL',
+    title: 'One idea, four platform outputs',
+    subtitle: 'Enter one core idea and Neoxra generates Instagram, SEO, Threads, and Facebook versions at the same time.',
+    scenariosLabel: 'Demo scenarios',
+    scenarios: [
+      { name: 'Legal: Car accident claims', idea: 'Car accident compensation process', industry: 'legal', audience: 'People dealing with accident claims', goal: 'traffic', voiceProfile: 'law_firm' },
+      { name: 'Tech: AI content strategy', idea: 'How AI content systems help small teams publish consistently', industry: 'tech', audience: 'Startup founders and marketers', goal: 'authority', voiceProfile: 'default' },
+      { name: 'Personal brand: Building in public', idea: 'How founders can share progress without sounding performative', industry: 'general', audience: 'Creators and early founders', goal: 'education', voiceProfile: 'default' },
+    ],
+    ideaLabel: 'Core idea',
+    ideaPlaceholder: 'Example: car accident compensation process',
+    industryLabel: 'Industry',
+    goalLabel: 'Content goal',
+    audienceLabel: 'Target audience',
+    audiencePlaceholder: 'Example: people dealing with accident claims',
+    voiceLabel: 'Voice profile',
+    generating: 'Generating…',
+    generateButton: 'Generate All',
+    briefLabel: 'BRIEF',
+    briefReady: 'Planner completed the strategy brief. Each platform will generate a different format from the same direction.',
+    deliveryTitle: 'Delivery package',
+    deliveryBody: 'Download Instagram images, caption, SEO Markdown/HTML, Threads, and Facebook copy in one ZIP.',
+    packing: 'Packaging…',
+    downloadAll: 'Download ZIP',
+    errors: {
+      unavailable: 'Generate All is not available yet. Please check core capabilities and API key configuration.',
+      invalid: 'Please check the topic, industry, and voice settings before trying again.',
+      rateLimited: 'Request volume is high right now. Please try again shortly.',
+      timeout: 'The full generation took too long. Please shorten the topic or try again.',
+      generic: 'Generate All could not finish right now. Please try again later.',
+      zip: 'ZIP export failed. Please try again later.',
+      platform: 'This platform failed to generate.',
+      stream: 'Generate All failed.',
+    },
+    industryOptions: [
+      { value: 'legal', label: 'Legal services' },
+      { value: 'tech', label: 'Tech / SaaS' },
+      { value: 'health', label: 'Health / medical' },
+      { value: 'real_estate', label: 'Real estate' },
+      { value: 'general', label: 'General brand' },
+    ],
+    goalOptions: [
+      { value: 'traffic', label: 'Drive traffic' },
+      { value: 'authority', label: 'Build authority' },
+      { value: 'conversion', label: 'Drive consultations' },
+      { value: 'education', label: 'Educate the market' },
+    ],
+    voiceOptions: [
+      { value: 'default', label: 'Clear and direct' },
+      { value: 'law_firm', label: 'Law firm' },
+    ],
+  },
+}
 
 const EXPORT_THEME = getCarouselTheme('professional')
 
@@ -56,16 +185,16 @@ function slugify(value: string) {
   return slug || 'neoxra'
 }
 
-function friendlyError(error: unknown) {
+function friendlyError(error: unknown, copy: GenerateCopy) {
   if (error instanceof APIError) {
-    if (error.status === 503) return 'Generate All 服務目前尚未開啟，請確認 core 能力與 API key。'
-    if (error.status === 422) return '請確認主題、產業與語氣設定後再試一次。'
-    if (error.status === 429) return '目前請求量較高，請稍後再試。'
+    if (error.status === 503) return copy.errors.unavailable
+    if (error.status === 422) return copy.errors.invalid
+    if (error.status === 429) return copy.errors.rateLimited
   }
   if (error instanceof Error && error.message.includes('timed out')) {
-    return '整體生成時間過長，請縮短主題或重新嘗試。'
+    return copy.errors.timeout
   }
-  return '目前無法完成 Generate All，請稍後再試。'
+  return copy.errors.generic
 }
 
 function InputLabel({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
@@ -149,10 +278,12 @@ function HiddenInstagramSlides({
 }
 
 export default function GeneratePage() {
+  const { language } = useLanguage()
+  const copy = COPY[language]
   const demoConfig = useMemo(() => getDemoSurfaceConfig('landing'), [])
-  const [idea, setIdea] = useState('車禍理賠流程')
+  const [idea, setIdea] = useState(copy.defaultIdea)
   const [industry, setIndustry] = useState('legal')
-  const [audience, setAudience] = useState('正在處理事故理賠的一般民眾')
+  const [audience, setAudience] = useState(copy.defaultAudience)
   const [goal, setGoal] = useState('traffic')
   const [voiceProfile, setVoiceProfile] = useState('law_firm')
   const [pageStatus, setPageStatus] = useState<PageStatus>('idle')
@@ -169,6 +300,11 @@ export default function GeneratePage() {
   const exportSlideRefs = useRef<HTMLDivElement[]>([])
   const isGenerating = pageStatus === 'loading' || pageStatus === 'streaming'
   const hasAnyResult = Boolean(results.instagram || results.seo || results.threads || results.facebook)
+
+  useEffect(() => {
+    setIdea(copy.defaultIdea)
+    setAudience(copy.defaultAudience)
+  }, [copy.defaultAudience, copy.defaultIdea])
 
   const progressSteps: PipelineStep[] = [
     { id: 'planner', label: 'Planner', status: plannerStatus },
@@ -220,7 +356,7 @@ export default function GeneratePage() {
         runSlugRef.current || slugify(idea),
       )
     } catch (error) {
-      setDownloadError(error instanceof Error ? error.message : '匯出 ZIP 失敗，請稍後再試。')
+      setDownloadError(error instanceof Error ? error.message : copy.errors.zip)
     } finally {
       setIsDownloading(false)
     }
@@ -246,7 +382,7 @@ export default function GeneratePage() {
           audience,
           goal,
           voice_profile: voiceProfile,
-          locale: 'zh-TW',
+          locale: language,
         },
         {
           signal: abort.signal,
@@ -300,7 +436,7 @@ export default function GeneratePage() {
             setPlatformStatus(platform, 'error')
             setErrors((current) => ({
               ...current,
-              [platform]: typeof chunk.data?.message === 'string' ? chunk.data.message : '此平台產生失敗。',
+              [platform]: typeof chunk.data?.message === 'string' ? chunk.data.message : copy.errors.platform,
             }))
           }
           continue
@@ -321,13 +457,13 @@ export default function GeneratePage() {
         }
 
         if (chunk.event === 'error') {
-          throw new Error(typeof chunk.data?.message === 'string' ? chunk.data.message : 'Generate All 失敗。')
+          throw new Error(typeof chunk.data?.message === 'string' ? chunk.data.message : copy.errors.stream)
         }
       }
     } catch (error) {
       if (!abort.signal.aborted) {
         setPageStatus('error')
-        setPageError(friendlyError(error))
+        setPageError(friendlyError(error, copy))
         setPlannerStatus((current) => (current === 'complete' ? current : 'error'))
       }
     }
@@ -341,19 +477,19 @@ export default function GeneratePage() {
         <section className="grid gap-6 lg:grid-cols-[minmax(300px,0.34fr)_minmax(0,0.66fr)]">
           <aside className="space-y-6 rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-md)] lg:sticky lg:top-24 lg:self-start">
             <div>
-              <p className="text-sm font-semibold tracking-[0.16em] text-[var(--text-tertiary)]">GENERATE ALL</p>
+              <p className="text-sm font-semibold tracking-[0.16em] text-[var(--text-tertiary)]">{copy.eyebrow}</p>
               <h1 className="mt-3 text-3xl font-extrabold tracking-[-0.04em] text-[var(--text-primary)]">
-                一個想法，產出四個平台
+                {copy.title}
               </h1>
               <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
-                輸入一個核心 idea，Neoxra 會同時產出 Instagram、SEO、Threads 與 Facebook 版本。
+                {copy.subtitle}
               </p>
             </div>
 
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-[var(--text-secondary)]">Demo 情境</p>
+              <p className="text-sm font-semibold text-[var(--text-secondary)]">{copy.scenariosLabel}</p>
               <div className="flex flex-wrap gap-2">
-                {DEMO_SCENARIOS.map((scenario) => (
+                {copy.scenarios.map((scenario) => (
                   <button
                     key={scenario.name}
                     type="button"
@@ -367,21 +503,21 @@ export default function GeneratePage() {
             </div>
 
             <div className="space-y-3">
-              <InputLabel htmlFor="generate-idea">核心想法</InputLabel>
+              <InputLabel htmlFor="generate-idea">{copy.ideaLabel}</InputLabel>
               <textarea
                 id="generate-idea"
                 value={idea}
                 onChange={(event) => setIdea(event.target.value)}
-                placeholder="例如：車禍理賠流程"
+                placeholder={copy.ideaPlaceholder}
                 className="min-h-[150px] w-full resize-none rounded-[16px] border border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-4 text-base leading-7 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
               />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <div className="space-y-3">
-                <InputLabel htmlFor="generate-industry">產業</InputLabel>
+                <InputLabel htmlFor="generate-industry">{copy.industryLabel}</InputLabel>
                 <SelectField id="generate-industry" value={industry} onChange={setIndustry}>
-                  {INDUSTRY_OPTIONS.map((option) => (
+                  {copy.industryOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -390,9 +526,9 @@ export default function GeneratePage() {
               </div>
 
               <div className="space-y-3">
-                <InputLabel htmlFor="generate-goal">內容目標</InputLabel>
+                <InputLabel htmlFor="generate-goal">{copy.goalLabel}</InputLabel>
                 <SelectField id="generate-goal" value={goal} onChange={setGoal}>
-                  {GOAL_OPTIONS.map((option) => (
+                  {copy.goalOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -402,20 +538,20 @@ export default function GeneratePage() {
             </div>
 
             <div className="space-y-3">
-              <InputLabel htmlFor="generate-audience">目標受眾</InputLabel>
+              <InputLabel htmlFor="generate-audience">{copy.audienceLabel}</InputLabel>
               <input
                 id="generate-audience"
                 value={audience}
                 onChange={(event) => setAudience(event.target.value)}
-                placeholder="例如：正在處理事故理賠的一般民眾"
+                placeholder={copy.audiencePlaceholder}
                 className="h-12 w-full rounded-[12px] border border-[var(--border)] bg-[var(--bg-sunken)] px-4 text-sm text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
               />
             </div>
 
             <div className="space-y-3">
-              <InputLabel htmlFor="generate-voice">語氣設定</InputLabel>
+              <InputLabel htmlFor="generate-voice">{copy.voiceLabel}</InputLabel>
               <SelectField id="generate-voice" value={voiceProfile} onChange={setVoiceProfile}>
-                {VOICE_OPTIONS.map((option) => (
+                {copy.voiceOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -432,10 +568,10 @@ export default function GeneratePage() {
               {isGenerating ? (
                 <>
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  生成中…
+                  {copy.generating}
                 </>
               ) : (
-                'Generate All'
+                copy.generateButton
               )}
             </button>
 
@@ -451,9 +587,9 @@ export default function GeneratePage() {
 
             {brief ? (
               <div className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
-                <p className="text-xs font-semibold tracking-[0.16em] text-[var(--text-tertiary)]">BRIEF</p>
+                <p className="text-xs font-semibold tracking-[0.16em] text-[var(--text-tertiary)]">{copy.briefLabel}</p>
                 <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                  Planner 已完成方向規劃，四個平台會依同一份策略 brief 產出不同格式。
+                  {copy.briefReady}
                 </p>
               </div>
             ) : null}
@@ -469,9 +605,9 @@ export default function GeneratePage() {
             <div className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-bold text-[var(--text-primary)]">交付包</h2>
+                  <h2 className="text-xl font-bold text-[var(--text-primary)]">{copy.deliveryTitle}</h2>
                   <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                    一鍵下載 Instagram 圖片、caption、SEO Markdown/HTML、Threads 與 Facebook 文案。
+                    {copy.deliveryBody}
                   </p>
                 </div>
                 <button
@@ -483,10 +619,10 @@ export default function GeneratePage() {
                   {isDownloading ? (
                     <>
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      打包中…
+                      {copy.packing}
                     </>
                   ) : (
-                    '下載全部 ZIP'
+                    copy.downloadAll
                   )}
                 </button>
               </div>

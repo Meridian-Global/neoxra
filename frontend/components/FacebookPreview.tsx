@@ -1,7 +1,37 @@
 'use client'
 
 import { useState } from 'react'
+import { useLanguage } from './LanguageProvider'
 import type { FacebookPost } from '../lib/facebook-types'
+
+type Language = 'en' | 'zh-TW'
+
+const COPY: Record<Language, Record<string, string>> = {
+  'zh-TW': {
+    copied: '已複製',
+    copyPost: '複製貼文',
+    title: 'Facebook 原生長文草稿',
+    subtitle: '從 Instagram 內容延展成更適合討論與分享的 Facebook 貼文。',
+    nowPublic: '剛剛 · 公開',
+    discussion: '討論引導',
+    image: '圖像建議',
+    like: '讚',
+    comment: '留言',
+    share: '分享',
+  },
+  en: {
+    copied: 'Copied',
+    copyPost: 'Copy post',
+    title: 'Facebook-native long-form draft',
+    subtitle: 'Expanded from Instagram content into a Facebook post built for discussion and sharing.',
+    nowPublic: 'Just now · Public',
+    discussion: 'Discussion prompt',
+    image: 'Image suggestion',
+    like: 'Like',
+    comment: 'Comment',
+    share: 'Share',
+  },
+}
 
 function formatFacebookPost(post: FacebookPost) {
   return [
@@ -14,7 +44,7 @@ function formatFacebookPost(post: FacebookPost) {
     .join('\n\n')
 }
 
-function CopyButton({ value }: { value: string }) {
+function CopyButton({ value, copy }: { value: string; copy: Record<string, string> }) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
@@ -29,12 +59,15 @@ function CopyButton({ value }: { value: string }) {
       onClick={() => void handleCopy()}
       className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-4 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-sunken)]"
     >
-      {copied ? '已複製' : '複製貼文'}
+      {copied ? copy.copied : copy.copyPost}
     </button>
   )
 }
 
 export function FacebookPreview({ post }: { post: FacebookPost }) {
+  const { language } = useLanguage()
+  const copy = COPY[language]
+
   return (
     <section className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -43,13 +76,13 @@ export function FacebookPreview({ post }: { post: FacebookPost }) {
             FACEBOOK PREVIEW
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-[var(--text-primary)]">
-            Facebook 原生長文草稿
+            {copy.title}
           </h2>
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-            從 Instagram 內容延展成更適合討論與分享的 Facebook 貼文。
+            {copy.subtitle}
           </p>
         </div>
-        <CopyButton value={formatFacebookPost(post)} />
+        <CopyButton value={formatFacebookPost(post)} copy={copy} />
       </div>
 
       <article className="mt-7 overflow-hidden rounded-[22px] border border-[var(--border)] bg-[var(--bg-sunken)]">
@@ -60,7 +93,7 @@ export function FacebookPreview({ post }: { post: FacebookPost }) {
             </div>
             <div>
               <div className="font-semibold text-[var(--text-primary)]">Neoxra Demo</div>
-              <div className="text-xs text-[var(--text-tertiary)]">剛剛 · 公開</div>
+              <div className="text-xs text-[var(--text-tertiary)]">{copy.nowPublic}</div>
             </div>
           </div>
         </div>
@@ -75,7 +108,7 @@ export function FacebookPreview({ post }: { post: FacebookPost }) {
 
           <div className="rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              討論引導
+              {copy.discussion}
             </div>
             <p className="mt-2 text-[15px] font-semibold leading-7 text-[var(--text-primary)]">
               {post.discussion_prompt}
@@ -88,16 +121,16 @@ export function FacebookPreview({ post }: { post: FacebookPost }) {
 
           <div className="rounded-[16px] border border-dashed border-[var(--border-bold)] bg-[var(--bg-elevated)] p-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              圖像建議
+              {copy.image}
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{post.image_recommendation}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-3 border-t border-[var(--border)] bg-[var(--bg-elevated)] text-center text-sm font-semibold text-[var(--text-secondary)]">
-          <div className="py-3">讚</div>
-          <div className="border-x border-[var(--border)] py-3">留言</div>
-          <div className="py-3">分享</div>
+          <div className="py-3">{copy.like}</div>
+          <div className="border-x border-[var(--border)] py-3">{copy.comment}</div>
+          <div className="py-3">{copy.share}</div>
         </div>
       </article>
     </section>

@@ -1,15 +1,44 @@
 'use client'
 
 import { useState } from 'react'
+import { useLanguage } from './LanguageProvider'
 import type { ThreadsPost, ThreadsThread } from '../lib/threads-types'
 
-const PURPOSE_LABELS: Record<ThreadsPost['purpose'], string> = {
-  hook: '開場',
-  argument: '論點',
-  evidence: '證據',
-  punchline: '收束',
-  cta: '互動',
+type Language = 'en' | 'zh-TW'
+
+const PURPOSE_LABELS: Record<Language, Record<ThreadsPost['purpose'], string>> = {
+  'zh-TW': {
+    hook: '開場',
+    argument: '論點',
+    evidence: '證據',
+    punchline: '收束',
+    cta: '互動',
+  },
+  en: {
+    hook: 'Hook',
+    argument: 'Argument',
+    evidence: 'Evidence',
+    punchline: 'Close',
+    cta: 'CTA',
+  },
 }
+
+const COPY = {
+  'zh-TW': {
+    title: '可直接貼到 Threads 的草稿',
+    subtitle: '每則貼文都會顯示字數。超過 500 字會以紅色標示。',
+    copyAll: '複製整串',
+    copyOne: '複製此則',
+    copied: '已複製',
+  },
+  en: {
+    title: 'Draft ready to paste into Threads',
+    subtitle: 'Each post shows character count. Posts over 500 characters are marked in red.',
+    copyAll: 'Copy thread',
+    copyOne: 'Copy post',
+    copied: 'Copied',
+  },
+} satisfies Record<Language, Record<string, string>>
 
 function formatThread(thread: ThreadsThread) {
   return thread.posts
@@ -17,7 +46,7 @@ function formatThread(thread: ThreadsThread) {
     .join('\n\n')
 }
 
-function CopyButton({ label, value }: { label: string; value: string }) {
+function CopyButton({ label, value, copiedLabel }: { label: string; value: string; copiedLabel: string }) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
@@ -32,12 +61,16 @@ function CopyButton({ label, value }: { label: string; value: string }) {
       onClick={() => void handleCopy()}
       className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-sunken)]"
     >
-      {copied ? '已複製' : label}
+      {copied ? copiedLabel : label}
     </button>
   )
 }
 
 export function ThreadsPreview({ thread }: { thread: ThreadsThread }) {
+  const { language } = useLanguage()
+  const copy = COPY[language]
+  const purposeLabels = PURPOSE_LABELS[language]
+
   return (
     <section className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -46,13 +79,13 @@ export function ThreadsPreview({ thread }: { thread: ThreadsThread }) {
             THREADS PREVIEW
           </p>
           <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-[var(--text-primary)]">
-            可直接貼到 Threads 的草稿
+            {copy.title}
           </h2>
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-            每則貼文都會顯示字數。超過 500 字會以紅色標示。
+            {copy.subtitle}
           </p>
         </div>
-        <CopyButton label="複製整串" value={formatThread(thread)} />
+        <CopyButton label={copy.copyAll} copiedLabel={copy.copied} value={formatThread(thread)} />
       </div>
 
       <div className="mt-8 space-y-5">
@@ -74,7 +107,7 @@ export function ThreadsPreview({ thread }: { thread: ThreadsThread }) {
               <div className="rounded-[18px] border border-[var(--border)] bg-[var(--bg-sunken)] p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)]">
-                    {PURPOSE_LABELS[post.purpose] ?? post.purpose}
+                    {purposeLabels[post.purpose] ?? post.purpose}
                   </span>
                   <div className="flex items-center gap-2">
                     <span
@@ -87,7 +120,7 @@ export function ThreadsPreview({ thread }: { thread: ThreadsThread }) {
                     >
                       {charCount}/500
                     </span>
-                    <CopyButton label="複製此則" value={post.content} />
+                    <CopyButton label={copy.copyOne} copiedLabel={copy.copied} value={post.content} />
                   </div>
                 </div>
                 <p className="mt-4 whitespace-pre-wrap text-[15px] leading-7 text-[var(--text-primary)]">

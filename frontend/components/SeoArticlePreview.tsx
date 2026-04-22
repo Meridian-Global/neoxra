@@ -1,4 +1,26 @@
 import type { SeoArticle, SeoSection } from '../lib/seo-types'
+import { useLanguage } from './LanguageProvider'
+
+type Language = 'en' | 'zh-TW'
+
+const COPY: Record<Language, Record<string, string>> = {
+  'zh-TW': {
+    wordCountPrefix: '約',
+    wordCountSuffix: '字',
+    searchIntent: '搜尋意圖',
+    primaryKeyword: '主關鍵字',
+    conclusion: '結論',
+    summary: '重點整理',
+  },
+  en: {
+    wordCountPrefix: 'About',
+    wordCountSuffix: 'words',
+    searchIntent: 'Search intent',
+    primaryKeyword: 'Primary keyword',
+    conclusion: 'Conclusion',
+    summary: 'Key takeaways',
+  },
+}
 
 function KeywordBadge({ children }: { children: React.ReactNode }) {
   return (
@@ -26,6 +48,9 @@ function ArticleSection({ section }: { section: SeoSection }) {
 }
 
 export function SeoArticlePreview({ article }: { article: SeoArticle }) {
+  const { language } = useLanguage()
+  const copy = COPY[language]
+
   return (
     <article className="space-y-8">
       <section className="rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-md)]">
@@ -42,7 +67,7 @@ export function SeoArticlePreview({ article }: { article: SeoArticle }) {
             </p>
           </div>
           <span className="rounded-full bg-[var(--bg-sunken)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)]">
-            約 {article.estimated_word_count} 字
+            {copy.wordCountPrefix} {article.estimated_word_count} {copy.wordCountSuffix}
           </span>
         </div>
 
@@ -52,13 +77,13 @@ export function SeoArticlePreview({ article }: { article: SeoArticle }) {
             <p className="mt-1 font-medium text-[var(--text-primary)]">/{article.metadata.url_slug}</p>
           </div>
           <div className="rounded-[12px] bg-[var(--bg-sunken)] p-4">
-            <p className="text-xs font-semibold text-[var(--text-tertiary)]">搜尋意圖</p>
+            <p className="text-xs font-semibold text-[var(--text-tertiary)]">{copy.searchIntent}</p>
             <p className="mt-1 font-medium text-[var(--text-primary)]">{article.metadata.target_search_intent}</p>
           </div>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <KeywordBadge>主關鍵字：{article.metadata.primary_keyword}</KeywordBadge>
+          <KeywordBadge>{copy.primaryKeyword}: {article.metadata.primary_keyword}</KeywordBadge>
           {article.metadata.secondary_keywords.map((keyword) => (
             <KeywordBadge key={keyword}>{keyword}</KeywordBadge>
           ))}
@@ -81,9 +106,9 @@ export function SeoArticlePreview({ article }: { article: SeoArticle }) {
           </div>
 
           <section className="rounded-[18px] bg-[var(--bg-sunken)] p-6">
-            <h2 className="text-2xl font-bold text-[var(--text-primary)]">結論</h2>
+            <h2 className="text-2xl font-bold text-[var(--text-primary)]">{copy.conclusion}</h2>
             <p className="mt-3 text-[16px] leading-8 text-[var(--text-secondary)]">{article.conclusion}</p>
-            <h3 className="mt-6 text-lg font-semibold text-[var(--text-primary)]">重點整理</h3>
+            <h3 className="mt-6 text-lg font-semibold text-[var(--text-primary)]">{copy.summary}</h3>
             <ul className="mt-3 space-y-2 text-[15px] leading-7 text-[var(--text-secondary)]">
               {article.summary_points.map((point) => (
                 <li key={point} className="flex gap-2">

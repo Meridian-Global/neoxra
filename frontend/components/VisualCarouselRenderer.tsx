@@ -3,7 +3,31 @@
 import { useEffect, useRef, useState } from 'react'
 import { CAROUSEL_THEMES, getCarouselTheme, type CarouselThemeId } from '../lib/carousel-themes'
 import { exportCarousel } from '../lib/carousel-export'
+import { useLanguage } from './LanguageProvider'
 import type { CarouselSlide } from '../lib/instagram-types'
+
+const COPY = {
+  'zh-TW': {
+    exportError: '匯出輪播圖片失敗，請稍後再試。',
+    fallbackTitle: '內容重點',
+    fallbackBody: '輸入主題後，這裡會顯示適合 Instagram 輪播的內容。',
+    previous: '上一張輪播',
+    next: '下一張輪播',
+    goTo: (index: number) => `切換到第 ${index + 1} 張`,
+    exporting: '匯出中…',
+    download: '下載輪播圖片',
+  },
+  en: {
+    exportError: 'Carousel image export failed. Please try again later.',
+    fallbackTitle: 'Content point',
+    fallbackBody: 'After you enter a topic, Instagram carousel-ready content will appear here.',
+    previous: 'Previous carousel slide',
+    next: 'Next carousel slide',
+    goTo: (index: number) => `Go to slide ${index + 1}`,
+    exporting: 'Exporting…',
+    download: 'Download carousel images',
+  },
+}
 
 interface VisualCarouselRendererProps {
   slides: CarouselSlide[]
@@ -27,6 +51,8 @@ export function VisualCarouselRenderer({
   topicSlug,
   exportDisabled = false,
 }: VisualCarouselRendererProps) {
+  const { language } = useLanguage()
+  const copy = COPY[language]
   const [activeIndex, setActiveIndex] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -55,7 +81,7 @@ export function VisualCarouselRenderer({
     try {
       await exportCarousel(exportSlideRefs.current.slice(0, slides.length), topicSlug)
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : '匯出輪播圖片失敗，請稍後再試。')
+      setExportError(err instanceof Error ? err.message : copy.exportError)
     } finally {
       setIsExporting(false)
     }
@@ -92,13 +118,13 @@ export function VisualCarouselRenderer({
               isExport ? `${headlineClass} leading-[1.05]` : `${headlineClass} leading-[1.08]`
             }`}
           >
-            {slide?.title ?? '內容重點'}
+            {slide?.title ?? copy.fallbackTitle}
           </h4>
           <p
             className={`mt-5 max-w-[92%] font-medium ${isExport ? 'text-[44px] leading-[1.42]' : 'text-[16px] leading-7 sm:text-[18px]'}`}
             style={{ color: theme.subtextColor }}
           >
-            {slide?.body ?? '輸入主題後，這裡會顯示適合 Instagram 輪播的內容。'}
+            {slide?.body ?? copy.fallbackBody}
           </p>
         </div>
 
@@ -149,7 +175,7 @@ export function VisualCarouselRenderer({
           type="button"
           onClick={goToPrevious}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-lg text-[var(--text-primary)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--bg-sunken)]"
-          aria-label="上一張輪播"
+          aria-label={copy.previous}
         >
           ‹
         </button>
@@ -162,7 +188,7 @@ export function VisualCarouselRenderer({
               className={`h-2.5 rounded-full transition ${
                 activeIndex === index ? 'w-7 bg-[var(--text-primary)]' : 'w-2.5 bg-[var(--border-bold)]'
               }`}
-              aria-label={`切換到第 ${index + 1} 張`}
+              aria-label={copy.goTo(index)}
             />
           ))}
         </div>
@@ -170,7 +196,7 @@ export function VisualCarouselRenderer({
           type="button"
           onClick={goToNext}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-lg text-[var(--text-primary)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--bg-sunken)]"
-          aria-label="下一張輪播"
+          aria-label={copy.next}
         >
           ›
         </button>
@@ -186,10 +212,10 @@ export function VisualCarouselRenderer({
           {isExporting ? (
             <>
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border-bold)] border-t-[var(--text-primary)]" />
-              匯出中…
+              {copy.exporting}
             </>
           ) : (
-            '下載輪播圖片'
+            copy.download
           )}
         </button>
         {exportError ? <p className="text-sm text-[var(--text-secondary)]">{exportError}</p> : null}
