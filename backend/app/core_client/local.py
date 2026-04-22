@@ -202,6 +202,7 @@ class LocalCoreClient:
             topic=generation_request.topic,
             brief_context=brief_context,
             voice_profile=voice_profile,
+            locale=getattr(generation_request, "locale", "en"),
         )
         return article.to_dict()
 
@@ -243,6 +244,7 @@ class LocalCoreClient:
                 text=generation_request.topic,
                 context={
                     "goal": generation_request.goal,
+                    "locale": generation_request.locale,
                     "brief_context": brief_context,
                     "voice_profile": voice_profile,
                 },
@@ -285,6 +287,7 @@ class LocalCoreClient:
                     "brief_context": brief_context,
                     "instagram_caption": instagram_caption,
                     "carousel_summary": carousel_summary,
+                    "locale": generation_request.locale,
                     "voice_profile": voice_profile,
                 },
             )
