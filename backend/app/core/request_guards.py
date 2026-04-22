@@ -33,6 +33,8 @@ def _env_int(name: str, default: int) -> int:
 def get_generation_body_limit_bytes(path: str) -> int | None:
     if path == "/api/run":
         return _env_int("CORE_RUN_MAX_BODY_BYTES", 8_192)
+    if path == "/api/generate-all":
+        return _env_int("GENERATE_ALL_MAX_BODY_BYTES", 8_192)
     if path == "/api/instagram/generate":
         return _env_int("INSTAGRAM_GENERATE_MAX_BODY_BYTES", 16_384)
     if path == "/api/analytics/events":
