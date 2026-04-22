@@ -10,6 +10,7 @@ from ..core.demo_access import require_demo_access
 from ..core.error_handling import generation_error_payload, public_generation_error
 from ..core.localization import DEFAULT_LOCALE, validate_locale
 from ..core.logging_utils import format_log_fields, get_request_id
+from ..core.output_validation import validate_seo_article_payload
 from ..core_client import (
     CoreClientNotImplementedError,
     CoreClientUnavailableError,
@@ -19,6 +20,23 @@ from .access_groups import build_gated_demo_router
 
 router = build_gated_demo_router()
 logger = logging.getLogger(__name__)
+
+
+def _validate_with_retry(generate_article, *, platform: str) -> tuple[dict[str, object], bool]:
+    last_article = None
+    for attempt in range(2):
+        article = generate_article()
+        last_article = article
+        try:
+            return validate_seo_article_payload(article), attempt > 0
+        except ValueError:
+            if attempt == 0:
+                logger.warning("%s output validation failed; retrying once", platform)
+                continue
+            logger.exception("%s output validation failed after retry", platform)
+            partial = dict(last_article or {})
+            partial["warning"] = "Output did not pass strict validation after retry."
+            return partial, True
 
 
 class SeoGenerateRequest(BaseModel):
@@ -125,13 +143,16 @@ async def seo_generate(req: SeoGenerateRequest, request: Request):
                     "locale": generation_request.locale,
                 },
             )
-            article = core_client.generate_seo_article(
-                generation_request=generation_request,
-                brief_context={
-                    "goal": generation_request.goal,
-                    "locale": generation_request.locale,
-                    "demo_surface": demo_surface,
-                },
+            article, had_retry = _validate_with_retry(
+                lambda: core_client.generate_seo_article(
+                    generation_request=generation_request,
+                    brief_context={
+                        "goal": generation_request.goal,
+                        "locale": generation_request.locale,
+                        "demo_surface": demo_surface,
+                    },
+                ),
+                platform="seo",
             )
             yield _sse("article_ready", article)
             completed = True
@@ -142,6 +163,8 @@ async def seo_generate(req: SeoGenerateRequest, request: Request):
                     "topic": generation_request.topic,
                     "goal": generation_request.goal,
                     "locale": generation_request.locale,
+                    "warning": article.get("warning"),
+                    "validation_retry": had_retry,
                 },
             )
         except Exception as exc:

@@ -10,6 +10,7 @@ from ..core.demo_access import require_demo_access
 from ..core.error_handling import generation_error_payload, public_generation_error
 from ..core.localization import DEFAULT_LOCALE, validate_locale
 from ..core.logging_utils import format_log_fields, get_request_id
+from ..core.output_validation import validate_threads_content_payload
 from ..core_client import (
     CoreClientNotImplementedError,
     CoreClientUnavailableError,
@@ -19,6 +20,23 @@ from .access_groups import build_gated_demo_router
 
 router = build_gated_demo_router()
 logger = logging.getLogger(__name__)
+
+
+def _validate_with_retry(generate_thread, *, platform: str) -> tuple[dict[str, object], bool]:
+    last_thread = None
+    for attempt in range(2):
+        thread = generate_thread()
+        last_thread = thread
+        try:
+            return validate_threads_content_payload(thread), attempt > 0
+        except ValueError:
+            if attempt == 0:
+                logger.warning("%s output validation failed; retrying once", platform)
+                continue
+            logger.exception("%s output validation failed after retry", platform)
+            partial = dict(last_thread or {})
+            partial["warning"] = "Output did not pass strict validation after retry."
+            return partial, True
 
 
 class ThreadsGenerateRequest(BaseModel):
@@ -124,13 +142,16 @@ async def threads_generate(req: ThreadsGenerateRequest, request: Request):
                     "locale": generation_request.locale,
                 },
             )
-            thread = core_client.generate_threads_content(
-                generation_request=generation_request,
-                brief_context={
-                    "goal": generation_request.goal,
-                    "locale": generation_request.locale,
-                    "demo_surface": demo_surface,
-                },
+            thread, had_retry = _validate_with_retry(
+                lambda: core_client.generate_threads_content(
+                    generation_request=generation_request,
+                    brief_context={
+                        "goal": generation_request.goal,
+                        "locale": generation_request.locale,
+                        "demo_surface": demo_surface,
+                    },
+                ),
+                platform="threads",
             )
             yield _sse("content_ready", thread)
             yield _sse(
@@ -140,6 +161,8 @@ async def threads_generate(req: ThreadsGenerateRequest, request: Request):
                     "topic": generation_request.topic,
                     "goal": generation_request.goal,
                     "locale": generation_request.locale,
+                    "warning": thread.get("warning"),
+                    "validation_retry": had_retry,
                 },
             )
         except Exception as exc:

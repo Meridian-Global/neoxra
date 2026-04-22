@@ -13,11 +13,13 @@ client = TestClient(app)
 INSTAGRAM_CONTENT = {
     "caption": "小團隊不是缺內容點子，而是缺一個穩定流程。",
     "hook_options": ["小團隊不是缺人", "先整理流程"],
-    "hashtags": [],
+    "hashtags": ["#內容策略"],
     "carousel_outline": [
         {"title": "先定義主題", "body": "不要每次都從零開始討論"},
         {"title": "再改寫平台", "body": "同一個想法需要不同語氣"},
         {"title": "最後人工審稿", "body": "保留人的判斷"},
+        {"title": "固定流程", "body": "每週重複使用同一套節奏"},
+        {"title": "累積資產", "body": "把內容變成可重用的素材"},
     ],
     "reel_script": "Hook: 小團隊不是缺人\nBody: 流程更重要\nCTA: 先審稿",
 }

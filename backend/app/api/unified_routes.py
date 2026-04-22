@@ -11,6 +11,12 @@ from ..core.demo_access import require_demo_access
 from ..core.error_handling import generation_error_payload, public_generation_error
 from ..core.localization import DEFAULT_LOCALE, append_locale_instruction, validate_locale
 from ..core.logging_utils import format_log_fields, get_request_id
+from ..core.output_validation import (
+    validate_facebook_post_payload,
+    validate_instagram_generation_payload,
+    validate_seo_article_payload,
+    validate_threads_content_payload,
+)
 from ..core.request_guards import CORE_ROUTE_KEY, enforce_generation_limits, get_max_idea_length
 from ..core_client import (
     CoreClientNotImplementedError,
@@ -215,6 +221,35 @@ def _apply_law_firm_disclaimer(
     return next_content
 
 
+def _validate_platform_output(platform: str, content: dict[str, object]) -> dict[str, object]:
+    if platform == "instagram":
+        return validate_instagram_generation_payload(content)
+    if platform == "seo":
+        return validate_seo_article_payload(content)
+    if platform == "threads":
+        return validate_threads_content_payload(content)
+    if platform == "facebook":
+        return validate_facebook_post_payload(content)
+    return content
+
+
+def _generate_validated_platform(platform: str, generate_content) -> dict[str, object]:
+    last_content = None
+    for attempt in range(2):
+        content = generate_content()
+        last_content = content
+        try:
+            return _validate_platform_output(platform, content)
+        except ValueError:
+            if attempt == 0:
+                logger.warning("unified %s output validation failed; retrying once", platform)
+                continue
+            logger.exception("unified %s output validation failed after retry", platform)
+            partial = dict(last_content or {})
+            partial["warning"] = "Output did not pass strict validation after retry."
+            return partial
+
+
 def _generate_instagram(core_client, req: UnifiedGenerateRequest, brief: dict[str, object]) -> dict[str, object]:
     generation_request = core_client.build_instagram_generation_request(
         topic=req.idea,
@@ -226,14 +261,17 @@ def _generate_instagram(core_client, req: UnifiedGenerateRequest, brief: dict[st
         template_text=generation_request.template_text,
         style_examples=generation_request.style_examples,
     )
-    content = core_client.generate_instagram_content(
-        generation_request=generation_request,
-        localized_template_text=append_locale_instruction(
-            generation_request.template_text,
-            req.locale,
+    content = _generate_validated_platform(
+        "instagram",
+        lambda: core_client.generate_instagram_content(
+            generation_request=generation_request,
+            localized_template_text=append_locale_instruction(
+                generation_request.template_text,
+                req.locale,
+            ),
+            style_analysis=style_analysis,
+            locale=req.locale,
         ),
-        style_analysis=style_analysis,
-        locale=req.locale,
     )
     return _apply_law_firm_disclaimer(req, "instagram", content)
 
@@ -244,17 +282,20 @@ def _generate_seo(core_client, req: UnifiedGenerateRequest, brief: dict[str, obj
         goal="conversion" if req.goal == "conversion" else "authority",
         locale=req.locale,
     )
-    content = core_client.generate_seo_article(
-        generation_request=generation_request,
-        brief_context={
-            "brief": brief,
-            "industry": req.industry,
-            "audience": req.audience,
-            "goal": req.goal,
-            "locale": req.locale,
-            "surface": "generate-all",
-        },
-        voice_profile=_voice_context(req),
+    content = _generate_validated_platform(
+        "seo",
+        lambda: core_client.generate_seo_article(
+            generation_request=generation_request,
+            brief_context={
+                "brief": brief,
+                "industry": req.industry,
+                "audience": req.audience,
+                "goal": req.goal,
+                "locale": req.locale,
+                "surface": "generate-all",
+            },
+            voice_profile=_voice_context(req),
+        ),
     )
     return _apply_law_firm_disclaimer(req, "seo", content)
 
@@ -265,17 +306,20 @@ def _generate_threads(core_client, req: UnifiedGenerateRequest, brief: dict[str,
         goal="share" if req.goal == "traffic" else "engagement",
         locale=req.locale,
     )
-    content = core_client.generate_threads_content(
-        generation_request=generation_request,
-        brief_context={
-            "brief": brief,
-            "industry": req.industry,
-            "audience": req.audience,
-            "goal": req.goal,
-            "locale": req.locale,
-            "surface": "generate-all",
-        },
-        voice_profile=_voice_context(req),
+    content = _generate_validated_platform(
+        "threads",
+        lambda: core_client.generate_threads_content(
+            generation_request=generation_request,
+            brief_context={
+                "brief": brief,
+                "industry": req.industry,
+                "audience": req.audience,
+                "goal": req.goal,
+                "locale": req.locale,
+                "surface": "generate-all",
+            },
+            voice_profile=_voice_context(req),
+        ),
     )
     return _apply_law_firm_disclaimer(req, "threads", content)
 
@@ -313,20 +357,23 @@ def _generate_facebook(
         topic=req.idea,
         locale=req.locale,
     )
-    content = core_client.generate_facebook_content(
-        generation_request=generation_request,
-        brief_context={
-            "brief": brief,
-            "industry": req.industry,
-            "audience": req.audience,
-            "goal": req.goal,
-            "locale": req.locale,
-            "surface": "generate-all",
-            "source_platform": "instagram",
-        },
-        instagram_caption=_extract_instagram_caption(instagram_content),
-        carousel_summary=_build_carousel_summary(instagram_content),
-        voice_profile=_voice_context(req),
+    content = _generate_validated_platform(
+        "facebook",
+        lambda: core_client.generate_facebook_content(
+            generation_request=generation_request,
+            brief_context={
+                "brief": brief,
+                "industry": req.industry,
+                "audience": req.audience,
+                "goal": req.goal,
+                "locale": req.locale,
+                "surface": "generate-all",
+                "source_platform": "instagram",
+            },
+            instagram_caption=_extract_instagram_caption(instagram_content),
+            carousel_summary=_build_carousel_summary(instagram_content),
+            voice_profile=_voice_context(req),
+        ),
     )
     return _apply_law_firm_disclaimer(req, "facebook", content)
 

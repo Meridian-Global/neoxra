@@ -32,8 +32,8 @@ INSTAGRAM_CONTENT = {
 
 SEO_ARTICLE = {
     "metadata": {
-        "title": "車禍理賠流程完整指南",
-        "meta_description": "整理車禍理賠流程與注意事項。",
+        "title": "A" * 55,
+        "meta_description": "B" * 155,
         "url_slug": "car-accident-claim",
         "primary_keyword": "車禍理賠",
         "secondary_keywords": ["交通事故", "損害賠償"],
@@ -41,11 +41,15 @@ SEO_ARTICLE = {
     },
     "h1": "車禍理賠流程完整指南",
     "introduction": "車禍後先整理證據，後續理賠才不會被動。",
-    "sections": [{"heading": "第一步", "heading_level": 2, "content": "先報警與就醫。"}],
+    "sections": [
+        {"heading": "第一步", "heading_level": 2, "content": "先報警與就醫。"},
+        {"heading": "第二步", "heading_level": 2, "content": "整理醫療費與工作損失。"},
+        {"heading": "第三步", "heading_level": 2, "content": "確認責任比例再和解。"},
+    ],
     "conclusion": "越早整理資料越好。",
     "summary_points": ["報警", "拍照", "就醫"],
     "cta": "需要協助可先整理資料再諮詢。",
-    "estimated_word_count": 900,
+    "estimated_word_count": 1500,
 }
 
 THREAD_CONTENT = {
