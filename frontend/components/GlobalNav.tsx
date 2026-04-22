@@ -58,6 +58,7 @@ export function GlobalNav() {
     language === 'zh-TW'
       ? {
           brand: 'Neoxra',
+          generateAll: 'Generate All',
           products: 'Products',
           useCases: 'Use Cases',
           instagram: 'Instagram Studio',
@@ -69,6 +70,7 @@ export function GlobalNav() {
         }
       : {
           brand: 'Neoxra',
+          generateAll: 'Generate All',
           products: 'Products',
           useCases: 'Use Cases',
           instagram: 'Instagram Studio',
@@ -93,6 +95,12 @@ export function GlobalNav() {
         </Link>
 
         <nav className="hidden items-center gap-2 md:flex">
+          <Link
+            href="/generate"
+            className="inline-flex h-10 items-center rounded-full bg-[var(--bg-accent)] px-4 text-[15px] font-semibold text-[var(--text-on-accent)] transition hover:opacity-90"
+          >
+            {copy.generateAll}
+          </Link>
           <NavDropdown
             label={copy.products}
             items={[

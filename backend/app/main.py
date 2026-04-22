@@ -35,6 +35,7 @@ from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
 from .api.seo_routes import router as seo_router
 from .api.threads_routes import router as threads_router
+from .api.unified_routes import router as unified_router
 from .core.demo_access import get_runtime_mode
 from .core.auth import attach_auth_context
 from .core.error_handling import json_error_response
@@ -95,6 +96,7 @@ app.include_router(integrations_router)
 app.include_router(instagram_router)
 app.include_router(seo_router)
 app.include_router(threads_router)
+app.include_router(unified_router)
 
 
 def _default_error_code_for_status(status_code: int) -> str:
