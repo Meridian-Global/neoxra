@@ -10,6 +10,7 @@ from ..core.demo_access import require_demo_access
 from ..core.error_handling import generation_error_payload, public_generation_error
 from ..core.localization import DEFAULT_LOCALE, append_locale_instruction, validate_locale
 from ..core.logging_utils import format_log_fields, get_request_id
+from ..core.output_validation import validate_facebook_post_payload, validate_instagram_generation_payload
 from ..core_client import (
     CoreClientNotImplementedError,
     CoreClientUnavailableError,
@@ -24,6 +25,23 @@ DEFAULT_INSTAGRAM_TEMPLATE = (
     "Hook first. Short practical paragraphs. Clear carousel structure. "
     "Make the idea specific enough to adapt into Facebook discussion content."
 )
+
+
+def _validate_with_retry(generate_post, *, platform: str) -> tuple[dict[str, object], bool]:
+    last_post = None
+    for attempt in range(2):
+        post = generate_post()
+        last_post = post
+        try:
+            return validate_facebook_post_payload(post), attempt > 0
+        except ValueError:
+            if attempt == 0:
+                logger.warning("%s output validation failed; retrying once", platform)
+                continue
+            logger.exception("%s output validation failed after retry", platform)
+            partial = dict(last_post or {})
+            partial["warning"] = "Output did not pass strict validation after retry."
+            return partial, True
 
 
 class FacebookGenerateRequest(BaseModel):
@@ -118,7 +136,7 @@ def _generate_instagram_first(core_client, *, topic: str, locale: str) -> dict[s
         template_text=generation_request.template_text,
         style_examples=generation_request.style_examples,
     )
-    return core_client.generate_instagram_content(
+    return validate_instagram_generation_payload(core_client.generate_instagram_content(
         generation_request=generation_request,
         localized_template_text=append_locale_instruction(
             generation_request.template_text,
@@ -126,7 +144,7 @@ def _generate_instagram_first(core_client, *, topic: str, locale: str) -> dict[s
         ),
         style_analysis=style_analysis,
         locale=locale,
-    )
+    ))
 
 
 @router.post("/api/facebook/generate")
@@ -198,16 +216,19 @@ async def facebook_generate(req: FacebookGenerateRequest, request: Request):
                 )
                 return
 
-            facebook_post = core_client.generate_facebook_content(
-                generation_request=generation_request,
-                brief_context={
-                    "topic": generation_request.topic,
-                    "locale": generation_request.locale,
-                    "demo_surface": demo_surface,
-                    "source_platform": "instagram",
-                },
-                instagram_caption=instagram_caption,
-                carousel_summary=carousel_summary,
+            facebook_post, had_retry = _validate_with_retry(
+                lambda: core_client.generate_facebook_content(
+                    generation_request=generation_request,
+                    brief_context={
+                        "topic": generation_request.topic,
+                        "locale": generation_request.locale,
+                        "demo_surface": demo_surface,
+                        "source_platform": "instagram",
+                    },
+                    instagram_caption=instagram_caption,
+                    carousel_summary=carousel_summary,
+                ),
+                platform="facebook",
             )
             yield _sse("content_ready", facebook_post)
             yield _sse(
@@ -217,6 +238,8 @@ async def facebook_generate(req: FacebookGenerateRequest, request: Request):
                     "topic": generation_request.topic,
                     "locale": generation_request.locale,
                     "source": "instagram",
+                    "warning": facebook_post.get("warning"),
+                    "validation_retry": had_retry,
                 },
             )
         except Exception:

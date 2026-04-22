@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.api.instagram_routes as instagram_routes
+from app.core.request_guards import reset_generation_guards
 from app.main import app
 
 client = TestClient(app)
@@ -75,7 +76,15 @@ class FakeInstagramCoreClient:
     def ensure_instagram_available(self):
         return None
 
-    def build_instagram_generation_request(self, *, topic: str, template_text: str, goal: str, style_examples: list[str]):
+    def build_instagram_generation_request(
+        self,
+        *,
+        topic: str,
+        template_text: str,
+        goal: str,
+        style_examples: list[str],
+        reference_image_description: str = "",
+    ):
         return type(
             "GenerationRequest",
             (),
@@ -84,10 +93,17 @@ class FakeInstagramCoreClient:
                 "template_text": template_text,
                 "goal": goal,
                 "style_examples": list(style_examples),
+                "reference_image_description": reference_image_description,
             },
         )()
 
-    def analyze_instagram_style(self, *, template_text: str, style_examples: list[str]):
+    def analyze_instagram_style(
+        self,
+        *,
+        template_text: str,
+        style_examples: list[str],
+        reference_image_description: str = "",
+    ):
         return {
             "tone_keywords": ["bold", "conversational"],
             "structural_patterns": ["short paragraphs", "hook first"],
@@ -148,6 +164,7 @@ def _parse_sse_stream(raw: str) -> list[dict]:
 
 def _fire_pipeline() -> list[dict]:
     """Mock the core client, hit the route, return parsed SSE events."""
+    reset_generation_guards()
     with unittest.mock.patch.object(
         instagram_routes, "_get_core_client", return_value=FakeInstagramCoreClient()
     ):
