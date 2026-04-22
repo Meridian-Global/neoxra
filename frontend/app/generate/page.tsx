@@ -75,7 +75,7 @@ const COPY: Record<Language, GenerateCopy> = {
     audiencePlaceholder: '例如：正在處理事故理賠的一般民眾',
     voiceLabel: '語氣設定',
     generating: '生成中…',
-    generateButton: 'Generate All',
+    generateButton: '一次產出多平台',
     briefLabel: 'BRIEF',
     briefReady: 'Planner 已完成方向規劃，四個平台會依同一份策略 brief 產出不同格式。',
     deliveryTitle: '交付包',

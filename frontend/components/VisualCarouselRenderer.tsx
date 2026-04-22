@@ -29,6 +29,22 @@ const COPY = {
   },
 }
 
+const THEME_LABELS: Record<
+  'en' | 'zh-TW',
+  Record<CarouselThemeId, string>
+> = {
+  'zh-TW': {
+    professional: '專業',
+    bold: '醒目',
+    minimal: '極簡',
+  },
+  en: {
+    professional: 'Professional',
+    bold: 'Bold',
+    minimal: 'Minimal',
+  },
+}
+
 interface VisualCarouselRendererProps {
   slides: CarouselSlide[]
   selectedTheme: CarouselThemeId
@@ -53,6 +69,7 @@ export function VisualCarouselRenderer({
 }: VisualCarouselRendererProps) {
   const { language } = useLanguage()
   const copy = COPY[language]
+  const themeLabels = THEME_LABELS[language]
   const [activeIndex, setActiveIndex] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -150,7 +167,7 @@ export function VisualCarouselRenderer({
                 : 'border-[var(--border)] bg-[var(--bg-sunken)] text-[var(--text-secondary)] hover:border-[var(--border-bold)]'
             }`}
           >
-            {themeOption.name}
+            {themeLabels[themeOption.id]}
           </button>
         ))}
       </div>

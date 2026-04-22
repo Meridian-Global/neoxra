@@ -10,25 +10,38 @@ type LocalizedCopy = {
     products: string
     useCases: string
     instagramStudio: string
-    articlesSoon: string
     threadsStudio: string
     lawFirms: string
-    moreVerticalsSoon: string
   }
   hero: {
+    eyebrow: string
     title: string
-    subtitle: string
+    tagline: string
+    body: string
+    orchestraIntro: string
+    orchestraBody: string
+    result: string
     primaryCta: string
     secondaryCta: string
+    ctas: Array<{
+      label: string
+      href: string
+      primary?: boolean
+    }>
   }
   problem: string
   showcase: {
     instagramTitle: string
     instagramLabel: string
     instagramCaption: string
+    instagramSlides: Array<{
+      title: string
+      body: string
+    }>
     articleTitle: string
     articleLabel: string
     articleSeoTitle: string
+    articleOutline: string[]
     articleParagraph: string
     generatedNote: string
   }
@@ -38,6 +51,10 @@ type LocalizedCopy = {
       title: string
       description: string
     }>
+  }
+  chatgpt: {
+    title: string
+    body: string
   }
   platformGrid: {
     title: string
@@ -63,6 +80,7 @@ type LocalizedCopy = {
     primary: string
     secondary: string
   }
+  brandNote: string
   footer: string
 }
 
@@ -73,17 +91,29 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       products: 'Products',
       useCases: 'Use Cases',
       instagramStudio: 'Instagram Studio',
-      articlesSoon: 'Articles（即將推出）',
       threadsStudio: 'Threads Studio',
       lawFirms: '法律事務所',
-      moreVerticalsSoon: '更多產業即將推出',
     },
     hero: {
+      eyebrow: 'Neoxra',
       title: '把想法變成流量',
-      subtitle:
-        'Neoxra 用 AI 把一個想法，轉化成能帶來流量的內容資產。不是一般的文字生成，而是有結構、有策略、可直接發布的平台內容。',
-      primaryCta: '試試 Instagram Studio',
-      secondaryCta: '看法律事務所案例',
+      tagline: '一個想法，四個平台，直接發布。',
+      body:
+        'Neoxra 將一個想法轉化為 Instagram 輪播、SEO 文章、Threads 貼文與 Facebook 內容，結構完整、格式就緒、可直接上線。',
+      orchestraIntro: '而這一切的背後，是你的內容交響樂團。',
+      orchestraBody:
+        '你是指揮，每個 AI 代理人都是專精的樂手：有人負責 Instagram，有人負責 SEO，有人負責 Threads。你給方向，他們同步執行。',
+      result:
+        '最後產出的是一整套跨平台內容系統，不是草稿，而是可以直接帶來流量的結果。',
+      primaryCta: '一次產出四平台',
+      secondaryCta: '試試 Instagram Studio',
+      ctas: [
+        { label: '一次產出多個平台', href: '/generate', primary: true },
+        { label: 'Instagram Studio', href: '/instagram' },
+        { label: 'SEO 文章', href: '/seo' },
+        { label: 'Threads', href: '/threads' },
+        { label: 'Facebook', href: '/facebook' },
+      ],
     },
     problem: '每個品牌都需要在 5 個平台上做內容。但沒有團隊能跟得上。',
     showcase: {
@@ -91,9 +121,32 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       instagramLabel: '從「車禍理賠流程」這個主題，自動產出的 IG 內容',
       instagramCaption:
         '車禍後別急著簽和解書。先報警、拍照、就醫，再把醫療收據、請假紀錄與修車估價整理完整，後續理賠與求償才不會陷入被動。',
+      instagramSlides: [
+        {
+          title: '車禍後別急和解',
+          body: '先把證據留完整，比先拿到一個不清楚的金額更重要。',
+        },
+        {
+          title: '第一步先做對',
+          body: '報警、拍照、就醫，三個動作決定後面理賠與求償的基礎。',
+        },
+        {
+          title: '時效不要拖',
+          body: '涉及告訴與民事請求時，時間一過，很多主張都會變得被動。',
+        },
+        {
+          title: '項目要算完整',
+          body: '醫療費、工作損失、精神慰撫金，往往不是一句保險會處理就結束。',
+        },
+      ],
       articleTitle: 'Article Output',
       articleLabel: '同一個主題，同時產出的 SEO 文章',
       articleSeoTitle: '車禍理賠怎麼算？完整流程、金額計算、注意事項一次搞懂',
+      articleOutline: [
+        '車禍發生後第一時間該做哪些事',
+        '理賠與民事求償常見的時效怎麼看',
+        '醫療費、工作損失、慰撫金如何整理',
+      ],
       articleParagraph:
         '真正影響車禍理賠結果的，通常不是保險有沒有理賠，而是你是否在一開始就把證據、時效與損害資料整理完整。只要處理順序正確，後續談判與求償空間就會清楚很多。',
       generatedNote: '以上內容由 Neoxra 自動產出，未經人工修改',
@@ -115,6 +168,11 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
         },
       ],
     },
+    chatgpt: {
+      title: '為什麼不直接用 ChatGPT？',
+      body:
+        'ChatGPT 給你文字，Neoxra 給你內容包。每個輸出都符合平台格式：Instagram 有輪播結構，SEO 文章有標題層級與 meta description，Threads 貼文會控制 500 字限制。更重要的是，每個平台都會保持同一套品牌語氣。',
+    },
     platformGrid: {
       title: '一個引擎，多個平台',
       cards: [
@@ -125,10 +183,10 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
           href: '/instagram',
         },
         {
-          name: 'Articles',
+          name: 'SEO',
           description: 'SEO 標題 + 大綱 + 全文',
-          cta: '即將推出',
-          soon: true,
+          cta: '開始使用 →',
+          href: '/seo',
         },
         {
           name: 'Threads',
@@ -137,10 +195,10 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
           href: '/threads',
         },
         {
-          name: 'LinkedIn',
-          description: '專業敘事型內容',
-          cta: '即將推出',
-          soon: true,
+          name: 'Facebook',
+          description: '討論型長文 + 分享鉤子',
+          cta: '開始使用 →',
+          href: '/facebook',
         },
       ],
     },
@@ -153,8 +211,8 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
           href: '/demo/legal',
         },
         {
-          title: '新創公司',
-          description: '把產品洞察與市場觀點變成穩定輸出的成長內容。',
+          title: '內容代理商',
+          description: '用白標流程同時服務多個客戶，快速產出跨平台內容包。',
           soon: true,
         },
         {
@@ -166,9 +224,10 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
     },
     finalCta: {
       title: '開始把想法變成流量',
-      primary: '試試 Instagram Studio',
+      primary: '一次產出四平台',
       secondary: '或預約 Demo 了解更多',
     },
+    brandNote: 'Neo（新）+ Orchestra（交響樂團）。你指揮，AI 演奏，流量隨之而來。',
     footer: 'Neoxra © 2026 · Meridian Global LLC',
   },
   en: {
@@ -177,17 +236,29 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       products: 'Products',
       useCases: 'Use Cases',
       instagramStudio: 'Instagram Studio',
-      articlesSoon: 'Articles (coming soon)',
       threadsStudio: 'Threads Studio',
       lawFirms: 'Law Firms',
-      moreVerticalsSoon: 'More verticals coming soon',
     },
     hero: {
+      eyebrow: 'Neoxra',
       title: 'Turn Ideas Into Traffic',
-      subtitle:
-        'Neoxra turns one idea into traffic-ready content assets. Not generic text generation, but structured, strategic, platform-native content you can actually publish.',
-      primaryCta: 'Try Instagram Studio',
-      secondaryCta: 'See the Law Firm Case',
+      tagline: 'One idea. Four platforms. Ready to publish.',
+      body:
+        'Neoxra turns a single idea into Instagram carousels, SEO articles, Threads posts, and Facebook content, structured, formatted, and built to perform.',
+      orchestraIntro: "Behind the scenes, it's your content orchestra.",
+      orchestraBody:
+        "You're the conductor. Each AI agent is a specialist: one writes Instagram, one builds SEO, one crafts Threads. You give direction, they execute in sync.",
+      result:
+        'The result: a complete, multi-platform content system, not drafts, but outputs you can actually publish.',
+      primaryCta: 'Generate All Platforms',
+      secondaryCta: 'Try Instagram Studio',
+      ctas: [
+        { label: 'Generate All Platforms', href: '/generate', primary: true },
+        { label: 'Instagram Studio', href: '/instagram' },
+        { label: 'SEO Articles', href: '/seo' },
+        { label: 'Threads', href: '/threads' },
+        { label: 'Facebook', href: '/facebook' },
+      ],
     },
     problem: 'Every brand needs content across five platforms. Almost no team can keep up.',
     showcase: {
@@ -195,10 +266,33 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       instagramLabel: 'Generated automatically from the topic “Car Accident Compensation Process”',
       instagramCaption:
         'After a car accident, do not rush into signing a settlement. Start with the right evidence, medical records, and timeline so later compensation conversations do not start from a weak position.',
+      instagramSlides: [
+        {
+          title: 'Do Not Rush Settlement',
+          body: 'Preserve the evidence first. A quick number is not always the right number.',
+        },
+        {
+          title: 'Start With The Basics',
+          body: 'Call the police, take photos, and get medical care before negotiating.',
+        },
+        {
+          title: 'Watch The Timeline',
+          body: 'Legal deadlines can change your leverage if you wait too long.',
+        },
+        {
+          title: 'Count Every Loss',
+          body: 'Medical bills, lost work, and pain damages should be organized clearly.',
+        },
+      ],
       articleTitle: 'Article Output',
       articleLabel: 'The same topic, turned into an SEO article at the same time',
       articleSeoTitle:
         'How Is Car Accident Compensation Calculated? Process, Timing, and Key Things to Watch',
+      articleOutline: [
+        'What to do immediately after a car accident',
+        'How compensation and civil claim timelines work',
+        'How to organize medical bills, lost income, and damages',
+      ],
       articleParagraph:
         'The outcome of a compensation claim is usually decided by evidence, timing, and documentation. When those foundations are in place, the later legal and insurance conversations become much clearer.',
       generatedNote: 'The content above was generated by Neoxra without manual editing.',
@@ -220,6 +314,11 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
         },
       ],
     },
+    chatgpt: {
+      title: 'Why Not Just Use ChatGPT?',
+      body:
+        'ChatGPT gives you text. Neoxra gives you a content package. Each output is platform-native: Instagram has carousel slides with visual structure, SEO articles have heading hierarchy and meta descriptions, and Threads posts respect the 500-character limit. Every output matches your brand voice consistently across every platform.',
+    },
     platformGrid: {
       title: 'One Engine, Multiple Platforms',
       cards: [
@@ -230,10 +329,10 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
           href: '/instagram',
         },
         {
-          name: 'Articles',
+          name: 'SEO',
           description: 'SEO title + outline + full article',
-          cta: 'Coming soon',
-          soon: true,
+          cta: 'Start now →',
+          href: '/seo',
         },
         {
           name: 'Threads',
@@ -242,10 +341,10 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
           href: '/threads',
         },
         {
-          name: 'LinkedIn',
-          description: 'Narrative-led professional content',
-          cta: 'Coming soon',
-          soon: true,
+          name: 'Facebook',
+          description: 'Discussion-led long-form posts',
+          cta: 'Start now →',
+          href: '/facebook',
         },
       ],
     },
@@ -258,8 +357,8 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
           href: '/demo/legal',
         },
         {
-          title: 'Startups',
-          description: 'Turn product insight into consistent growth content.',
+          title: 'Content Agencies',
+          description: 'Run white-label multi-client content packages without rebuilding the workflow each time.',
           soon: true,
         },
         {
@@ -271,42 +370,18 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
     },
     finalCta: {
       title: 'Start Turning Ideas Into Traffic',
-      primary: 'Try Instagram Studio',
+      primary: 'Generate All Platforms',
       secondary: 'Or book a demo to learn more',
     },
+    brandNote: 'Neo (new) + Orchestra. You conduct. AI performs. Traffic follows.',
     footer: 'Neoxra © 2026 · Meridian Global LLC',
   },
 }
 
-const INSTAGRAM_SLIDES = [
-  {
-    title: '車禍後別急和解',
-    body: '先把證據留完整，比先拿到一個不清楚的金額更重要。',
-  },
-  {
-    title: '第一步先做對',
-    body: '報警、拍照、就醫，三個動作決定後面理賠與求償的基礎。',
-  },
-  {
-    title: '時效不要拖',
-    body: '涉及告訴與民事請求時，時間一過，很多主張都會變得被動。',
-  },
-  {
-    title: '項目要算完整',
-    body: '醫療費、工作損失、精神慰撫金，往往不是一句保險會處理就結束。',
-  },
-] as const
-
-const ARTICLE_OUTLINE = [
-  '車禍發生後第一時間該做哪些事',
-  '理賠與民事求償常見的時效怎麼看',
-  '醫療費、工作損失、慰撫金如何整理',
-] as const
-
-function PageComingSoonBadge() {
+function PageComingSoonBadge({ label }: { label: string }) {
   return (
     <span className="inline-flex rounded-full bg-[var(--bg-sunken)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)]">
-      即將推出
+      {label}
     </span>
   )
 }
@@ -322,25 +397,37 @@ export default function HomePage() {
 
         <section className="py-10 md:py-14">
           <div className="max-w-4xl">
+            <p className="text-sm font-semibold tracking-[0.18em] text-[var(--text-tertiary)]">
+              {copy.hero.eyebrow}
+            </p>
             <h1 className="max-w-3xl text-[48px] font-extrabold leading-[1.05] tracking-[-0.03em] text-[var(--text-primary)]">
               {copy.hero.title}
             </h1>
-            <p className="mt-6 max-w-3xl text-lg text-[var(--text-secondary)] md:text-xl">
-              {copy.hero.subtitle}
+            <p className="mt-6 max-w-3xl text-xl font-semibold text-[var(--text-primary)] md:text-2xl">
+              {copy.hero.tagline}
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/instagram"
-                className="inline-flex items-center justify-center rounded-[8px] bg-[var(--bg-accent)] px-6 py-3 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90"
-              >
-                {copy.hero.primaryCta}
-              </Link>
-              <Link
-                href="/demo/legal"
-                className="inline-flex items-center justify-center rounded-[8px] border border-[var(--border-bold)] px-6 py-3 text-[15px] font-semibold text-[var(--text-primary)] transition-all duration-150 hover:bg-[var(--bg-sunken)]"
-              >
-                {copy.hero.secondaryCta}
-              </Link>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--text-secondary)] md:text-xl">
+              {copy.hero.body}
+            </p>
+            <div className="mt-7 max-w-3xl rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
+              <p className="text-base font-bold text-[var(--text-primary)]">{copy.hero.orchestraIntro}</p>
+              <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)] md:text-base">
+                {copy.hero.orchestraBody}
+              </p>
+              <p className="mt-3 text-sm font-semibold leading-7 text-[var(--text-primary)] md:text-base">
+                {copy.hero.result}
+              </p>
+            </div>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              {copy.hero.ctas.map((cta) => (
+                <Link
+                  key={cta.href}
+                  href={cta.href}
+                  className="inline-flex items-center justify-center rounded-[8px] border border-[var(--bg-accent)] bg-[var(--bg-accent)] px-6 py-3 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-[var(--accent)] hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)]"
+                >
+                  {cta.label}
+                </Link>
+              ))}
             </div>
           </div>
         </section>
@@ -362,7 +449,7 @@ export default function HomePage() {
               </div>
               <p className="mt-3 text-sm text-[var(--text-secondary)]">{copy.showcase.instagramLabel}</p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {INSTAGRAM_SLIDES.map((slide, index) => (
+                {copy.showcase.instagramSlides.map((slide, index) => (
                   <div
                     key={slide.title}
                     className="aspect-square rounded-[var(--card-radius)] border border-[var(--carousel-border)] p-4"
@@ -401,7 +488,7 @@ export default function HomePage() {
                   OUTLINE
                 </div>
                 <ul className="mt-3 space-y-3 text-sm text-[var(--text-primary)]">
-                  {ARTICLE_OUTLINE.map((heading) => (
+                  {copy.showcase.articleOutline.map((heading) => (
                     <li key={heading} className="border-l-2 border-[var(--accent)] pl-3 text-[14px] text-[var(--text-secondary)]">
                       {heading}
                     </li>
@@ -437,6 +524,17 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section className="py-10 md:py-14">
+          <div className="mx-auto max-w-4xl rounded-[20px] border border-[var(--border)] bg-[var(--bg-sunken)] p-6 text-center shadow-[var(--shadow-sm)] md:p-8">
+            <h2 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
+              {copy.chatgpt.title}
+            </h2>
+            <p className="mt-4 text-base leading-8 text-[var(--text-secondary)]">
+              {copy.chatgpt.body}
+            </p>
+          </div>
+        </section>
+
         <section className="py-12 md:py-16">
           <h2 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
             {copy.platformGrid.title}
@@ -462,7 +560,7 @@ export default function HomePage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-xl font-bold text-[var(--text-primary)]">{card.name}</h3>
-                    {card.soon ? <PageComingSoonBadge /> : null}
+                    {card.soon ? <PageComingSoonBadge label={language === 'zh-TW' ? '即將推出' : 'Coming soon'} /> : null}
                   </div>
                   <p className="mt-3 text-sm text-[var(--text-secondary)]">{card.description}</p>
                   <div className="mt-6 text-sm font-medium text-[var(--text-secondary)]">{card.cta}</div>
@@ -496,7 +594,7 @@ export default function HomePage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-xl font-bold text-[var(--text-primary)]">{card.title}</h3>
-                    {card.soon ? <PageComingSoonBadge /> : null}
+                    {card.soon ? <PageComingSoonBadge label={language === 'zh-TW' ? '即將推出' : 'Coming soon'} /> : null}
                   </div>
                   <p className="mt-3 text-sm text-[var(--text-secondary)]">{card.description}</p>
                 </div>
@@ -512,7 +610,7 @@ export default function HomePage() {
             </h2>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
-                href="/instagram"
+                href="/generate"
                 className="homepage-cta-button inline-flex items-center justify-center rounded-[8px] px-6 py-3 text-[15px] font-semibold transition-all duration-150 hover:opacity-90"
               >
                 {copy.finalCta.primary}
@@ -528,7 +626,8 @@ export default function HomePage() {
         </section>
 
         <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--text-secondary)]">
-          {copy.footer}
+          <p>{copy.brandNote}</p>
+          <p className="mt-2">{copy.footer}</p>
         </footer>
       </div>
       <style jsx global>{`

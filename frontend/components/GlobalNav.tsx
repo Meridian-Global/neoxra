@@ -7,7 +7,7 @@ import { ThemeToggle } from './landing/ThemeToggle'
 
 function ComingSoonBadge({ label }: { label: string }) {
   return (
-    <span className="inline-flex rounded-full bg-[var(--bg-sunken)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)]">
+    <span className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-[var(--bg-sunken)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)]">
       {label}
     </span>
   )
@@ -28,7 +28,7 @@ function NavDropdown({
         {label}
         <span className="text-xs transition group-open:rotate-180">▾</span>
       </summary>
-      <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] p-2 shadow-[var(--shadow-lg)]">
+      <div className="absolute left-0 top-full z-20 mt-2 w-80 rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] p-2 shadow-[var(--shadow-lg)]">
         {items.map((item) =>
           item.href ? (
             <Link
@@ -43,7 +43,7 @@ function NavDropdown({
               key={item.label}
               className="flex items-center justify-between gap-3 rounded-[10px] px-3 py-2.5 text-sm text-[var(--text-secondary)]"
             >
-              <span>{item.label}</span>
+              <span className="min-w-0 whitespace-nowrap">{item.label}</span>
               {item.soon ? <ComingSoonBadge label={soonLabel} /> : null}
             </div>
           ),
@@ -60,11 +60,11 @@ export function GlobalNav() {
     language === 'zh-TW'
       ? {
           brand: 'Neoxra',
-          generateAll: 'Generate All',
-          products: 'Products',
-          useCases: 'Use Cases',
+          generateAll: '一次產出多平台',
+          products: '產品',
+          useCases: '使用情境',
           instagram: 'Instagram Studio',
-          articles: 'SEO Articles',
+          articles: 'SEO 文章',
           threads: 'Threads',
           facebook: 'Facebook',
           lawFirms: '法律事務所',
@@ -93,7 +93,7 @@ export function GlobalNav() {
       >
         <Link
           href="/"
-          className="inline-flex h-10 items-center rounded-full px-4 text-[15px] font-bold tracking-[-0.02em] text-[var(--text-primary)]"
+          className="inline-flex h-10 items-center rounded-full px-4 text-[28px] font-extrabold tracking-[-0.04em] text-[var(--text-primary)]"
         >
           {copy.brand}
         </Link>
