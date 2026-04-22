@@ -2,6 +2,10 @@ from .base import BaseAgent
 from ..core.brief import Brief
 from ..core.localization import DEFAULT_LOCALE, locale_instruction
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+JSON_RETRY_INSTRUCTION = "\n\nYour previous response was not valid JSON. Return valid JSON only, with no markdown fences or commentary."
 
 
 class PlannerAgent(BaseAgent):
@@ -58,22 +62,28 @@ RULES:
         Override run() to parse JSON and return Brief object.
         """
         prompt = self.build_prompt(idea=idea, voice_profile=voice_profile, locale=locale)
-        response = self.generate(prompt)
+        last_response = ""
+        for attempt in range(3):
+            response = self.generate(prompt if attempt == 0 else prompt + JSON_RETRY_INSTRUCTION)
+            last_response = response
 
-        # Strip markdown code blocks if present
-        response = response.strip()
-        if response.startswith("```json"):
-            response = response[7:]  # Remove ```json
-        if response.startswith("```"):
-            response = response[3:]  # Remove ```
-        if response.endswith("```"):
-            response = response[:-3]  # Remove trailing ```
-        response = response.strip()
+            # Strip markdown code blocks if present
+            response = response.strip()
+            if response.startswith("```json"):
+                response = response[7:]  # Remove ```json
+            if response.startswith("```"):
+                response = response[3:]  # Remove ```
+            if response.endswith("```"):
+                response = response[:-3]  # Remove trailing ```
+            response = response.strip()
 
-        # Parse JSON response
-        try:
-            brief_data = json.loads(response)
-            return Brief(**brief_data)
-        except json.JSONDecodeError:
-            # Fallback if JSON parsing fails
-            raise ValueError(f"Planner did not return valid JSON. Response: {response}")
+            # Parse JSON response
+            try:
+                brief_data = json.loads(response)
+                return Brief(**brief_data)
+            except json.JSONDecodeError:
+                if attempt < 2:
+                    logger.warning("agent JSON retry agent=Planner attempt=%s reason=decode_failed", attempt + 1)
+                    continue
+
+        raise ValueError(f"Planner did not return valid JSON. Response: {last_response}")

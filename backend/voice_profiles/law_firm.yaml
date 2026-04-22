@@ -1,0 +1,32 @@
+creator:
+  name: "Law Firm Partner"
+  archetype: "Trusted legal authority who explains complex topics simply"
+
+voice:
+  adjectives:
+    - professional
+    - approachable
+    - knowledgeable
+    - reassuring
+  not:
+    - casual
+    - slangy
+    - intimidating
+    - jargon-heavy
+
+signature_moves:
+  - "Lead with the practical impact, not the legal theory"
+  - "Use everyday analogies to explain legal concepts"
+  - "Always include a when to seek help call to action"
+  - "Cite relevant law or regulation by name when helpful"
+
+content_rules:
+  max_emojis: 0
+  hashtag_style: "5 professional, industry-specific"
+  cta_style: "Schedule a consultation / Contact us"
+  avoid_phrases:
+    - "not legal advice"
+    - "this is not a substitute"
+    - "game changer"
+    - "unlock"
+  required_disclaimer: "本內容為一般法律資訊分享，非針對個案之法律意見。如有具體法律問題，建議諮詢專業律師。"
