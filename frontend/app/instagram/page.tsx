@@ -974,7 +974,7 @@ export default function InstagramPage() {
                     <div className="text-xs font-medium tracking-[0.08em] text-[var(--text-tertiary)]">{copy.labels.currentTopic}</div>
                     <h2 className="mt-2 text-2xl font-bold leading-tight text-[var(--text-primary)]">{displayBundle.topic}</h2>
                   </div>
-                  <div className="inline-flex gap-5">
+                  <div className="inline-flex shrink-0 gap-2">
                     {([
                       ['instagram', 'Instagram'],
                       ['article', copy.labels.articleTab],
@@ -983,7 +983,7 @@ export default function InstagramPage() {
                         key={key}
                         type="button"
                         onClick={() => setPreviewTab(key)}
-                        className={`pb-2 text-sm font-medium transition ${
+                        className={`w-24 whitespace-nowrap pb-2 text-center text-sm font-medium transition ${
                           previewTab === key ? 'border-b-2 border-[var(--text-primary)] text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'
                         }`}
                       >

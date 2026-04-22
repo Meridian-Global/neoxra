@@ -29,7 +29,7 @@ export type PlatformStatuses = Record<PlatformId, PipelineStepStatus>
 
 const TABS: Array<{ id: PlatformId; label: string; icon: string }> = [
   { id: 'instagram', label: 'Instagram', icon: '◎' },
-  { id: 'seo', label: 'SEO', icon: '文' },
+  { id: 'seo', label: 'SEO', icon: 'S' },
   { id: 'threads', label: 'Threads', icon: '#' },
   { id: 'facebook', label: 'Facebook', icon: 'f' },
 ]
