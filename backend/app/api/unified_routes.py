@@ -142,7 +142,7 @@ def _build_brief(core_client, req: UnifiedGenerateRequest) -> dict[str, object]:
     # rest of the orchestration at product-level platform boundaries.
     planner_events = core_client.stream_core_pipeline(
         _planner_idea(req),
-        "default",
+        req.voice_profile,
         req.locale,
     )
     try:
@@ -329,15 +329,22 @@ async def generate_all(req: UnifiedGenerateRequest, request: Request):
     async def stream():
         outputs: dict[str, object] = {}
         errors: dict[str, object] = {}
+        all_tasks: list[asyncio.Task] = []
         try:
             brief = await asyncio.to_thread(_build_brief, core_client, req)
             outputs["brief"] = brief
-            yield _sse("planner_completed", {"brief": brief})
+            yield _sse("brief_ready", {"brief": brief})
 
+            ig_task = asyncio.create_task(_run_platform("instagram", _generate_instagram, core_client, req, brief))
+            all_tasks.append(ig_task)
+            seo_task = asyncio.create_task(_run_platform("seo", _generate_seo, core_client, req, brief))
+            all_tasks.append(seo_task)
+            threads_task = asyncio.create_task(_run_platform("threads", _generate_threads, core_client, req, brief))
+            all_tasks.append(threads_task)
             task_to_platform: dict[asyncio.Task, str] = {
-                asyncio.create_task(_run_platform("instagram", _generate_instagram, core_client, req, brief)): "instagram",
-                asyncio.create_task(_run_platform("seo", _generate_seo, core_client, req, brief)): "seo",
-                asyncio.create_task(_run_platform("threads", _generate_threads, core_client, req, brief)): "threads",
+                ig_task: "instagram",
+                seo_task: "seo",
+                threads_task: "threads",
             }
             facebook_started = False
 
@@ -387,6 +394,7 @@ async def generate_all(req: UnifiedGenerateRequest, request: Request):
                         facebook_task = asyncio.create_task(
                             _run_platform("facebook", _generate_facebook, core_client, req, brief, result)
                         )
+                        all_tasks.append(facebook_task)
                         task_to_platform[facebook_task] = "facebook"
 
             yield _sse("all_completed", {"brief": outputs.get("brief"), "outputs": outputs, "errors": errors})
@@ -402,6 +410,11 @@ async def generate_all(req: UnifiedGenerateRequest, request: Request):
                 ),
             )
         finally:
+            for task in all_tasks:
+                if not task.done():
+                    task.cancel()
+            if all_tasks:
+                await asyncio.gather(*all_tasks, return_exceptions=True)
             await concurrency_lease.release()
 
     return StreamingResponse(stream(), media_type="text/event-stream")

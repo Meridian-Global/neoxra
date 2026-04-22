@@ -112,8 +112,8 @@ export default function GeneratePage() {
   const [brief, setBrief] = useState<Record<string, unknown> | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const runSlugRef = useRef<string>('')
   const isGenerating = pageStatus === 'loading' || pageStatus === 'streaming'
-  const topicSlug = slugify(idea)
 
   const progressSteps: PipelineStep[] = [
     { id: 'planner', label: 'Planner', status: plannerStatus },
@@ -144,6 +144,7 @@ export default function GeneratePage() {
     const trimmedIdea = idea.trim()
     if (!trimmedIdea) return
 
+    runSlugRef.current = slugify(trimmedIdea)
     abortRef.current?.abort()
     const abort = new AbortController()
     abortRef.current = abort
@@ -170,7 +171,7 @@ export default function GeneratePage() {
         if (abort.signal.aborted) break
         setPageStatus('streaming')
 
-        if (chunk.event === 'planner_completed') {
+        if (chunk.event === 'brief_ready') {
           setBrief(chunk.data?.brief ?? null)
           setPlannerStatus('complete')
           setPlatformStatuses({
@@ -220,9 +221,14 @@ export default function GeneratePage() {
         }
 
         if (chunk.event === 'all_completed') {
-          const output = chunk.data?.outputs as Partial<PlatformResults> | undefined
+          const output = chunk.data?.outputs as Record<string, unknown> | undefined
           if (output) {
-            setResults((current) => ({ ...current, ...output }))
+            const platformOutput: Partial<PlatformResults> = {}
+            if ('instagram' in output) platformOutput.instagram = output.instagram as InstagramContent
+            if ('seo' in output) platformOutput.seo = output.seo as SeoArticle
+            if ('threads' in output) platformOutput.threads = output.threads as ThreadsThread
+            if ('facebook' in output) platformOutput.facebook = output.facebook as FacebookPost
+            setResults((current) => ({ ...current, ...platformOutput }))
           }
           setPageStatus('completed')
           return
@@ -354,7 +360,7 @@ export default function GeneratePage() {
               results={results}
               statuses={platformStatuses}
               errors={errors}
-              topicSlug={topicSlug}
+              topicSlug={runSlugRef.current}
               isGenerating={isGenerating}
             />
           </section>

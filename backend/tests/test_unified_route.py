@@ -183,7 +183,7 @@ def test_generate_all_streams_all_platform_results(monkeypatch):
     assert response.status_code == 200
     events = _parse_sse_stream(response.text)
     event_names = [event["event"] for event in events]
-    assert event_names[0] == "planner_completed"
+    assert event_names[0] == "brief_ready"
     assert "instagram_ready" in event_names
     assert "seo_ready" in event_names
     assert "threads_ready" in event_names
