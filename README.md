@@ -8,7 +8,7 @@ Today the product focuses on demo-ready content generation:
 - SEO Studio, Threads Studio, and Facebook Adapter product surfaces
 - a lightweight magic-link login path for early customer access and organization-aware onboarding
 
-## Live demo
+## Live product
 
 - Frontend: https://neoxra.com/
 - Backend: https://api.neoxra.com/
@@ -17,7 +17,6 @@ Today the product focuses on demo-ready content generation:
 - SEO Studio: https://neoxra.com/seo
 - Threads Studio: https://neoxra.com/threads
 - Facebook Adapter: https://neoxra.com/facebook
-- Legal Demo: https://neoxra.com/demo/legal
 
 ## What the product does
 
@@ -58,7 +57,7 @@ It introduces the multi-platform workflow and links into the Instagram Studio.
 
 ### Generate All
 
-`/generate` is the main YC/client demo surface.
+`/generate` is the main multi-platform generation surface.
 
 It supports:
 - one idea input
@@ -153,7 +152,6 @@ Open:
 - `http://localhost:3000/seo`
 - `http://localhost:3000/threads`
 - `http://localhost:3000/facebook`
-- `http://localhost:3000/demo/legal`
 - `http://localhost:3000/login`
 
 ## Demo walkthrough
@@ -166,12 +164,11 @@ For a quick local demo:
    - `/`
    - `/generate`
    - `/instagram`
-   - `/demo/legal`
 
-For the strongest law-firm client demo:
+For the strongest product walkthrough:
 
 1. open `/generate`
-2. select `Legal：車禍理賠`
+2. select one of the preset scenarios
 3. click `Generate All`
 4. review all four tabs
 5. click `下載全部 ZIP`
@@ -213,7 +210,6 @@ Voice profiles live in `backend/voice_profiles/`.
 
 Current profiles:
 - `default.yaml` — grounded founder/operator voice
-- `law_firm.yaml` — professional law-firm partner voice with required legal-information disclaimer
 
 To add a profile:
 
@@ -270,7 +266,6 @@ Growth instrumentation now records demo lifecycle and page analytics into `usage
 
 - `/` remains the main landing page
 - `/instagram` is a product subpage, not the default route
-- `/demo/legal` is a dedicated legal-services demo page
 - `neoxra-core` is required for meaningful backend runs
 
 ## License
