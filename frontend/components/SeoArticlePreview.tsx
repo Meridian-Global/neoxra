@@ -24,7 +24,7 @@ const COPY: Record<Language, Record<string, string>> = {
 
 function KeywordBadge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex rounded-full bg-[var(--bg-sunken)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)]">
+    <span className="inline-flex rounded-full border border-[color:color-mix(in_srgb,var(--accent)_20%,transparent)] bg-[var(--accent-subtle)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
       {children}
     </span>
   )
@@ -54,6 +54,7 @@ export function SeoArticlePreview({ article }: { article: SeoArticle }) {
   return (
     <article className="space-y-8">
       <section className="rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-md)]">
+        <div className="-mx-6 -mt-6 mb-6 h-1 rounded-t-[var(--card-radius)] bg-[image:var(--gradient-seo)]" />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold tracking-[0.12em] text-[var(--text-tertiary)]">
@@ -66,7 +67,7 @@ export function SeoArticlePreview({ article }: { article: SeoArticle }) {
               {article.metadata.meta_description}
             </p>
           </div>
-          <span className="rounded-full bg-[var(--bg-sunken)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)]">
+          <span className="rounded-full bg-[var(--bg-sunken)] px-3 py-1.5 text-xs font-semibold text-[var(--text-tertiary)]">
             {copy.wordCountPrefix} {article.estimated_word_count} {copy.wordCountSuffix}
           </span>
         </div>

@@ -59,7 +59,7 @@ function CopyButton({ label, value, copiedLabel }: { label: string; value: strin
     <button
       type="button"
       onClick={() => void handleCopy()}
-      className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-sunken)]"
+      className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
     >
       {copied ? copiedLabel : label}
     </button>
@@ -70,6 +70,13 @@ export function ThreadsPreview({ thread }: { thread: ThreadsThread }) {
   const { language } = useLanguage()
   const copy = COPY[language]
   const purposeLabels = PURPOSE_LABELS[language]
+  const purposeStyles: Record<ThreadsPost['purpose'], string> = {
+    hook: 'var(--gradient-icon-1)',
+    argument: 'var(--gradient-icon-2)',
+    evidence: 'var(--gradient-seo)',
+    punchline: 'var(--gradient-icon-3)',
+    cta: 'var(--gradient-icon-4)',
+  }
 
   return (
     <section className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)] sm:p-6">
@@ -100,13 +107,16 @@ export function ThreadsPreview({ thread }: { thread: ThreadsThread }) {
                   {post.post_number}
                 </div>
                 {index < thread.posts.length - 1 ? (
-                  <div className="absolute top-8 h-[calc(100%+1.25rem)] w-px bg-[var(--border)]" />
+                  <div className="absolute top-8 h-[calc(100%+1.25rem)] w-[2px]" style={{ background: 'var(--gradient-warm)' }} />
                 ) : null}
               </div>
 
-              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--bg-sunken)] p-5">
+              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)]">
+                  <span
+                    className="rounded-full px-3 py-1 text-xs font-semibold text-white"
+                    style={{ background: purposeStyles[post.purpose] }}
+                  >
                     {purposeLabels[post.purpose] ?? post.purpose}
                   </span>
                   <div className="flex items-center gap-2">
@@ -115,7 +125,7 @@ export function ThreadsPreview({ thread }: { thread: ThreadsThread }) {
                         'rounded-full px-3 py-1 text-xs font-semibold',
                         isOverLimit
                           ? 'bg-red-500/12 text-red-500'
-                          : 'bg-emerald-500/12 text-emerald-500',
+                          : 'bg-[var(--accent-subtle)] text-[var(--text-tertiary)]',
                       ].join(' ')}
                     >
                       {charCount}/500

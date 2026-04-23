@@ -57,7 +57,7 @@ function CopyButton({ value, copy }: { value: string; copy: Record<string, strin
     <button
       type="button"
       onClick={() => void handleCopy()}
-      className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-4 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-sunken)]"
+      className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-4 text-xs font-semibold text-[var(--text-primary)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
     >
       {copied ? copy.copied : copy.copyPost}
     </button>
@@ -88,7 +88,7 @@ export function FacebookPreview({ post }: { post: FacebookPost }) {
       <article className="mt-7 overflow-hidden rounded-[22px] border border-[var(--border)] bg-[var(--bg-sunken)]">
         <div className="border-b border-[var(--border)] bg-[var(--bg-elevated)] p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--bg-accent)] text-sm font-bold text-[var(--text-on-accent)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1877f2] text-sm font-bold text-white">
               N
             </div>
             <div>
@@ -106,7 +106,8 @@ export function FacebookPreview({ post }: { post: FacebookPost }) {
             </p>
           </div>
 
-          <div className="rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
+          <div className="relative overflow-hidden rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 pl-6">
+            <div className="absolute bottom-0 left-0 top-0 w-[3px]" style={{ background: 'var(--gradient-fb)' }} />
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
               {copy.discussion}
             </div>
@@ -115,11 +116,11 @@ export function FacebookPreview({ post }: { post: FacebookPost }) {
             </p>
           </div>
 
-          <p className="border-l-2 border-[var(--accent)] pl-4 text-[15px] italic leading-7 text-[var(--text-secondary)]">
+          <p className="rounded-[14px] bg-[var(--accent-subtle)] px-4 py-3 text-[15px] italic leading-7 text-[var(--text-secondary)]">
             {post.share_hook}
           </p>
 
-          <div className="rounded-[16px] border border-dashed border-[var(--border-bold)] bg-[var(--bg-elevated)] p-4">
+          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated-2)] p-4">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
               {copy.image}
             </div>

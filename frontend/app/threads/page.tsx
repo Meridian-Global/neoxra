@@ -207,7 +207,7 @@ export default function ThreadsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-transparent text-[var(--text-primary)]">
+    <main className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 pb-16 pt-8 sm:px-6 lg:px-8">
         <GlobalNav />
 
@@ -231,7 +231,7 @@ export default function ThreadsPage() {
                     key={preset}
                     type="button"
                     onClick={() => setTopic(preset)}
-                    className="rounded-full border border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--bg-elevated)]"
+                    className="rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--accent)]"
                   >
                     {preset}
                   </button>
@@ -274,7 +274,7 @@ export default function ThreadsPage() {
               type="button"
               onClick={() => void handleGenerate()}
               disabled={isWorking || !topic.trim()}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[var(--bg-accent)] px-6 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[image:var(--gradient-cta)] px-6 text-[15px] font-semibold text-black transition-all duration-150 hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isWorking ? (
                 <>
