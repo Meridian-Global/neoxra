@@ -197,7 +197,7 @@ export function PlatformTabs({
   return (
     <section className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] shadow-[var(--shadow-md)]">
       <div className="border-b border-[var(--border)] p-3">
-        <div className="grid gap-2 sm:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -210,11 +210,11 @@ export function PlatformTabs({
                   : 'bg-[var(--bg-sunken)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
               ].join(' ')}
             >
-              <span className="flex items-center gap-2">
+              <span className="flex min-w-0 items-center gap-2">
                 <PlatformIcon platform={tab.id} size="sm" />
-                {tab.label}
+                <span className="truncate whitespace-nowrap">{tab.label}</span>
               </span>
-              <span>{statusBadge(statuses[tab.id])}</span>
+              <span className="shrink-0">{statusBadge(statuses[tab.id])}</span>
               {activeTab === tab.id ? (
                 <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-[image:var(--gradient-warm)]" />
               ) : null}

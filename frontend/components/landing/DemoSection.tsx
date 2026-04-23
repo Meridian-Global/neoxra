@@ -580,7 +580,7 @@ export function DemoSection() {
             {error && (
               <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3">
                 <div className="text-sm font-medium text-[var(--text)]">{copy.section.demoUnavailable}</div>
-                <p className="mt-1 text-sm text-rose-100/90">{error}</p>
+                <p className="mt-1 text-sm text-rose-500">{error}</p>
               </div>
             )}
           </div>

@@ -14,7 +14,7 @@ const STATUS_CLASS: Record<PipelineStepStatus, string> = {
   waiting: 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
   running: 'border-[var(--accent)] bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[var(--shadow-glow)]',
   complete: 'border-[var(--success)] bg-[var(--bg-elevated)] text-[var(--text-primary)]',
-  error: 'border-red-500/70 bg-[var(--bg-elevated)] text-red-500',
+  error: 'border-[var(--border-bold)] bg-[var(--bg-elevated)] text-red-500',
 }
 
 const STATUS_DOT: Record<PipelineStepStatus, string> = {

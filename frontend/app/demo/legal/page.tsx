@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { GlobalNav } from '../../../components/GlobalNav'
 import { API_BASE_URL } from '../../../lib/api'
 import { normalizeLegalLivePayload } from '../../../lib/legal-live-parser'
@@ -371,14 +371,6 @@ export default function LegalLandingPage() {
   const [status, setStatus] = useState<DemoStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [liveContent, setLiveContent] = useState<ShowcaseContent | null>(DEFAULT_LIVE_CONTENT)
-
-  useEffect(() => {
-    const previousTheme = document.documentElement.dataset.theme
-    document.documentElement.dataset.theme = 'light'
-    return () => {
-      document.documentElement.dataset.theme = previousTheme || 'dark'
-    }
-  }, [])
 
   const activeCase = useMemo(
     () => SAMPLE_CASES.find((item) => item.key === activeCaseKey) ?? SAMPLE_CASES[0],

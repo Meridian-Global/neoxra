@@ -182,7 +182,7 @@ export function VisualCarouselRenderer({
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[24px] border border-black/10 bg-black shadow-[var(--shadow-md)]">
+        <div className="overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] shadow-[var(--shadow-md)]">
           {renderSlide(activeSlide, activeIndex, 'preview')}
         </div>
       </div>
