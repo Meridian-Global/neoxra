@@ -183,7 +183,7 @@ export function InstagramForm({
         handleSubmit()
       }}
     >
-      <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-4 sm:p-5">
+      <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">
@@ -198,7 +198,7 @@ export function InstagramForm({
                 type="button"
                 disabled={disabled}
                 onClick={() => applyPreset(preset)}
-                className="inline-flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text)] transition hover:border-[var(--accent)] hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:bg-[var(--bg-elevated-2)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {preset.label}
               </button>
@@ -208,7 +208,7 @@ export function InstagramForm({
       </div>
 
       <div id={formAnchorId} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur">
+        <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)] backdrop-blur">
           <div className="space-y-5">
             <div>
               <label htmlFor="ig-topic" className="block text-sm font-semibold text-[var(--text)]">
@@ -221,7 +221,7 @@ export function InstagramForm({
               </p>
               <textarea
                 id="ig-topic"
-                className="mt-3 min-h-[168px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4 text-base leading-7 text-[var(--text)] outline-none transition placeholder:text-[var(--subtle)] focus:border-[var(--accent)]"
+                className="mt-3 min-h-[168px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-4 text-base leading-7 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
                 placeholder={resolvedTopicPlaceholder}
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
@@ -240,7 +240,7 @@ export function InstagramForm({
               </p>
               <textarea
                 id="ig-template"
-                className="mt-3 min-h-[180px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4 text-base leading-7 text-[var(--text)] outline-none transition placeholder:text-[var(--subtle)] focus:border-[var(--accent)]"
+                className="mt-3 min-h-[180px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-4 text-base leading-7 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
                 placeholder={resolvedTemplatePlaceholder}
                 value={templateText}
                 onChange={(e) => setTemplateText(e.target.value)}
@@ -253,14 +253,14 @@ export function InstagramForm({
         <aside className="space-y-4">
           {helperPanel}
 
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+          <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)] backdrop-blur">
             <label htmlFor="ig-goal" className="block text-sm font-semibold text-[var(--text)]">
               {language === 'zh-TW' ? '目標' : 'Goal'}
             </label>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{goalCopy[goal as keyof typeof goalCopy]}</p>
             <select
               id="ig-goal"
-              className="mt-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)]"
+              className="mt-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
             >
@@ -272,7 +272,7 @@ export function InstagramForm({
             </select>
           </div>
 
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+          <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)] backdrop-blur">
             <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">
               {language === 'zh-TW' ? '最佳輸入方式' : 'Best Input'}
             </div>
@@ -283,7 +283,7 @@ export function InstagramForm({
             </ul>
           </div>
 
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5">
             <div className="flex flex-wrap gap-4 text-sm text-[var(--subtle)]">
               <span>
                 {topic.trim() ? (language === 'zh-TW' ? '主題已就緒' : 'Topic ready') : (language === 'zh-TW' ? '請填寫主題' : 'Add a topic')}
@@ -299,7 +299,7 @@ export function InstagramForm({
               </span>
             </div>
             <button
-              className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-[var(--text)] px-5 py-3 text-sm font-semibold text-[var(--bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-[image:var(--gradient-cta)] px-5 py-3 text-sm font-semibold text-black transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-40"
               type="submit"
               disabled={!canSubmit}
             >

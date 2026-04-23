@@ -379,7 +379,7 @@ function CopyButton({ label, value, copiedLabel }: { label: string; value: strin
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--text-tertiary)] transition hover:bg-[var(--bg-sunken)]"
+      className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--text-tertiary)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
     >
       <span aria-hidden="true">📋</span>
       {copied ? copiedLabel : label}
@@ -849,7 +849,7 @@ export default function InstagramPage() {
   }
 
   return (
-    <main className="min-h-screen bg-transparent text-[var(--text-primary)]">
+    <main className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 pb-16 pt-8 sm:px-6 lg:px-8">
         <GlobalNav />
 
@@ -909,7 +909,7 @@ export default function InstagramPage() {
                       key={preset}
                       type="button"
                       onClick={() => setTopic(preset)}
-                      className="rounded-full border border-transparent bg-[var(--bg-sunken)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-sm)] transition hover:border-[var(--border-bold)]"
+                      className="rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-sm)] transition hover:border-[var(--accent)] hover:bg-[var(--bg-elevated-2)]"
                     >
                       {preset}
                     </button>
@@ -939,7 +939,7 @@ export default function InstagramPage() {
                     type="button"
                     onClick={handleGenerate}
                     disabled={isWorking || isReferenceAnalyzing || !topic.trim()}
-                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[var(--bg-accent)] px-6 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[image:var(--gradient-cta)] px-6 text-[15px] font-semibold text-black transition-all duration-150 hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isWorking ? (
                       <>
@@ -983,8 +983,10 @@ export default function InstagramPage() {
                         key={key}
                         type="button"
                         onClick={() => setPreviewTab(key)}
-                        className={`w-24 whitespace-nowrap pb-2 text-center text-sm font-medium transition ${
-                          previewTab === key ? 'border-b-2 border-[var(--text-primary)] text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'
+                        className={`w-24 whitespace-nowrap rounded-full px-3 py-2 text-center text-sm font-medium transition ${
+                          previewTab === key
+                            ? 'bg-[image:var(--gradient-cta)] text-black shadow-[var(--shadow-glow)]'
+                            : 'border border-transparent text-[var(--text-tertiary)] hover:border-[var(--border)] hover:bg-[var(--bg-elevated-2)]'
                         }`}
                       >
                         {label}

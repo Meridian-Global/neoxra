@@ -28,7 +28,7 @@ function CopyButton({ text, idleLabel, doneLabel }: { text: string; idleLabel: s
 
   return (
     <button
-      className="inline-flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--subtle)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
+      className="inline-flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-tertiary)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
       type="button"
       onClick={copy}
     >
@@ -123,7 +123,7 @@ export function InstagramResult({ content, critique }: InstagramResultProps) {
             <span className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--subtle)]">
               {copy.platformFit}
             </span>
-            <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100">
+            <span className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--accent-subtle)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
               {copy.ready}
             </span>
             <CopyButton text={fullPackage} idleLabel={copy.copyAll} doneLabel={copy.copied} />
@@ -131,7 +131,7 @@ export function InstagramResult({ content, critique }: InstagramResultProps) {
         </div>
       </section>
 
-      <section className="rounded-[32px] border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur sm:p-6">
+      <section className="rounded-[32px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)] backdrop-blur sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.primaryCopy}</span>
@@ -149,7 +149,7 @@ export function InstagramResult({ content, critique }: InstagramResultProps) {
       </section>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)]">
-        <section className="rounded-[32px] border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)]">
+        <section className="rounded-[32px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)]">
           <div className="mb-4">
             <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.hookEyebrow}</span>
             <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">{copy.hookTitle}</h3>
@@ -166,7 +166,7 @@ export function InstagramResult({ content, critique }: InstagramResultProps) {
           </ol>
         </section>
 
-        <section className="rounded-[32px] border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)]">
+        <section className="rounded-[32px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)]">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.discovery}</span>
@@ -187,7 +187,7 @@ export function InstagramResult({ content, critique }: InstagramResultProps) {
         </section>
       </div>
 
-      <section className="rounded-[32px] border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)]">
+      <section className="rounded-[32px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)]">
         <div className="mb-4">
           <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.structure}</span>
           <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">{copy.carousel}</h3>
@@ -207,7 +207,7 @@ export function InstagramResult({ content, critique }: InstagramResultProps) {
       </section>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-        <section className="rounded-[32px] border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.14)]">
+        <section className="rounded-[32px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)]">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.motion}</span>
@@ -220,7 +220,7 @@ export function InstagramResult({ content, critique }: InstagramResultProps) {
           </div>
         </section>
 
-        <section className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+        <section className="rounded-[32px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)]">
           <div className="mb-4">
             <span className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--subtle)]">{copy.editor}</span>
             <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--text)]">{copy.critique}</h3>
