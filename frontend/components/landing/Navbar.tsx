@@ -18,6 +18,7 @@ type NavCopy = {
 
 type NavbarProps = {
   copy: NavCopy
+  anchorPrefix?: string
 }
 
 const NAV_ITEMS = [
@@ -27,7 +28,7 @@ const NAV_ITEMS = [
   { key: 'pricing', href: '#cta-footer' },
 ] as const
 
-export default function Navbar({ copy }: NavbarProps) {
+export default function Navbar({ copy, anchorPrefix = '' }: NavbarProps) {
   const [open, setOpen] = useState(false)
 
   const labels: Record<(typeof NAV_ITEMS)[number]['key'], string> = {
@@ -50,7 +51,7 @@ export default function Navbar({ copy }: NavbarProps) {
             <Link
               key={item.key}
               className="text-sm font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
-              href={item.href}
+              href={`${anchorPrefix}${item.href}`}
             >
               {labels[item.key]}
             </Link>
@@ -67,7 +68,7 @@ export default function Navbar({ copy }: NavbarProps) {
             {copy.login}
           </Link>
           <Link
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-cta)] px-4 py-2 text-sm font-semibold text-black shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-cta)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
             href="/generate"
           >
             {copy.getStarted}
@@ -100,7 +101,7 @@ export default function Navbar({ copy }: NavbarProps) {
             <Link
               key={item.key}
               className="rounded-xl px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
-              href={item.href}
+              href={`${anchorPrefix}${item.href}`}
               onClick={() => setOpen(false)}
             >
               {labels[item.key]}
@@ -115,7 +116,7 @@ export default function Navbar({ copy }: NavbarProps) {
               {copy.login}
             </Link>
             <Link
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-cta)] px-4 py-2 text-sm font-semibold text-black shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-cta)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
               href="/generate"
               onClick={() => setOpen(false)}
             >

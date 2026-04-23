@@ -939,7 +939,7 @@ export default function InstagramPage() {
                     type="button"
                     onClick={handleGenerate}
                     disabled={isWorking || isReferenceAnalyzing || !topic.trim()}
-                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[image:var(--gradient-cta)] px-6 text-[15px] font-semibold text-black transition-all duration-150 hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[image:var(--gradient-cta)] px-6 text-[15px] font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isWorking ? (
                       <>
@@ -985,7 +985,7 @@ export default function InstagramPage() {
                         onClick={() => setPreviewTab(key)}
                         className={`w-24 whitespace-nowrap rounded-full px-3 py-2 text-center text-sm font-medium transition ${
                           previewTab === key
-                            ? 'bg-[image:var(--gradient-cta)] text-black shadow-[var(--shadow-glow)]'
+                            ? 'bg-[image:var(--gradient-cta)] text-white shadow-[var(--shadow-glow)]'
                             : 'border border-transparent text-[var(--text-tertiary)] hover:border-[var(--border)] hover:bg-[var(--bg-elevated-2)]'
                         }`}
                       >

@@ -29,8 +29,6 @@ interface SampleCase {
   instagram: ShowcaseContent
 }
 
-const PRIMARY = 'var(--bg-accent)'
-const PRIMARY_HOVER = 'var(--accent-hover)'
 const PAGE_TEXT = 'var(--text-primary)'
 const PAGE_MUTED = 'var(--text-secondary)'
 const PAGE_BORDER = 'var(--border)'
@@ -309,26 +307,25 @@ function ShowcaseTabs({
             key={key}
             type="button"
             onClick={() => onChange(key)}
-            className={`rounded-lg px-5 py-2.5 text-sm font-medium transition ${
-              activeTab === key ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-            }`}
-            style={
+            className={`relative rounded-lg px-5 py-2.5 text-sm font-medium transition ${
               activeTab === key
-                ? {
-                    boxShadow: PAGE_SHADOW,
-                    borderBottom: '2px solid var(--accent)',
-                  }
-                : undefined
-            }
+                ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
+                : 'text-[var(--text-tertiary)]'
+            }`}
+            style={activeTab === key ? { boxShadow: PAGE_SHADOW } : undefined}
           >
             {label}
+            {activeTab === key ? (
+              <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-[image:var(--gradient-warm)]" />
+            ) : null}
           </button>
         ))}
       </div>
 
       {activeTab === 'instagram' ? (
         <div className="space-y-6">
-          <SurfaceCard className="p-6">
+          <SurfaceCard className="relative overflow-hidden p-6">
+            <div className="absolute bottom-0 left-0 top-0 w-[3px] bg-[image:var(--gradient-instagram)]" />
             <p className="mb-3 text-sm font-semibold text-[var(--accent)]">貼文說明</p>
             <p className="whitespace-pre-line text-base leading-8 text-[var(--text-primary)]">{content.caption}</p>
           </SurfaceCard>
@@ -339,7 +336,8 @@ function ShowcaseTabs({
         </div>
       ) : (
         <div className="space-y-5">
-          <SurfaceCard className="p-6">
+          <SurfaceCard className="relative overflow-hidden p-6">
+            <div className="absolute bottom-0 left-0 top-0 w-[3px] bg-[image:var(--gradient-seo)]" />
             <p className="mb-2 text-sm font-semibold text-[var(--accent)]">SEO 標題</p>
             <h3 className="text-xl font-black leading-snug text-[var(--text-primary)]">{content.article.seoTitle}</h3>
           </SurfaceCard>
@@ -448,7 +446,7 @@ export default function LegalLandingPage() {
 
   return (
     <main
-      className="min-h-screen bg-transparent"
+      className="min-h-screen bg-[var(--bg)]"
       style={{ color: PAGE_TEXT }}
       lang="zh-Hant"
     >
@@ -490,14 +488,7 @@ export default function LegalLandingPage() {
             <div className="flex flex-wrap gap-4">
               <a
                 href="#cta"
-                className="inline-flex items-center justify-center rounded-[8px] px-6 py-3 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90"
-                style={{ background: PRIMARY }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = PRIMARY_HOVER
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = PRIMARY
-                }}
+                className="inline-flex items-center justify-center rounded-[8px] bg-[image:var(--gradient-cta)] px-6 py-3 text-[15px] font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
               >
                 預約 2 週免費試用
               </a>
@@ -553,12 +544,11 @@ export default function LegalLandingPage() {
                   setActiveCaseKey(item.key)
                   setActiveSampleTab('instagram')
                 }}
-                className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                  activeCase.key === item.key ? 'text-[var(--text-on-accent)]' : 'text-[var(--text-primary)]'
+                className={`rounded-full border px-5 py-3 text-sm font-semibold transition ${
+                  activeCase.key === item.key
+                    ? 'border-transparent bg-[image:var(--gradient-cta)] text-white'
+                    : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                 }`}
-                style={{
-                  background: activeCase.key === item.key ? PRIMARY : 'var(--accent-subtle)',
-                }}
               >
                 {item.label}
               </button>
@@ -594,16 +584,7 @@ export default function LegalLandingPage() {
                 type="button"
                 onClick={() => void handleGenerate()}
                 disabled={status === 'loading'}
-                className="h-14 rounded-[8px] px-5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
-                style={{ background: PRIMARY }}
-                onMouseEnter={(event) => {
-                  if (!event.currentTarget.disabled) {
-                    event.currentTarget.style.background = PRIMARY_HOVER
-                  }
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = PRIMARY
-                }}
+                className="h-14 rounded-[8px] bg-[image:var(--gradient-cta)] px-5 text-base font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {status === 'loading' ? '產生中…' : '產生內容'}
               </button>
@@ -615,7 +596,7 @@ export default function LegalLandingPage() {
                   key={preset}
                   type="button"
                   onClick={() => setTopic(preset)}
-                  className="rounded-full bg-[var(--accent-subtle)] px-5 py-2.5 text-[15px] font-medium text-[var(--text-secondary)] transition hover:opacity-90"
+                  className="rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-2.5 text-[15px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)]"
                 >
                   {preset}
                 </button>
@@ -691,14 +672,7 @@ export default function LegalLandingPage() {
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               <a
                 href="mailto:support@neoxra.com?subject=%E9%A0%90%E7%B4%84%202%20%E9%80%B1%E5%85%8D%E8%B2%BB%E8%A9%A6%E7%94%A8"
-                className="inline-flex items-center justify-center rounded-[8px] px-6 py-3 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90"
-                style={{ background: PRIMARY }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = PRIMARY_HOVER
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = PRIMARY
-                }}
+                className="inline-flex items-center justify-center rounded-[8px] bg-[image:var(--gradient-cta)] px-6 py-3 text-[15px] font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
               >
                 預約 2 週免費試用
               </a>

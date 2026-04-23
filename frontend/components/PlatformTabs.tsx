@@ -5,6 +5,7 @@ import { FacebookPreview } from './FacebookPreview'
 import { useLanguage } from './LanguageProvider'
 import { SeoArticlePreview } from './SeoArticlePreview'
 import { ThreadsPreview } from './ThreadsPreview'
+import { PlatformIcon } from './ui'
 import { VisualCarouselRenderer } from './VisualCarouselRenderer'
 import type { PipelineStepStatus } from './PipelineProgress'
 import { toHTML, toMarkdown } from '../lib/seo-export'
@@ -27,11 +28,11 @@ export interface PlatformResults {
 export type PlatformErrors = Partial<Record<PlatformId, string>>
 export type PlatformStatuses = Record<PlatformId, PipelineStepStatus>
 
-const TABS: Array<{ id: PlatformId; label: string; icon: string }> = [
-  { id: 'instagram', label: 'Instagram', icon: '◎' },
-  { id: 'seo', label: 'SEO', icon: 'S' },
-  { id: 'threads', label: 'Threads', icon: '#' },
-  { id: 'facebook', label: 'Facebook', icon: 'f' },
+const TABS: Array<{ id: PlatformId; label: string }> = [
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'seo', label: 'SEO' },
+  { id: 'threads', label: 'Threads' },
+  { id: 'facebook', label: 'Facebook' },
 ]
 
 const COPY: Record<Language, Record<string, string>> = {
@@ -60,10 +61,10 @@ const COPY: Record<Language, Record<string, string>> = {
 }
 
 function statusBadge(status: PipelineStepStatus) {
-  if (status === 'running') return <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-bold)] border-t-[var(--accent)]" />
-  if (status === 'complete') return <span className="text-emerald-500">✓</span>
-  if (status === 'error') return <span className="text-red-500">!</span>
-  return <span className="h-2 w-2 rounded-full bg-[var(--text-tertiary)]" />
+  if (status === 'running') return <span className="rounded-full bg-[var(--accent-subtle)] px-2 py-1 text-[10px] font-semibold text-[var(--accent)] animate-pulse">RUN</span>
+  if (status === 'complete') return <span className="rounded-full bg-[color:color-mix(in_srgb,var(--success)_12%,transparent)] px-2 py-1 text-[10px] font-semibold text-[var(--success)]">DONE</span>
+  if (status === 'error') return <span className="rounded-full bg-red-500/10 px-2 py-1 text-[10px] font-semibold text-red-500">ERR</span>
+  return <span className="rounded-full bg-[var(--bg-elevated-2)] px-2 py-1 text-[10px] font-semibold text-[var(--text-tertiary)]">WAIT</span>
 }
 
 function CopyButton({ label, value, copiedLabel }: { label: string; value: string; copiedLabel: string }) {
@@ -79,7 +80,7 @@ function CopyButton({ label, value, copiedLabel }: { label: string; value: strin
     <button
       type="button"
       onClick={() => void handleCopy()}
-      className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-sunken)]"
+      className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
     >
       {copied ? copiedLabel : label}
     </button>
@@ -92,7 +93,7 @@ function EmptyState({ label, error, copy }: { label: string; error?: string; cop
       <p className="text-base font-semibold text-[var(--text-primary)]">
         {error ? `${label} ${copy.failed}` : `${label} ${copy.incomplete}`}
       </p>
-      <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+      <p className="mt-2 text-sm leading-6 text-[var(--text-tertiary)]">
         {error ?? copy.waiting}
       </p>
     </div>
@@ -203,17 +204,20 @@ export function PlatformTabs({
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={[
-                'flex items-center justify-between gap-3 rounded-[14px] px-4 py-3 text-left text-sm font-bold transition',
+                'relative flex items-center justify-between gap-3 rounded-[14px] px-4 py-3 text-left text-sm font-bold transition',
                 activeTab === tab.id
-                  ? 'bg-[var(--bg-accent)] text-[var(--text-on-accent)]'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
                   : 'bg-[var(--bg-sunken)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
               ].join(' ')}
             >
               <span className="flex items-center gap-2">
-                <span>{tab.icon}</span>
+                <PlatformIcon platform={tab.id} size="sm" />
                 {tab.label}
               </span>
               <span>{statusBadge(statuses[tab.id])}</span>
+              {activeTab === tab.id ? (
+                <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-[image:var(--gradient-warm)]" />
+              ) : null}
             </button>
           ))}
         </div>

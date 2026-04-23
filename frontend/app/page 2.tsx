@@ -569,7 +569,7 @@ function HeroMockup({ copy }: { copy: LocalizedCopy['hero']['mockup'] }) {
 
       <div className="absolute bottom-[5%] right-[0%] z-30 w-[250px] rotate-[3deg] rounded-[16px] border border-[var(--border-glow)] bg-[var(--bg-elevated)] p-4 shadow-[var(--shadow-lg)]">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-black">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-white">
             N
           </div>
           <span className="text-sm font-bold text-[var(--text-primary)]">Neoxra</span>
@@ -577,7 +577,7 @@ function HeroMockup({ copy }: { copy: LocalizedCopy['hero']['mockup'] }) {
         <h3 className="mt-4 text-base font-black leading-snug text-[var(--text-primary)]">{copy.facebookHeadline}</h3>
         <button
           type="button"
-          className="mt-4 rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-bold text-black"
+          className="mt-4 rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-bold text-white"
         >
           {copy.facebookButton}
         </button>
@@ -653,7 +653,7 @@ export default function HomePage() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href={copy.hero.primaryCta.href}
-                  className="inline-flex items-center justify-center rounded-[10px] bg-[var(--accent)] px-8 py-3.5 text-[15px] font-semibold text-black shadow-[0_0_20px_var(--accent-glow)] transition hover:-translate-y-0.5 hover:bg-[var(--accent-hover)] hover:shadow-[var(--shadow-md)]"
+                  className="inline-flex items-center justify-center rounded-[10px] bg-[var(--accent)] px-8 py-3.5 text-[15px] font-semibold text-white shadow-[0_0_20px_var(--accent-glow)] transition hover:-translate-y-0.5 hover:bg-[var(--accent-hover)] hover:shadow-[var(--shadow-md)]"
                 >
                   {copy.hero.primaryCta.label}
                 </Link>
@@ -766,7 +766,7 @@ export default function HomePage() {
                 className="relative rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 text-center shadow-[var(--shadow-sm)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--border-glow)] hover:shadow-[0_0_24px_var(--accent-glow)]"
               >
                 <div className="relative z-10 mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--secondary-subtle)] text-[48px] shadow-[var(--shadow-sm)]">
-                  <span className="absolute -left-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-black text-black">
+                  <span className="absolute -left-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-black text-white">
                     {index + 1}
                   </span>
                   <span className="text-[30px]" aria-hidden="true">{step.icon}</span>

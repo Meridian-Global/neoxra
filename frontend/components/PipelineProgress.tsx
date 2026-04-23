@@ -11,16 +11,16 @@ export interface PipelineStep {
 }
 
 const STATUS_CLASS: Record<PipelineStepStatus, string> = {
-  waiting: 'border-[var(--border)] bg-[var(--bg-sunken)] text-[var(--text-tertiary)]',
-  running: 'border-yellow-400/70 bg-yellow-400/10 text-yellow-600 dark:text-yellow-300',
-  complete: 'border-emerald-500/70 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
-  error: 'border-red-500/70 bg-red-500/10 text-red-600 dark:text-red-300',
+  waiting: 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-tertiary)]',
+  running: 'border-[var(--accent)] bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[var(--shadow-glow)]',
+  complete: 'border-[var(--success)] bg-[var(--bg-elevated)] text-[var(--text-primary)]',
+  error: 'border-red-500/70 bg-[var(--bg-elevated)] text-red-500',
 }
 
 const STATUS_DOT: Record<PipelineStepStatus, string> = {
   waiting: 'bg-[var(--text-tertiary)]',
-  running: 'animate-pulse bg-yellow-500',
-  complete: 'bg-emerald-500',
+  running: 'animate-pulse bg-[var(--accent)]',
+  complete: 'bg-[var(--success)]',
   error: 'bg-red-500',
 }
 
@@ -73,7 +73,9 @@ export function PipelineProgress({ steps }: { steps: PipelineStep[] }) {
             <div className={`rounded-[16px] border px-4 py-3 transition ${STATUS_CLASS[step.status]}`}>
               <div className="flex items-center gap-2">
                 <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[step.status]}`} />
-                <span className="text-sm font-bold">{step.label}</span>
+                <span className={`text-sm font-bold ${step.status === 'waiting' ? 'text-[var(--text-secondary)]' : 'text-[var(--text-primary)]'}`}>
+                  {step.label}
+                </span>
               </div>
               <p className="mt-2 text-xs font-medium opacity-80">{copy.status[step.status]}</p>
             </div>

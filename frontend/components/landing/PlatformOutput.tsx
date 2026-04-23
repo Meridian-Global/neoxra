@@ -20,7 +20,7 @@ type PlatformOutputProps = {
 const BRAND_STYLES = [
   { gradient: 'var(--gradient-ig)', linkGradient: 'var(--gradient-ig)', renderIcon: () => <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-instagram text-white"><FaInstagram className="h-5 w-5" /></div> },
   { gradient: 'var(--gradient-seo)', linkGradient: 'var(--gradient-seo)', renderIcon: () => <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated-2)]"><GoogleColorLogo className="h-5 w-5" /></div> },
-  { gradient: 'var(--gradient-threads)', linkGradient: 'var(--gradient-threads)', renderIcon: () => <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-threads text-white"><SiThreads className="h-5 w-5" /></div> },
+  { gradient: '#000000', linkGradient: 'linear-gradient(135deg, #000000 0%, #000000 100%)', renderIcon: () => <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white"><SiThreads className="h-5 w-5" /></div> },
   { gradient: 'var(--gradient-fb)', linkGradient: 'var(--gradient-fb)', renderIcon: () => <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--platform-facebook)] text-white"><FaFacebookF className="h-5 w-5" /></div> },
 ] as const
 

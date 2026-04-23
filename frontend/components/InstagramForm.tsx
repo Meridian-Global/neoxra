@@ -299,7 +299,7 @@ export function InstagramForm({
               </span>
             </div>
             <button
-              className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-[image:var(--gradient-cta)] px-5 py-3 text-sm font-semibold text-black transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-[image:var(--gradient-cta)] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-40"
               type="submit"
               disabled={!canSubmit}
             >

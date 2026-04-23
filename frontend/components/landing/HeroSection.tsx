@@ -46,7 +46,7 @@ export default function HeroSection({ copy }: { copy: HeroCopy }) {
           <p className="mt-4 max-w-xl text-[15px] leading-7 text-[var(--text-secondary)]">{copy.body}</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
-              className="inline-flex items-center justify-center rounded-xl bg-[image:var(--gradient-cta)] px-8 py-3.5 text-base font-semibold text-black shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] hover:[animation:glow_1.4s_ease-in-out_infinite]"
+              className="inline-flex items-center justify-center rounded-xl bg-[image:var(--gradient-cta)] px-8 py-3.5 text-base font-semibold text-white shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] hover:[animation:glow_1.4s_ease-in-out_infinite]"
               href="/generate"
             >
               {copy.primaryCta}
