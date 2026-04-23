@@ -610,7 +610,7 @@ export function DemoSection() {
                     'rounded-[24px] border bg-[var(--panel)] p-4 transition',
                     isActive
                       ? 'border-[var(--accent)] shadow-[0_0_0_1px_rgba(139,92,246,0.14),0_0_32px_rgba(139,92,246,0.12)]'
-                      : 'border-[var(--border)] hover:border-white/15',
+                      : 'border-[var(--border)] hover:border-[var(--border-bold)]',
                   ]
                     .filter(Boolean)
                     .join(' ')}
@@ -667,10 +667,10 @@ export function DemoSection() {
                             {copy.section.presentationView}
                           </div>
                           <div className="mt-3 space-y-2">
-                            <div className="h-3 w-2/3 rounded-full bg-white/8" />
-                            <div className="h-3 w-full rounded-full bg-white/6" />
-                            <div className="h-3 w-5/6 rounded-full bg-white/6" />
-                            <div className="h-3 w-3/4 rounded-full bg-white/6" />
+                            <div className="h-3 w-2/3 rounded-full bg-[var(--bg-elevated-2)]" />
+                            <div className="h-3 w-full rounded-full bg-[var(--bg-elevated-2)]" />
+                            <div className="h-3 w-5/6 rounded-full bg-[var(--bg-elevated-2)]" />
+                            <div className="h-3 w-3/4 rounded-full bg-[var(--bg-elevated-2)]" />
                           </div>
                         </div>
                         <p className="text-sm leading-6 text-[var(--subtle)]">
