@@ -49,7 +49,7 @@ export default function MockupCards({ copy }: { copy: MockupCopy }) {
 
       <div className="absolute bottom-8 left-0 z-10 w-[250px] rotate-[5deg] rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)]">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-threads text-sm font-semibold text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
             N
           </div>
           <div>

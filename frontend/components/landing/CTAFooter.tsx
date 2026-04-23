@@ -21,7 +21,7 @@ export default function CTAFooter({ title, subtitle, button, trust }: CTAFooterP
             <h2 className="text-3xl font-bold tracking-[-0.02em] text-[var(--text-primary)] md:text-4xl">{title}</h2>
             <p className="mt-4 text-base text-[var(--text-secondary)] md:text-lg">{subtitle}</p>
             <Link
-              className="mt-8 inline-flex items-center justify-center rounded-xl bg-[image:var(--gradient-cta)] px-8 py-3.5 text-base font-semibold text-black transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] hover:shadow-[var(--shadow-glow)]"
+              className="mt-8 inline-flex items-center justify-center rounded-xl bg-[image:var(--gradient-cta)] px-8 py-3.5 text-base font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] hover:shadow-[var(--shadow-glow)]"
               href="/generate"
             >
               {button}

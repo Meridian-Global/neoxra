@@ -221,7 +221,7 @@ function SelectField({
       id={id}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="h-12 w-full rounded-[12px] border border-[var(--border)] bg-[var(--bg-sunken)] px-4 text-sm font-medium text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+      className="h-12 w-full rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] px-4 text-sm font-medium text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
     >
       {children}
     </select>
@@ -470,7 +470,7 @@ export default function GeneratePage() {
   }
 
   return (
-    <main className="min-h-screen bg-transparent text-[var(--text-primary)]">
+    <main className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 pb-16 pt-8 sm:px-6 lg:px-8">
         <GlobalNav />
 
@@ -494,7 +494,15 @@ export default function GeneratePage() {
                     key={scenario.name}
                     type="button"
                     onClick={() => applyScenario(scenario)}
-                    className="rounded-full border border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:bg-[var(--bg-elevated)]"
+                    className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                      idea === scenario.idea &&
+                      industry === scenario.industry &&
+                      audience === scenario.audience &&
+                      goal === scenario.goal &&
+                      voiceProfile === scenario.voiceProfile
+                        ? 'border-[var(--accent)] bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[var(--shadow-glow)]'
+                        : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[var(--accent)]'
+                    }`}
                   >
                     {scenario.name}
                   </button>
@@ -509,7 +517,7 @@ export default function GeneratePage() {
                 value={idea}
                 onChange={(event) => setIdea(event.target.value)}
                 placeholder={copy.ideaPlaceholder}
-                className="min-h-[150px] w-full resize-none rounded-[16px] border border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-4 text-base leading-7 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
+                className="min-h-[150px] w-full resize-none rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4 text-base leading-7 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
               />
             </div>
 
@@ -544,7 +552,7 @@ export default function GeneratePage() {
                 value={audience}
                 onChange={(event) => setAudience(event.target.value)}
                 placeholder={copy.audiencePlaceholder}
-                className="h-12 w-full rounded-[12px] border border-[var(--border)] bg-[var(--bg-sunken)] px-4 text-sm text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
+                className="h-12 w-full rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] px-4 text-sm text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
               />
             </div>
 
@@ -563,7 +571,7 @@ export default function GeneratePage() {
               type="button"
               onClick={() => void handleGenerate()}
               disabled={isGenerating || !idea.trim()}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[var(--bg-accent)] px-6 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-[10px] bg-[image:var(--gradient-cta)] px-8 py-4 text-lg font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isGenerating ? (
                 <>
@@ -576,7 +584,7 @@ export default function GeneratePage() {
             </button>
 
             {pageError ? (
-              <div className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-3 text-sm leading-6 text-[var(--text-secondary)]">
+              <div className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-sm leading-6 text-red-500">
                 {pageError}
               </div>
             ) : null}
@@ -586,7 +594,8 @@ export default function GeneratePage() {
             <PipelineProgress steps={progressSteps} />
 
             {brief ? (
-              <div className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
+              <div className="overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
+                <div className="-mx-5 -mt-5 mb-5 h-[3px] bg-[image:var(--gradient-warm)]" />
                 <p className="text-xs font-semibold tracking-[0.16em] text-[var(--text-tertiary)]">{copy.briefLabel}</p>
                 <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
                   {copy.briefReady}
@@ -614,7 +623,7 @@ export default function GeneratePage() {
                   type="button"
                   onClick={() => void handleDownloadAll()}
                   disabled={!hasAnyResult || isGenerating || isDownloading}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] bg-[var(--bg-accent)] px-6 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] bg-[image:var(--gradient-cta)] px-6 text-[15px] font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isDownloading ? (
                     <>
@@ -626,7 +635,7 @@ export default function GeneratePage() {
                   )}
                 </button>
               </div>
-              {downloadError ? <p className="mt-3 text-sm text-[var(--text-secondary)]">{downloadError}</p> : null}
+              {downloadError ? <p className="mt-3 text-sm text-red-500">{downloadError}</p> : null}
             </div>
           </section>
         </section>

@@ -20,7 +20,7 @@ const SIZE_CLASSES: Record<NonNullable<GradientButtonProps['size']>, string> = {
 
 const VARIANT_CLASSES: Record<NonNullable<GradientButtonProps['variant']>, string> = {
   primary:
-    'bg-[image:var(--gradient-cta)] text-black font-semibold hover:bg-[image:var(--gradient-cta-hover)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-glow)]',
+    'bg-[image:var(--gradient-cta)] text-white font-semibold hover:bg-[image:var(--gradient-cta-hover)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-glow)]',
   ghost:
     'border border-[var(--border)] text-[var(--text-primary)] hover:border-[var(--border-bold)] hover:bg-[var(--bg-elevated)]',
 }
