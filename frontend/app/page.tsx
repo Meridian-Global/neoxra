@@ -328,7 +328,7 @@ export default function HomePage() {
   const t = COPY[language]
 
   return (
-    <main className="min-h-screen bg-nxr-bg font-sans">
+    <main className="min-h-screen bg-[var(--bg)] font-sans">
       <Navbar copy={t.nav} />
       <HeroSection copy={t.hero} />
       <StatsBar stats={t.stats} />
