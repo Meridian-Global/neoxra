@@ -14,21 +14,35 @@ type LocalizedCopy = {
     lawFirms: string
   }
   hero: {
-    eyebrow: string
-    title: string
+    badge: string
+    titlePrefix: string
+    titleHighlight: string
     tagline: string
     body: string
-    orchestraIntro: string
-    orchestraBody: string
-    result: string
-    primaryCta: string
-    secondaryCta: string
-    ctas: Array<{
+    primaryCta: {
       label: string
       href: string
-      primary?: boolean
-    }>
+    }
+    secondaryCta: {
+      label: string
+      href: string
+    }
+    trustSignals: string[]
+    mockup: {
+      instagramTitle: string
+      instagramBody: string
+      seoTitle: string
+      seoSubtitle: string
+      threadsBody: string
+      facebookHeadline: string
+      facebookButton: string
+    }
   }
+  stats: Array<{
+    icon: string
+    number: string
+    label: string
+  }>
   problem: string
   showcase: {
     instagramTitle: string
@@ -47,19 +61,27 @@ type LocalizedCopy = {
   }
   howItWorks: {
     title: string
+    subtitle: string
     steps: Array<{
+      icon: string
       title: string
       description: string
     }>
   }
-  chatgpt: {
+  differentiation: {
     title: string
-    body: string
+    cards: Array<{
+      icon: string
+      title: string
+      body: string
+    }>
   }
   platformGrid: {
     title: string
     cards: Array<{
       name: string
+      icon: string
+      brand: 'instagram' | 'seo' | 'threads' | 'facebook'
       description: string
       cta: string
       href?: string
@@ -77,8 +99,10 @@ type LocalizedCopy = {
   }
   finalCta: {
     title: string
+    subtitle: string
     primary: string
     secondary: string
+    trust: string
   }
   brandNote: string
   footer: string
@@ -95,26 +119,31 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       lawFirms: '法律事務所',
     },
     hero: {
-      eyebrow: 'Neoxra',
-      title: '把想法變成流量',
+      badge: '✦ AI 內容交響樂團',
+      titlePrefix: '把想法變成',
+      titleHighlight: '流量',
       tagline: '一個想法，四個平台，直接發布。',
       body:
         'Neoxra 將一個想法轉化為 Instagram 輪播、SEO 文章、Threads 貼文與 Facebook 內容，結構完整、格式就緒、可直接上線。',
-      orchestraIntro: '而這一切的背後，是你的內容交響樂團。',
-      orchestraBody:
-        '你是指揮，每個 AI 代理人都是專精的樂手：有人負責 Instagram，有人負責 SEO，有人負責 Threads。你給方向，他們同步執行。',
-      result:
-        '最後產出的是一整套跨平台內容系統，不是草稿，而是可以直接帶來流量的結果。',
-      primaryCta: '一次產出四平台',
-      secondaryCta: '試試 Instagram Studio',
-      ctas: [
-        { label: '一次產出多個平台', href: '/generate', primary: true },
-        { label: 'Instagram Studio', href: '/instagram' },
-        { label: 'SEO 文章', href: '/seo' },
-        { label: 'Threads', href: '/threads' },
-        { label: 'Facebook', href: '/facebook' },
-      ],
+      primaryCta: { label: '免費開始使用', href: '/instagram' },
+      secondaryCta: { label: '預約 Demo', href: '/demo/legal' },
+      trustSignals: ['無需信用卡', '3 分鐘快速開始', '支援繁中'],
+      mockup: {
+        instagramTitle: '車禍後別急著和解',
+        instagramBody: '先做對 3 件事，才能保障自己的權益',
+        seoTitle: '車禍理賠完整指南',
+        seoSubtitle: '流程、時間與常見索賠類型',
+        threadsBody: '一個主題，可以同時變成輪播、文章與社群貼文。',
+        facebookHeadline: '讓內容不只是發布，而是帶來下一次詢問。',
+        facebookButton: '了解更多',
+      },
     },
+    stats: [
+      { icon: '⚡', number: '4 平台內容', label: '一次生成' },
+      { icon: '🕐', number: '節省 80% 時間', label: '從構想到發布' },
+      { icon: '📈', number: '提升 300% 效率', label: '內容產出速度' },
+      { icon: '👥', number: '專業團隊信賴', label: '法律事務所使用中' },
+    ],
     problem: '每個品牌都需要在 5 個平台上做內容。但沒有團隊能跟得上。',
     showcase: {
       instagramTitle: 'Instagram Output',
@@ -153,49 +182,81 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
     },
     howItWorks: {
       title: '怎麼開始',
+      subtitle: '你是指揮，AI 代理人是專精樂手。你給方向，他們同步執行。',
       steps: [
         {
+          icon: '🎯',
           title: '輸入你的主題和目標平台',
           description: '從一個題目開始，定義你想發布的平台與內容目標。',
         },
         {
+          icon: '🤖',
           title: 'AI 產出有結構的內容資產',
           description: '一次整理出 carousel、caption、文章大綱與 hashtags。',
         },
         {
+          icon: '📦',
           title: '你審稿、微調、發布',
           description: '保留品牌判斷與專業語氣，把最後一哩路留給你掌握。',
         },
       ],
     },
-    chatgpt: {
-      title: '為什麼不直接用 ChatGPT？',
-      body:
-        'ChatGPT 給你文字，Neoxra 給你內容包。每個輸出都符合平台格式：Instagram 有輪播結構，SEO 文章有標題層級與 meta description，Threads 貼文會控制 500 字限制。更重要的是，每個平台都會保持同一套品牌語氣。',
+    differentiation: {
+      title: '不只是生成內容，而是創造流量',
+      cards: [
+        {
+          icon: '✓',
+          title: '精準平台適配',
+          body: '每個平台都有專屬格式與內容策略，最大化觸及與互動。',
+        },
+        {
+          icon: '▱',
+          title: '結構完整',
+          body: '標題、內文、標籤、CTA、視覺建議，一應俱全。',
+        },
+        {
+          icon: '↗',
+          title: '直接發布',
+          body: '不需要編輯，不用調整。複製貼上即可上線。',
+        },
+        {
+          icon: '↟',
+          title: '帶來真實流量',
+          body: '專業 SEO 與社群演算法優化，讓內容被更多人看到。',
+        },
+      ],
     },
     platformGrid: {
       title: '一個引擎，多個平台',
       cards: [
         {
           name: 'Instagram',
+          icon: '◎',
+          brand: 'instagram',
           description: 'carousel + caption + hooks + hashtags',
           cta: '開始使用 →',
           href: '/instagram',
         },
         {
           name: 'SEO',
+          icon: '⌕',
+          brand: 'seo',
           description: 'SEO 標題 + 大綱 + 全文',
           cta: '開始使用 →',
           href: '/seo',
         },
         {
           name: 'Threads',
+          icon: '@',
+          brand: 'threads',
           description: '快速對話式內容',
           cta: '開始使用 →',
           href: '/threads',
         },
         {
           name: 'Facebook',
+          icon: 'f',
+          brand: 'facebook',
           description: '討論型長文 + 分享鉤子',
           cta: '開始使用 →',
           href: '/facebook',
@@ -223,9 +284,11 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       ],
     },
     finalCta: {
-      title: '開始把想法變成流量',
+      title: '準備好把想法變成流量了嗎？',
+      subtitle: '從一個主題開始，讓 Neoxra 幫你整理成可發布的跨平台內容包。',
       primary: '一次產出四平台',
       secondary: '或預約 Demo 了解更多',
+      trust: '✓ 無需信用卡 · 3 分鐘設定完成',
     },
     brandNote: 'Neo（新）+ Orchestra（交響樂團）。你指揮，AI 演奏，流量隨之而來。',
     footer: 'Neoxra © 2026 · Meridian Global LLC',
@@ -240,26 +303,31 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       lawFirms: 'Law Firms',
     },
     hero: {
-      eyebrow: 'Neoxra',
-      title: 'Turn Ideas Into Traffic',
+      badge: '✦ AI Content Orchestra',
+      titlePrefix: 'Turn Ideas Into',
+      titleHighlight: 'Traffic',
       tagline: 'One idea. Four platforms. Ready to publish.',
       body:
         'Neoxra turns a single idea into Instagram carousels, SEO articles, Threads posts, and Facebook content, structured, formatted, and built to perform.',
-      orchestraIntro: "Behind the scenes, it's your content orchestra.",
-      orchestraBody:
-        "You're the conductor. Each AI agent is a specialist: one writes Instagram, one builds SEO, one crafts Threads. You give direction, they execute in sync.",
-      result:
-        'The result: a complete, multi-platform content system, not drafts, but outputs you can actually publish.',
-      primaryCta: 'Generate All Platforms',
-      secondaryCta: 'Try Instagram Studio',
-      ctas: [
-        { label: 'Generate All Platforms', href: '/generate', primary: true },
-        { label: 'Instagram Studio', href: '/instagram' },
-        { label: 'SEO Articles', href: '/seo' },
-        { label: 'Threads', href: '/threads' },
-        { label: 'Facebook', href: '/facebook' },
-      ],
+      primaryCta: { label: 'Start free', href: '/instagram' },
+      secondaryCta: { label: 'Book a demo', href: '/demo/legal' },
+      trustSignals: ['No credit card', 'Start in 3 minutes', 'Built for zh-TW'],
+      mockup: {
+        instagramTitle: 'Do Not Settle Too Fast',
+        instagramBody: 'Start with 3 steps to protect your options.',
+        seoTitle: 'Car Accident Claims Guide',
+        seoSubtitle: 'Process, timing, and common compensation types',
+        threadsBody: 'One topic can become carousels, articles, and social posts.',
+        facebookHeadline: 'Make content drive the next real conversation.',
+        facebookButton: 'Learn More',
+      },
     },
+    stats: [
+      { icon: '⚡', number: '4 platform outputs', label: 'Generated at once' },
+      { icon: '🕐', number: 'Save 80% time', label: 'From idea to publish' },
+      { icon: '📈', number: '300% faster', label: 'Content production speed' },
+      { icon: '👥', number: 'Trusted by teams', label: 'Used by professional services' },
+    ],
     problem: 'Every brand needs content across five platforms. Almost no team can keep up.',
     showcase: {
       instagramTitle: 'Instagram Output',
@@ -299,49 +367,81 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
     },
     howItWorks: {
       title: 'How It Works',
+      subtitle: "You're the conductor. AI agents are specialist musicians. You give direction; they execute in sync.",
       steps: [
         {
+          icon: '🎯',
           title: 'Enter your topic and target platform',
           description: 'Start with a single idea and choose where the content needs to go.',
         },
         {
+          icon: '🤖',
           title: 'AI builds structured content assets',
           description: 'Generate carousel slides, caption, article outline, and hashtags in one pass.',
         },
         {
+          icon: '📦',
           title: 'Review, refine, and publish',
           description: 'Keep the final judgment, voice, and edits in your hands.',
         },
       ],
     },
-    chatgpt: {
-      title: 'Why Not Just Use ChatGPT?',
-      body:
-        'ChatGPT gives you text. Neoxra gives you a content package. Each output is platform-native: Instagram has carousel slides with visual structure, SEO articles have heading hierarchy and meta descriptions, and Threads posts respect the 500-character limit. Every output matches your brand voice consistently across every platform.',
+    differentiation: {
+      title: 'Not Just Content Generation. Traffic Creation.',
+      cards: [
+        {
+          icon: '✓',
+          title: 'Platform-native fit',
+          body: 'Every platform gets its own format and content strategy to maximize reach and interaction.',
+        },
+        {
+          icon: '▱',
+          title: 'Complete structure',
+          body: 'Headlines, body copy, tags, CTAs, and visual direction are packaged together.',
+        },
+        {
+          icon: '↗',
+          title: 'Ready to publish',
+          body: 'Less rewriting, less formatting. Copy, paste, and ship.',
+        },
+        {
+          icon: '↟',
+          title: 'Built for traffic',
+          body: 'SEO and social optimization help the content get discovered by more people.',
+        },
+      ],
     },
     platformGrid: {
       title: 'One Engine, Multiple Platforms',
       cards: [
         {
           name: 'Instagram',
+          icon: '◎',
+          brand: 'instagram',
           description: 'carousel + caption + hooks + hashtags',
           cta: 'Start now →',
           href: '/instagram',
         },
         {
           name: 'SEO',
+          icon: '⌕',
+          brand: 'seo',
           description: 'SEO title + outline + full article',
           cta: 'Start now →',
           href: '/seo',
         },
         {
           name: 'Threads',
+          icon: '@',
+          brand: 'threads',
           description: 'Fast conversational content',
           cta: 'Start now →',
           href: '/threads',
         },
         {
           name: 'Facebook',
+          icon: 'f',
+          brand: 'facebook',
           description: 'Discussion-led long-form posts',
           cta: 'Start now →',
           href: '/facebook',
@@ -369,9 +469,11 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       ],
     },
     finalCta: {
-      title: 'Start Turning Ideas Into Traffic',
+      title: 'Ready to Turn Ideas Into Traffic?',
+      subtitle: 'Start with one topic and let Neoxra package it into publishable content across platforms.',
       primary: 'Generate All Platforms',
       secondary: 'Or book a demo to learn more',
+      trust: '✓ No credit card · Setup in 3 minutes',
     },
     brandNote: 'Neo (new) + Orchestra. You conduct. AI performs. Traffic follows.',
     footer: 'Neoxra © 2026 · Meridian Global LLC',
@@ -386,6 +488,113 @@ function PageComingSoonBadge({ label }: { label: string }) {
   )
 }
 
+function platformBorderStyle(brand: LocalizedCopy['platformGrid']['cards'][number]['brand']) {
+  if (brand === 'instagram') return { borderLeftColor: 'transparent' }
+  if (brand === 'seo') return { borderLeftColor: '#22C55E' }
+  if (brand === 'threads') return { borderLeftColor: 'var(--text-primary)' }
+  return { borderLeftColor: '#1877F2' }
+}
+
+function HeroMockup({ copy }: { copy: LocalizedCopy['hero']['mockup'] }) {
+  return (
+    <div className="relative mx-auto min-h-[520px] w-full max-w-[560px]">
+      <div
+        className="absolute left-1/2 top-1/2 -z-10 h-[120%] w-[120%] -translate-x-1/2 -translate-y-1/2"
+        style={{
+          background: 'radial-gradient(circle at center, var(--accent-glow) 0%, transparent 70%)',
+        }}
+      />
+
+      <div className="absolute left-[28%] top-[14%] z-20 w-[280px] rotate-[2deg] rounded-[16px] border border-[var(--border-glow)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-lg)]">
+        <div className="flex items-center justify-between">
+          <span className="rounded-full bg-[var(--accent-subtle)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+            1/5
+          </span>
+          <span className="text-xs font-semibold text-[var(--text-tertiary)]">Instagram</span>
+        </div>
+        <div className="mt-12">
+          <h3 className="text-[28px] font-black leading-tight tracking-[-0.04em] text-[var(--text-primary)]">
+            {copy.instagramTitle}
+          </h3>
+          <p className="mt-5 text-[15px] font-medium leading-7 text-[var(--text-secondary)]">
+            {copy.instagramBody} <span aria-hidden="true">👇</span>
+          </p>
+        </div>
+        <div className="mt-12 h-1.5 w-20 rounded-full bg-[var(--accent)]" />
+      </div>
+
+      <div className="absolute right-[4%] top-[4%] z-30 w-[245px] -rotate-[3deg] rounded-[16px] border border-[var(--border-glow)] bg-[var(--bg-elevated)] p-4 shadow-[var(--shadow-md)]">
+        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">SEO Article</div>
+        <h3 className="mt-3 text-lg font-black leading-snug text-[var(--text-primary)]">{copy.seoTitle}</h3>
+        <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{copy.seoSubtitle}</p>
+        <div className="mt-4 space-y-2">
+          <div className="h-2 rounded-full bg-[var(--bg-sunken)]" />
+          <div className="h-2 w-4/5 rounded-full bg-[var(--bg-sunken)]" />
+        </div>
+      </div>
+
+      <div className="absolute bottom-[12%] left-[2%] z-10 w-[235px] -rotate-[4deg] rounded-[16px] border border-[var(--border-glow)] bg-[var(--bg-elevated)] p-4 shadow-[var(--shadow-md)]">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-accent)] text-xs font-bold text-[var(--text-on-accent)]">
+            N
+          </div>
+          <span className="text-sm font-bold text-[var(--text-primary)]">Neoxra</span>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{copy.threadsBody}</p>
+        <div className="mt-4 flex gap-4 text-xs font-semibold text-[var(--text-tertiary)]">
+          <span>♡ 34</span>
+          <span>↻ 12</span>
+        </div>
+      </div>
+
+      <div className="absolute bottom-[5%] right-[0%] z-30 w-[250px] rotate-[3deg] rounded-[16px] border border-[var(--border-glow)] bg-[var(--bg-elevated)] p-4 shadow-[var(--shadow-lg)]">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-black">
+            N
+          </div>
+          <span className="text-sm font-bold text-[var(--text-primary)]">Neoxra</span>
+        </div>
+        <h3 className="mt-4 text-base font-black leading-snug text-[var(--text-primary)]">{copy.facebookHeadline}</h3>
+        <button
+          type="button"
+          className="mt-4 rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-bold text-black"
+        >
+          {copy.facebookButton}
+        </button>
+        <div className="mt-4 flex gap-4 text-xs font-semibold text-[var(--text-tertiary)]">
+          <span>💬 3</span>
+          <span>👍 3</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatsBar({ stats }: { stats: LocalizedCopy['stats'] }) {
+  return (
+    <section className="py-8 md:py-10">
+      <div className="mx-auto grid max-w-[1100px] gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <div
+            key={`${stat.number}-${stat.label}`}
+            className="rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-sm)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--border-glow)] hover:shadow-[0_0_24px_var(--accent-glow)]"
+          >
+            <div className="text-2xl leading-none" aria-hidden="true">
+              {stat.icon}
+            </div>
+            <div className="mt-4 text-[18px] font-bold leading-snug text-[var(--text-primary)]">
+              {stat.number}
+            </div>
+            <div className="mt-1 text-[13px] font-medium text-[var(--text-tertiary)]">
+              {stat.label}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export default function HomePage() {
   const { language } = useLanguage()
   const copy = COPY[language]
@@ -395,42 +604,59 @@ export default function HomePage() {
       <div className="mx-auto max-w-[1120px] px-6 pb-12 pt-6 sm:px-8 lg:px-10">
         <GlobalNav />
 
-        <section className="py-10 md:py-14">
-          <div className="max-w-4xl">
-            <p className="text-sm font-semibold tracking-[0.18em] text-[var(--text-tertiary)]">
-              {copy.hero.eyebrow}
-            </p>
-            <h1 className="max-w-3xl text-[48px] font-extrabold leading-[1.05] tracking-[-0.03em] text-[var(--text-primary)]">
-              {copy.hero.title}
-            </h1>
-            <p className="mt-6 max-w-3xl text-xl font-semibold text-[var(--text-primary)] md:text-2xl">
-              {copy.hero.tagline}
-            </p>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--text-secondary)] md:text-xl">
-              {copy.hero.body}
-            </p>
-            <div className="mt-7 max-w-3xl rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
-              <p className="text-base font-bold text-[var(--text-primary)]">{copy.hero.orchestraIntro}</p>
-              <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)] md:text-base">
-                {copy.hero.orchestraBody}
+        <section
+          className="relative -mx-6 overflow-hidden px-6 py-12 sm:-mx-8 sm:px-8 md:py-20 lg:-mx-10 lg:px-10"
+          style={{
+            background:
+              'radial-gradient(ellipse at 30% 50%, rgba(245,158,11,0.04) 0%, transparent 50%)',
+          }}
+        >
+          <div className="grid items-center gap-12 lg:grid-cols-2">
+            <div>
+              <div className="inline-flex rounded-full border border-[rgba(245,158,11,0.2)] bg-[var(--accent-subtle)] px-4 py-1.5 text-[13px] font-medium text-[var(--accent)]">
+                {copy.hero.badge}
+              </div>
+              <h1 className="mt-6 max-w-3xl text-[44px] font-black leading-[1.1] tracking-[-0.03em] text-[var(--text-primary)] sm:text-[56px]">
+                {copy.hero.titlePrefix}{' '}
+                <span className="bg-[linear-gradient(135deg,#F59E0B,#F97316)] bg-clip-text text-transparent">
+                  {copy.hero.titleHighlight}
+                </span>
+              </h1>
+              <p className="mt-4 max-w-2xl text-[20px] font-medium leading-8 text-[var(--text-secondary)]">
+                {copy.hero.tagline}
               </p>
-              <p className="mt-3 text-sm font-semibold leading-7 text-[var(--text-primary)] md:text-base">
-                {copy.hero.result}
+              <p className="mt-4 max-w-2xl text-[16px] leading-[1.7] text-[var(--text-tertiary)]">
+                {copy.hero.body}
               </p>
-            </div>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              {copy.hero.ctas.map((cta) => (
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
-                  key={cta.href}
-                  href={cta.href}
-                  className="inline-flex items-center justify-center rounded-[8px] border border-[var(--bg-accent)] bg-[var(--bg-accent)] px-6 py-3 text-[15px] font-semibold text-[var(--text-on-accent)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-[var(--accent)] hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)]"
+                  href={copy.hero.primaryCta.href}
+                  className="inline-flex items-center justify-center rounded-[10px] bg-[var(--accent)] px-8 py-3.5 text-[15px] font-semibold text-black shadow-[0_0_20px_var(--accent-glow)] transition hover:-translate-y-0.5 hover:bg-[var(--accent-hover)] hover:shadow-[var(--shadow-md)]"
                 >
-                  {cta.label}
+                  {copy.hero.primaryCta.label}
                 </Link>
-              ))}
+                <Link
+                  href={copy.hero.secondaryCta.href}
+                  className="inline-flex items-center justify-center rounded-[10px] border border-[var(--border-glow)] bg-transparent px-8 py-3.5 text-[15px] font-semibold text-[var(--text-primary)] transition hover:-translate-y-0.5 hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  {copy.hero.secondaryCta.label}
+                </Link>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[13px] font-medium text-[var(--text-tertiary)]">
+                {copy.hero.trustSignals.map((signal) => (
+                  <span key={signal} className="inline-flex items-center gap-1.5">
+                    <span className="text-[var(--accent)]">✓</span>
+                    {signal}
+                  </span>
+                ))}
+              </div>
             </div>
+
+            <HeroMockup copy={copy.hero.mockup} />
           </div>
         </section>
+
+        <StatsBar stats={copy.stats} />
 
         <section className="py-16">
           <p className="mx-auto max-w-4xl text-center text-lg font-medium text-[var(--accent)]">
@@ -508,14 +734,20 @@ export default function HomePage() {
           <h2 className="text-center text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
             {copy.howItWorks.title}
           </h2>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <p className="mx-auto mt-3 max-w-2xl text-center text-[16px] leading-7 text-[var(--text-secondary)]">
+            {copy.howItWorks.subtitle}
+          </p>
+          <div className="relative mt-10 grid gap-5 md:grid-cols-3 md:before:absolute md:before:left-[16%] md:before:right-[16%] md:before:top-8 md:before:h-0.5 md:before:border-t-2 md:before:border-dashed md:before:border-[var(--border-glow)] md:before:content-['']">
             {copy.howItWorks.steps.map((step, index) => (
               <div
                 key={step.title}
-                className="rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-sm)] transition-shadow duration-150 hover:shadow-[var(--shadow-md)]"
+                className="relative rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 text-center shadow-[var(--shadow-sm)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--border-glow)] hover:shadow-[0_0_24px_var(--accent-glow)]"
               >
-                <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-accent)] text-sm font-bold text-[var(--text-on-accent)]">
-                  {index + 1}
+                <div className="relative z-10 mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--secondary-subtle)] text-[48px] shadow-[var(--shadow-sm)]">
+                  <span className="absolute -left-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-black text-black">
+                    {index + 1}
+                  </span>
+                  <span className="text-[30px]" aria-hidden="true">{step.icon}</span>
                 </div>
                 <h3 className="mt-5 text-xl font-bold text-[var(--text-primary)]">{step.title}</h3>
                 <p className="mt-3 text-sm text-[var(--text-secondary)]">{step.description}</p>
@@ -525,13 +757,23 @@ export default function HomePage() {
         </section>
 
         <section className="py-10 md:py-14">
-          <div className="mx-auto max-w-4xl rounded-[20px] border border-[var(--border)] bg-[var(--bg-sunken)] p-6 text-center shadow-[var(--shadow-sm)] md:p-8">
-            <h2 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
-              {copy.chatgpt.title}
-            </h2>
-            <p className="mt-4 text-base leading-8 text-[var(--text-secondary)]">
-              {copy.chatgpt.body}
-            </p>
+          <h2 className="text-center text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
+            {copy.differentiation.title}
+          </h2>
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {copy.differentiation.cards.map((card) => (
+              <div
+                key={card.title}
+                className="rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-sm)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--border-glow)] hover:shadow-[0_0_24px_var(--accent-glow)]"
+              >
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[var(--secondary-subtle)] text-[40px] font-black text-[var(--secondary)]">
+                  <span className="absolute inset-0 rounded-full bg-[var(--secondary-subtle)] blur-md" />
+                  <span className="relative text-2xl" aria-hidden="true">{card.icon}</span>
+                </div>
+                <h3 className="mt-5 text-lg font-bold text-[var(--text-primary)]">{card.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{card.body}</p>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -545,13 +787,31 @@ export default function HomePage() {
                 <Link
                   key={card.name}
                   href={card.href}
-                  className="rounded-[var(--card-radius)] border border-[var(--border)] border-l-[3px] border-l-[var(--accent)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
+                  className={[
+                    'relative overflow-hidden rounded-[var(--card-radius)] border border-[var(--border)] border-l-4 bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-sm)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--border-glow)] hover:shadow-[0_0_24px_var(--accent-glow)]',
+                    card.brand === 'instagram' ? 'before:absolute before:bottom-0 before:left-0 before:top-0 before:w-1 before:bg-[linear-gradient(180deg,#F58529,#DD2A7B,#8134AF)] before:content-[\'\']' : '',
+                  ].join(' ')}
+                  style={platformBorderStyle(card.brand)}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-xl font-bold text-[var(--text-primary)]">{card.name}</h3>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={[
+                          'flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-sunken)] text-lg font-black',
+                          card.brand === 'instagram' ? 'bg-[linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)] text-white' : '',
+                          card.brand === 'seo' ? 'text-[#22C55E]' : '',
+                          card.brand === 'threads' ? 'text-[var(--text-primary)]' : '',
+                          card.brand === 'facebook' ? 'text-[#1877F2]' : '',
+                        ].join(' ')}
+                        aria-hidden="true"
+                      >
+                        {card.icon}
+                      </span>
+                      <h3 className="text-xl font-bold text-[var(--text-primary)]">{card.name}</h3>
+                    </div>
                   </div>
                   <p className="mt-3 text-sm text-[var(--text-secondary)]">{card.description}</p>
-                  <div className="mt-6 text-sm font-bold text-[var(--text-primary)]">{card.cta}</div>
+                  <div className="mt-6 text-sm font-medium text-[var(--accent)]">{card.cta}</div>
                 </Link>
               ) : (
                 <div
@@ -559,7 +819,12 @@ export default function HomePage() {
                   className="rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-sm)]"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-xl font-bold text-[var(--text-primary)]">{card.name}</h3>
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-sunken)] text-lg font-black text-[var(--text-tertiary)]" aria-hidden="true">
+                        {card.icon}
+                      </span>
+                      <h3 className="text-xl font-bold text-[var(--text-primary)]">{card.name}</h3>
+                    </div>
                     {card.soon ? <PageComingSoonBadge label={language === 'zh-TW' ? '即將推出' : 'Coming soon'} /> : null}
                   </div>
                   <p className="mt-3 text-sm text-[var(--text-secondary)]">{card.description}</p>
@@ -604,14 +869,19 @@ export default function HomePage() {
         </section>
 
         <section className="py-12 md:py-16">
-          <div className="homepage-cta rounded-[20px] px-6 py-10 text-center shadow-[var(--shadow-md)] sm:px-10">
-            <h2 className="text-3xl font-bold tracking-[-0.02em]">
+          <div className="homepage-cta relative -mx-6 overflow-hidden px-6 py-14 text-center sm:-mx-8 sm:px-10 lg:-mx-10">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,var(--accent-glow)_0%,transparent_60%)]" />
+            <div className="relative mx-auto max-w-3xl">
+            <h2 className="text-[32px] font-bold tracking-[-0.02em]">
               {copy.finalCta.title}
             </h2>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <p className="mx-auto mt-3 max-w-2xl text-[16px] leading-7 text-[var(--text-secondary)]">
+              {copy.finalCta.subtitle}
+            </p>
+            <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href="/generate"
-                className="homepage-cta-button inline-flex items-center justify-center rounded-[8px] px-6 py-3 text-[15px] font-semibold transition-all duration-150 hover:opacity-90"
+                className="homepage-cta-button inline-flex items-center justify-center rounded-[10px] px-6 py-3 text-[15px] font-semibold shadow-[0_0_20px_var(--accent-glow)] transition-all duration-150 hover:-translate-y-0.5"
               >
                 {copy.finalCta.primary}
               </Link>
@@ -621,6 +891,8 @@ export default function HomePage() {
               >
                 {copy.finalCta.secondary}
               </Link>
+            </div>
+            <p className="mt-4 text-[13px] font-medium text-[var(--text-tertiary)]">{copy.finalCta.trust}</p>
             </div>
           </div>
         </section>
@@ -632,8 +904,8 @@ export default function HomePage() {
       </div>
       <style jsx global>{`
         .homepage-cta {
-          background: var(--bg-accent);
-          color: var(--text-on-accent);
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, var(--bg) 100%);
+          color: var(--text-primary);
         }
 
         .homepage-cta h2 {
@@ -641,33 +913,19 @@ export default function HomePage() {
         }
 
         .homepage-cta-button {
-          background: var(--bg-elevated);
-          color: var(--text-primary);
+          background: var(--accent);
+          color: #000000;
+        }
+
+        .homepage-cta-button:hover {
+          background: var(--accent-hover);
         }
 
         .homepage-cta-link {
-          color: rgba(250, 250, 250, 0.78);
-        }
-
-        .homepage-cta-link:hover {
-          color: var(--text-on-accent);
-        }
-
-        html[data-theme='dark'] .homepage-cta {
-          background: var(--bg-elevated);
-          color: var(--text-primary);
-        }
-
-        html[data-theme='dark'] .homepage-cta-button {
-          background: var(--accent);
-          color: var(--text-on-accent);
-        }
-
-        html[data-theme='dark'] .homepage-cta-link {
           color: var(--text-secondary);
         }
 
-        html[data-theme='dark'] .homepage-cta-link:hover {
+        .homepage-cta-link:hover {
           color: var(--text-primary);
         }
       `}</style>

@@ -101,7 +101,7 @@ export function GlobalNav() {
         <nav className="hidden items-center gap-2 md:flex">
           <Link
             href="/generate"
-            className="inline-flex h-10 items-center rounded-full bg-[var(--bg-accent)] px-4 text-[15px] font-semibold text-[var(--text-on-accent)] transition hover:opacity-90"
+            className="inline-flex h-10 items-center rounded-full bg-[var(--accent)] px-4 text-[15px] font-semibold text-black shadow-[0_0_20px_var(--accent-glow)] transition hover:bg-[var(--accent-hover)]"
           >
             {copy.generateAll}
           </Link>
