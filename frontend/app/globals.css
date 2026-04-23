@@ -3,9 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0b0d1a;
-  --bg-elevated: #111425;
-  --bg-elevated-2: #181b30;
+  --bg-primary: #0a0a14;
+  --bg-card: #12121f;
+  --bg-card-hover: #1a1a2e;
+  --border-card: #1e1e3a;
+  --accent-orange: #f97316;
+  --accent-orange-glow: rgba(249, 115, 22, 0.3);
+  --accent-purple: #a855f7;
+  --accent-purple-glow: rgba(168, 85, 247, 0.2);
+  --text-primary: #f5f5f5;
+  --text-secondary: #a0a0b8;
+  --text-muted: #6b6b80;
+  --bg-page: #0a0a0f;
+  --bg-section: #0f1019;
+  --bg-card: #14151f;
+  --bg-card-hover: #1a1b2e;
+  --bg: var(--bg-page);
+  --bg-elevated: var(--bg-card);
+  --bg-elevated-2: #1e1f33;
   --bg-sunken: var(--bg-elevated-2);
   --bg-accent: var(--accent);
   --text-primary: #f5f5f7;
@@ -18,6 +33,14 @@
   --accent-glow: rgba(245, 158, 11, 0.15);
   --secondary: #8b5cf6;
   --secondary-subtle: rgba(139, 92, 246, 0.1);
+  --secondary-glow: rgba(139, 92, 246, 0.12);
+  --platform-instagram: #e1306c;
+  --platform-seo: #10b981;
+  --platform-threads: #8b5cf6;
+  --platform-facebook: #3b82f6;
+  --gradient-hero: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  --gradient-card: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+  --gradient-cta-bg: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   --success: #22c55e;
   --border: rgba(255, 255, 255, 0.06);
   --border-bold: var(--border-glow);
@@ -25,6 +48,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 24px rgba(245, 158, 11, 0.2);
   --card-radius: 12px;
   --container-max: 1120px;
   --carousel-1: var(--bg-elevated-2);
@@ -46,7 +70,21 @@
   --accent-soft: var(--accent-subtle);
 }
 
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(249, 115, 22, 0);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(249, 115, 22, 0.35);
+  }
+}
+
 html[data-theme='light'] {
+  --bg-page: #f8f8f7;
+  --bg-section: #fff7ed;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0efed;
   --bg: #f8f8f7;
   --bg-elevated: #ffffff;
   --bg-elevated-2: #f0efed;
@@ -62,6 +100,14 @@ html[data-theme='light'] {
   --accent-glow: rgba(234, 88, 12, 0.08);
   --secondary: #7c3aed;
   --secondary-subtle: #f5f3ff;
+  --secondary-glow: rgba(124, 58, 237, 0.08);
+  --platform-instagram: #e1306c;
+  --platform-seo: #10b981;
+  --platform-threads: #8b5cf6;
+  --platform-facebook: #3b82f6;
+  --gradient-hero: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  --gradient-card: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, rgba(124, 58, 237, 0.06) 100%);
+  --gradient-cta-bg: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   --success: #16a34a;
   --border: #e4e4e7;
   --border-bold: var(--border-glow);
@@ -69,6 +115,7 @@ html[data-theme='light'] {
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 24px rgba(234, 88, 12, 0.12);
   --card-radius: 12px;
   --container-max: 1120px;
   --carousel-1: var(--bg-elevated-2);
