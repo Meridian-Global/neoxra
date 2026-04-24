@@ -19,21 +19,22 @@ There are currently two realistic deployment paths for the backend:
 1. Render using `render-build.sh`
 2. Docker build using `backend/Dockerfile`
 
-Render is the current production path. The Dockerfile exists to make local and future container-based deploys reproducible.
+Docker is the recommended production path because server-side rendering (Playwright + Chromium) requires system libraries that cannot be installed in Render's native build environment.
 
-## Render Deployment
+## Render Deployment (Docker)
 
 ### Required Render Settings
 
+- Environment: `Docker`
 - Root Directory: `backend`
-- Build Command: `bash render-build.sh`
-- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Dockerfile Path: `Dockerfile`
+- Start Command: _(leave blank — CMD is in Dockerfile)_
 
 ### Required Environment Variables
 
 - `ANTHROPIC_API_KEY`
 - `ANTHROPIC_MODEL`
-- `GITHUB_TOKEN`
+- `GITHUB_TOKEN` — must have read access to both `neoxra-core` and `neoxra-renderer` repos
 - `DATABASE_URL`
 
 ### Recommended Environment Variables
@@ -44,6 +45,8 @@ Render is the current production path. The Dockerfile exists to make local and f
 - `NEOXRA_CORE_CLIENT_MODE=local`
 - `NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/neoxra-core.git`
 - `NEOXRA_CORE_GIT_REF=main`
+- `NEOXRA_RENDERER_GIT_URL=https://github.com/Meridian-Global/neoxra-renderer.git`
+- `NEOXRA_RENDERER_GIT_REF=main`
 
 ### Database Notes
 
@@ -78,18 +81,14 @@ The backend also includes a Dockerfile for reproducible builds.
 From the repo root:
 
 ```bash
-DOCKER_BUILDKIT=1 docker build \
+docker build \
   -f backend/Dockerfile \
   -t neoxra-backend \
-  --build-arg NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/neoxra-core.git \
-  --build-arg NEOXRA_CORE_GIT_REF=main \
-  --secret id=GITHUB_TOKEN,env=GITHUB_TOKEN \
+  --build-arg GITHUB_TOKEN=$GITHUB_TOKEN \
   backend
 ```
 
-`GITHUB_TOKEN` is passed as a BuildKit secret so it is never stored in image layers, `docker history`, or build caches.
-
-If `neoxra-core` is public, omit `--secret id=GITHUB_TOKEN,env=GITHUB_TOKEN` entirely.
+On Render, set `GITHUB_TOKEN` as an environment variable — Render automatically passes env vars as Docker build args.
 
 ### Run Example
 

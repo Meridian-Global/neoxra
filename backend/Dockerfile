@@ -15,6 +15,7 @@ RUN apt-get update \
 
 COPY requirements.txt ./
 
+ARG GITHUB_TOKEN=""
 ARG NEOXRA_CORE_GIT_URL=https://github.com/Meridian-Global/neoxra-core.git
 ARG NEOXRA_CORE_GIT_REF=main
 ARG NEOXRA_RENDERER_GIT_URL=https://github.com/Meridian-Global/neoxra-renderer.git
@@ -23,10 +24,8 @@ ARG NEOXRA_RENDERER_GIT_REF=main
 RUN python -m venv /venv
 ENV PATH="/venv/bin:$PATH"
 
-RUN --mount=type=secret,id=GITHUB_TOKEN \
-    pip install --upgrade pip setuptools wheel \
+RUN pip install --upgrade pip setuptools wheel \
     && pip install -r requirements.txt \
-    && GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN 2>/dev/null || echo "") \
     && if [ -n "$GITHUB_TOKEN" ]; then \
         pip install --no-build-isolation "neoxra-core @ git+https://x-access-token:${GITHUB_TOKEN}@${NEOXRA_CORE_GIT_URL#https://}@${NEOXRA_CORE_GIT_REF}"; \
         pip install --no-build-isolation "neoxra-renderer @ git+https://x-access-token:${GITHUB_TOKEN}@${NEOXRA_RENDERER_GIT_URL#https://}@${NEOXRA_RENDERER_GIT_REF}"; \
