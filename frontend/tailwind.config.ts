@@ -40,6 +40,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['Noto Sans TC', 'system-ui', 'sans-serif'],
+        logo: ['Space Grotesk', 'system-ui', 'sans-serif'],
       },
     },
   },

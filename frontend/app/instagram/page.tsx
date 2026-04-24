@@ -469,15 +469,6 @@ function LoadingPreview() {
   )
 }
 
-function buildSamplePaths(templateId: string, locale: Language): string[] {
-  return Array.from({ length: 5 }, (_, i) =>
-    `/samples/instagram/${templateId}/${locale}/slide-${String(i + 1).padStart(2, '0')}.png`
-  )
-}
-
-const DEFAULT_SLIDES_KEY_ZH = DEFAULT_PREVIEWS['zh-TW'].content.carousel_outline.map((s) => s.title).join('|')
-const DEFAULT_SLIDES_KEY_EN = DEFAULT_PREVIEWS.en.content.carousel_outline.map((s) => s.title).join('|')
-const DEFAULT_SLIDES_KEYS: Record<Language, string> = { 'zh-TW': DEFAULT_SLIDES_KEY_ZH, en: DEFAULT_SLIDES_KEY_EN }
 
 const TEMPLATE_TO_THEME: Record<string, CarouselThemeId> = {
   'editorial-green': 'professional',
@@ -518,10 +509,6 @@ function InstagramPreview({
 
   const slidesKey = bundle.content.carousel_outline.map((s) => s.title).join('|')
   const renderKey = `${selectedTemplateId}::${slidesKey}`
-  const isDefaultPreview = slidesKey === DEFAULT_SLIDES_KEYS[language]
-  const staticSamplePaths = isDefaultPreview && selectedTemplateId !== 'custom'
-    ? buildSamplePaths(selectedTemplateId, language)
-    : null
 
   function triggerRender() {
     const slides = bundle.content.carousel_outline
@@ -560,14 +547,6 @@ function InstagramPreview({
     if (renderKey === lastRenderKeyRef.current) return
     lastRenderKeyRef.current = renderKey
 
-    // Use pre-rendered static images for default sample content
-    if (staticSamplePaths) {
-      setRenderedImages(staticSamplePaths)
-      setIsRendering(false)
-      setRenderError(null)
-      return
-    }
-
     let cancelled = false
     setIsRendering(true)
     setRenderError(null)
@@ -603,15 +582,11 @@ function InstagramPreview({
     return () => {
       cancelled = true
     }
-  }, [renderKey, bundle.content.carousel_outline, copy.labels.renderError, selectedTemplateId, customTemplateSpec, staticSamplePaths])
+  }, [renderKey, bundle.content.carousel_outline, copy.labels.renderError, selectedTemplateId, customTemplateSpec])
 
   function handleRetryRender() {
     lastRenderKeyRef.current = ''
     setRenderedImages([])
-    if (staticSamplePaths) {
-      setRenderedImages(staticSamplePaths)
-      return
-    }
     triggerRender()
   }
 

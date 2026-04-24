@@ -1,11 +1,11 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
 import { ArrowRight, Menu, X } from 'lucide-react'
 import { LanguageToggle } from '../LanguageToggle'
 import { ThemeToggle } from './ThemeToggle'
-import NeoxraLogo from './NeoxraLogo'
 
 type NavCopy = {
   products: string
@@ -49,9 +49,9 @@ export default function Navbar({ copy, anchorPrefix = '' }: NavbarProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--bg)]/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
-        <Link className="flex items-center gap-3" href="/">
-          <NeoxraLogo size={34} />
-          <span className="text-lg font-bold tracking-[-0.02em] text-[var(--text-primary)]">Neoxra</span>
+        <Link className="flex items-center gap-2.5" href="/">
+          <Image src="/Neoxra_Logo.png" alt="Neoxra" width={34} height={34} className="rounded-lg" />
+          <span className="font-logo text-xl font-bold tracking-[-0.03em] text-[var(--text-primary)]">Neoxra</span>
         </Link>
 
         <nav className="hidden items-center gap-7 lg:flex">

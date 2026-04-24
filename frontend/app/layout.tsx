@@ -6,6 +6,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Neoxra | Multi-agent content system',
   description: 'Turn one idea into platform-native content for LinkedIn, Instagram, and Threads.',
+  icons: { icon: '/favicon.ico' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           crossOrigin="anonymous"
         />
         <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap"
           rel="stylesheet"
         />
         <script
