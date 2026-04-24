@@ -205,7 +205,7 @@ async def render_carousel_endpoint(request: RenderCarouselRequest):
         logger.exception("Carousel rendering failed")
         raise HTTPException(
             status_code=500,
-            detail="Carousel rendering failed.",
+            detail=f"Carousel rendering failed: {exc}",
         ) from exc
 
     zip_buf = _package_zip(response.images)
@@ -501,7 +501,10 @@ async def render_overlay_endpoint(request: RenderOverlayRequest):
         raise HTTPException(status_code=504, detail="Rendering timed out.")
     except Exception as exc:
         logger.exception("Overlay rendering failed")
-        raise HTTPException(status_code=500, detail="Overlay rendering failed.") from exc
+        raise HTTPException(
+            status_code=500,
+            detail=f"Overlay rendering failed: {exc}",
+        ) from exc
 
     zip_buf = _package_zip(response.images)
     return StreamingResponse(
