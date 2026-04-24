@@ -21,6 +21,15 @@ _ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg"}
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 
+def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+    """Convert #RRGGBB to rgba(R,G,B,alpha)."""
+    hex_color = hex_color.lstrip("#")
+    if len(hex_color) == 6:
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+    return f"rgba(0,0,0,{alpha})"
+
+
 def _require_anthropic_api_key() -> None:
     if os.getenv("ANTHROPIC_API_KEY"):
         return
@@ -120,6 +129,28 @@ async def parse_template_image(file: UploadFile = File(...)):
     template_spec = map_parsed_to_template_spec(parsed)
     confidence = _estimate_confidence(parsed)
     description = _build_description(parsed)
+
+    # Embed the uploaded image as the template background
+    media_type = file.content_type or "image/png"
+    image_base64 = f"data:{media_type};base64,{base64.b64encode(image_bytes).decode()}"
+    template_spec["background_image"] = image_base64
+    template_spec["background_type"] = "photo-overlay"
+
+    # Use extracted background color for the overlay tint
+    bg_color = (template_spec.get("colors") or {}).get("background", "#000000")
+    if not bg_color.startswith("linear"):
+        template_spec["background_overlay_color"] = _hex_to_rgba(bg_color, 0.65)
+    else:
+        template_spec["background_overlay_color"] = "rgba(0,0,0,0.5)"
+
+    template_spec["has_frame"] = True
+    template_spec["frame_color"] = "rgba(255,255,255,0.45)"
+    template_spec["frame_inset"] = 52
+    template_spec["frame_border_width"] = 3
+    template_spec["frame_border_radius"] = 12
+    template_spec["content_area_color"] = _hex_to_rgba(bg_color, 0.85)
+    template_spec["content_area_inset"] = 8
+    template_spec["content_area_border_radius"] = 8
 
     return JSONResponse({
         "template_spec": template_spec,

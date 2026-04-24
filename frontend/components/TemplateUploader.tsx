@@ -291,7 +291,12 @@ export function TemplateUploader({ onTemplateExtracted, onCancel }: TemplateUplo
           <div className="mx-auto mt-4 w-full max-w-[160px]">
             <div
               className="relative aspect-square w-full overflow-hidden rounded-[10px]"
-              style={{ backgroundColor: colors.background }}
+              style={{
+                backgroundColor: colors.background,
+                backgroundImage: extractedSpec.backgroundImage ? `url(${extractedSpec.backgroundImage})` : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
             >
               <div
                 className="absolute left-2.5 top-2.5 h-4 w-4 rounded-full text-center text-[7px] font-bold leading-4"

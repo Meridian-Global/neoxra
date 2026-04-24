@@ -90,6 +90,37 @@ def _build_full_render_request(
     )
     template.colors = colors
 
+    # Background / frame fields from custom uploaded templates.
+    # Accept both snake_case (backend-originated) and camelCase (frontend-originated) keys.
+    def _get(snake: str, camel: str):
+        return spec_dict.get(snake, spec_dict.get(camel))
+
+    bg_img = _get("background_image", "backgroundImage")
+    if bg_img:
+        template.background_image = bg_img
+    bg_type = _get("background_type", "backgroundType")
+    if bg_type:
+        template.background_type = bg_type
+    bg_overlay = _get("background_overlay_color", "backgroundOverlayColor")
+    if bg_overlay:
+        template.background_overlay_color = bg_overlay
+    has_frame = _get("has_frame", "hasFrame")
+    if has_frame is not None:
+        template.has_frame = has_frame
+    _FRAME_KEYS = [
+        ("frame_inset", "frameInset"),
+        ("frame_color", "frameColor"),
+        ("frame_border_width", "frameBorderWidth"),
+        ("frame_border_radius", "frameBorderRadius"),
+        ("content_area_color", "contentAreaColor"),
+        ("content_area_inset", "contentAreaInset"),
+        ("content_area_border_radius", "contentAreaBorderRadius"),
+    ]
+    for snake, camel in _FRAME_KEYS:
+        val = _get(snake, camel)
+        if val is not None:
+            setattr(template, snake, val)
+
     if layout.get("text_alignment"):
         template.title_slot.text_align = layout["text_alignment"]
         template.body_slot.text_align = layout["text_alignment"]

@@ -31,6 +31,17 @@ export interface TemplateSpec {
   padding: number
   watermark: string | null
   watermarkPosition: string
+  backgroundImage?: string
+  backgroundType?: string
+  backgroundOverlayColor?: string
+  hasFrame?: boolean
+  frameInset?: number
+  frameColor?: string
+  frameBorderWidth?: number
+  frameBorderRadius?: number
+  contentAreaColor?: string
+  contentAreaInset?: number
+  contentAreaBorderRadius?: number
 }
 
 const DEFAULT_FONT_FAMILY =
@@ -91,6 +102,17 @@ export function mapApiTemplateSpec(raw: Record<string, unknown>): TemplateSpec {
     fontFamily: (raw.font_family as string) ?? (raw.fontFamily as string) ?? undefined,
     borderRadius: (raw.border_radius as number) ?? (raw.borderRadius as number) ?? 0,
     padding: (raw.padding as number) ?? 72,
+    backgroundImage: (raw.background_image as string) ?? (raw.backgroundImage as string) ?? undefined,
+    backgroundType: (raw.background_type as string) ?? (raw.backgroundType as string) ?? undefined,
+    backgroundOverlayColor: (raw.background_overlay_color as string) ?? (raw.backgroundOverlayColor as string) ?? undefined,
+    hasFrame: (raw.has_frame as boolean) ?? (raw.hasFrame as boolean) ?? undefined,
+    frameInset: (raw.frame_inset as number) ?? (raw.frameInset as number) ?? undefined,
+    frameColor: (raw.frame_color as string) ?? (raw.frameColor as string) ?? undefined,
+    frameBorderWidth: (raw.frame_border_width as number) ?? (raw.frameBorderWidth as number) ?? undefined,
+    frameBorderRadius: (raw.frame_border_radius as number) ?? (raw.frameBorderRadius as number) ?? undefined,
+    contentAreaColor: (raw.content_area_color as string) ?? (raw.contentAreaColor as string) ?? undefined,
+    contentAreaInset: (raw.content_area_inset as number) ?? (raw.contentAreaInset as number) ?? undefined,
+    contentAreaBorderRadius: (raw.content_area_border_radius as number) ?? (raw.contentAreaBorderRadius as number) ?? undefined,
   })
 }
 
