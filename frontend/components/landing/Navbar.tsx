@@ -8,6 +8,7 @@ import { ThemeToggle } from './ThemeToggle'
 import NeoxraLogo from './NeoxraLogo'
 
 type NavCopy = {
+  products: string
   features: string
   useCases: string
   resources: string
@@ -26,6 +27,13 @@ const NAV_ITEMS = [
   { key: 'useCases', href: '#platform-output' },
   { key: 'resources', href: '#how-it-works' },
   { key: 'pricing', href: '#cta-footer' },
+] as const
+
+const PRODUCT_LINKS = [
+  { label: 'Instagram', href: '/instagram' },
+  { label: 'Threads', href: '/threads' },
+  { label: 'SEO', href: '/seo' },
+  { label: 'Facebook', href: '/facebook' },
 ] as const
 
 export default function Navbar({ copy, anchorPrefix = '' }: NavbarProps) {
@@ -47,6 +55,23 @@ export default function Navbar({ copy, anchorPrefix = '' }: NavbarProps) {
         </Link>
 
         <nav className="hidden items-center gap-7 lg:flex">
+          <details className="group relative">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]">
+              {copy.products}
+              <span className="text-xs transition group-open:rotate-180">▾</span>
+            </summary>
+            <div className="absolute left-0 top-full z-20 mt-3 w-52 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-2 shadow-[var(--shadow-lg)]">
+              {PRODUCT_LINKS.map((item) => (
+                <Link
+                  key={item.href}
+                  className="block rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-sunken)] hover:text-[var(--text-primary)]"
+                  href={item.href}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </details>
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.key}
@@ -97,6 +122,19 @@ export default function Navbar({ copy, anchorPrefix = '' }: NavbarProps) {
             <LanguageToggle />
             <ThemeToggle />
           </div>
+          <div className="mb-1 px-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            {copy.products}
+          </div>
+          {PRODUCT_LINKS.map((item) => (
+            <Link
+              key={item.href}
+              className="rounded-xl px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+              href={item.href}
+              onClick={() => setOpen(false)}
+            >
+              {item.label}
+            </Link>
+          ))}
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.key}

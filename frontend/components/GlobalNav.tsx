@@ -9,6 +9,7 @@ export function GlobalNav() {
   const copy =
     language === 'zh-TW'
       ? {
+          products: '產品',
           features: '功能',
           useCases: '使用案例',
           resources: '資源',
@@ -17,6 +18,7 @@ export function GlobalNav() {
           getStarted: '開始使用',
         }
       : {
+          products: 'Products',
           features: 'Features',
           useCases: 'Use Cases',
           resources: 'Resources',

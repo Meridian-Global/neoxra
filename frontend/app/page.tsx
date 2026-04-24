@@ -12,6 +12,7 @@ import StatsBar from '../components/landing/StatsBar'
 
 type LocalizedCopy = {
   nav: {
+    products: string
     features: string
     useCases: string
     resources: string
@@ -89,6 +90,7 @@ type LocalizedCopy = {
 const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
   'zh-TW': {
     nav: {
+      products: '產品',
       features: '功能',
       useCases: '使用案例',
       resources: '資源',
@@ -206,6 +208,7 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
   },
   en: {
     nav: {
+      products: 'Products',
       features: 'Features',
       useCases: 'Use Cases',
       resources: 'Resources',
