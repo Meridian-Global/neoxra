@@ -5,8 +5,13 @@ import { DemoAccessGate } from '../../components/DemoAccessGate'
 import { FileUpload } from '../../components/FileUpload'
 import { GlobalNav } from '../../components/GlobalNav'
 import { useLanguage } from '../../components/LanguageProvider'
+import { ServerRenderedCarousel } from '../../components/ServerRenderedCarousel'
+import { TemplateGallery } from '../../components/TemplateGallery'
+import { TemplateUploader } from '../../components/TemplateUploader'
 import { VisualCarouselRenderer } from '../../components/VisualCarouselRenderer'
 import { API_BASE_URL } from '../../lib/api'
+import { renderCarousel } from '../../lib/render-api'
+import { fetchTemplates } from '../../lib/template-api'
 import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../lib/analytics'
 import { createDynamicTheme, type CarouselTheme, type CarouselThemeId } from '../../lib/carousel-themes'
 import { buildDemoHeaders, clearStoredDemoToken, getStoredDemoSource } from '../../lib/demo-access'
@@ -14,7 +19,8 @@ import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { fetchDemoClientConfig } from '../../lib/demo-client-config'
 import { getDeterministicFallbackResult } from '../../lib/demo-fallbacks'
 import { APIError, streamSSE } from '../../lib/sse'
-import type { InstagramContent, Scorecard, StyleAnalysis } from '../../lib/instagram-types'
+import type { InstagramContent, Scorecard, StyleAnalysis, TemplateInfo } from '../../lib/instagram-types'
+import type { TemplateSpec } from '../../lib/template-types'
 import type { DemoClientConfig } from '../../lib/demo-config'
 
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
@@ -72,6 +78,11 @@ type InstagramCopy = {
     copyScript: string
     copyAll: string
     copied: string
+    rendering: string
+    renderError: string
+    chooseTemplate: string
+    changeTemplate: string
+    reRendering: string
   }
   fileUpload: {
     previewAlt: string
@@ -195,6 +206,11 @@ const COPY: Record<Language, InstagramCopy> = {
       copyScript: '複製腳本',
       copyAll: '複製全部',
       copied: '已複製',
+      rendering: '正在渲染高畫質圖片…',
+      renderError: '圖片渲染失敗，使用預覽版本',
+      chooseTemplate: '選擇設計模板',
+      changeTemplate: '更換模板',
+      reRendering: '正在重新渲染…',
     },
     fileUpload: {
       previewAlt: '參考圖片預覽',
@@ -270,6 +286,11 @@ const COPY: Record<Language, InstagramCopy> = {
       copyScript: 'Copy script',
       copyAll: 'Copy all',
       copied: 'Copied',
+      rendering: 'Rendering high-quality images…',
+      renderError: 'Image rendering failed, using preview',
+      chooseTemplate: 'Choose Design Template',
+      changeTemplate: 'Change Template',
+      reRendering: 'Re-rendering…',
     },
     fileUpload: {
       previewAlt: 'Reference image preview',
@@ -446,13 +467,128 @@ function LoadingPreview() {
   )
 }
 
-function InstagramPreview({ bundle, copy, exportDisabled = false, dynamicTheme }: { bundle: PreviewBundle; copy: InstagramCopy; exportDisabled?: boolean; dynamicTheme?: CarouselTheme }) {
-  const [carouselTheme, setCarouselTheme] = useState<CarouselThemeId>('professional')
+const TEMPLATE_TO_THEME: Record<string, CarouselThemeId> = {
+  'professional-dark': 'professional',
+  'bold-gradient': 'bold',
+  'minimal-light': 'minimal',
+}
+
+function InstagramPreview({
+  bundle,
+  copy,
+  exportDisabled = false,
+  dynamicTheme,
+  selectedTemplateId,
+  customTemplateSpec,
+}: {
+  bundle: PreviewBundle
+  copy: InstagramCopy
+  exportDisabled?: boolean
+  dynamicTheme?: CarouselTheme
+  selectedTemplateId: string
+  customTemplateSpec?: TemplateSpec | null
+}) {
+  const fallbackTheme: CarouselThemeId = TEMPLATE_TO_THEME[selectedTemplateId] ?? 'professional'
+  const [carouselTheme, setCarouselTheme] = useState<CarouselThemeId>(fallbackTheme)
+  const [renderedImages, setRenderedImages] = useState<string[]>([])
+  const [isRendering, setIsRendering] = useState(false)
+  const [renderError, setRenderError] = useState<string | null>(null)
+  const lastRenderKeyRef = useRef<string>('')
   const firstSentence = splitSentences(bundle.content.caption)[0] ?? bundle.content.caption
   const remainingCaption = bundle.content.caption.replace(firstSentence, '').trim()
   const allSlidesText = bundle.content.carousel_outline
     .map((slide, index) => `${index + 1}/5\n${slide.title}\n${slide.body}`)
     .join('\n\n')
+
+  const slidesKey = bundle.content.carousel_outline.map((s) => s.title).join('|')
+  const renderKey = `${selectedTemplateId}::${slidesKey}`
+
+  function triggerRender() {
+    const slides = bundle.content.carousel_outline
+    if (slides.length === 0) return
+    setIsRendering(true)
+    setRenderError(null)
+
+    const templateSpec = selectedTemplateId === 'custom' && customTemplateSpec
+      ? (customTemplateSpec as unknown as Record<string, unknown>)
+      : null
+    const templateId = selectedTemplateId === 'custom' ? 'custom' : selectedTemplateId
+
+    renderCarousel(
+      templateId,
+      slides.map((s) => ({
+        title: s.title,
+        body: s.body,
+        text_alignment: s.text_alignment ?? 'center',
+        emphasis: s.emphasis ?? 'normal',
+      })),
+      templateSpec,
+    )
+      .then((images) => {
+        setRenderedImages(images)
+        setIsRendering(false)
+        lastRenderKeyRef.current = renderKey
+      })
+      .catch(() => {
+        setRenderError(copy.labels.renderError)
+        setIsRendering(false)
+      })
+  }
+
+  useEffect(() => {
+    if (bundle.content.carousel_outline.length === 0) return
+    if (renderKey === lastRenderKeyRef.current) return
+    lastRenderKeyRef.current = renderKey
+
+    let cancelled = false
+    setIsRendering(true)
+    setRenderError(null)
+
+    const templateSpec = selectedTemplateId === 'custom' && customTemplateSpec
+      ? (customTemplateSpec as unknown as Record<string, unknown>)
+      : null
+    const templateId = selectedTemplateId === 'custom' ? 'custom' : selectedTemplateId
+
+    renderCarousel(
+      templateId,
+      bundle.content.carousel_outline.map((s) => ({
+        title: s.title,
+        body: s.body,
+        text_alignment: s.text_alignment ?? 'center',
+        emphasis: s.emphasis ?? 'normal',
+      })),
+      templateSpec,
+    )
+      .then((images) => {
+        if (!cancelled) {
+          setRenderedImages(images)
+          setIsRendering(false)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRenderError(copy.labels.renderError)
+          setIsRendering(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [renderKey, bundle.content.carousel_outline, copy.labels.renderError, selectedTemplateId, customTemplateSpec])
+
+  function handleRetryRender() {
+    lastRenderKeyRef.current = ''
+    setRenderedImages([])
+    triggerRender()
+  }
+
+  // Update fallback theme when template changes
+  useEffect(() => {
+    setCarouselTheme(TEMPLATE_TO_THEME[selectedTemplateId] ?? 'professional')
+  }, [selectedTemplateId])
+
+  const useServerRendered = renderedImages.length > 0 || isRendering
 
   return (
     <div className="space-y-8">
@@ -470,14 +606,28 @@ function InstagramPreview({ bundle, copy, exportDisabled = false, dynamicTheme }
         title="📱 Carousel（1-5）"
         action={<CopyButton label={copy.labels.copySlides} copiedLabel={copy.labels.copied} value={allSlidesText} />}
       >
-        <VisualCarouselRenderer
-          slides={bundle.content.carousel_outline}
-          selectedTheme={carouselTheme}
-          onThemeChange={setCarouselTheme}
-          topicSlug={bundle.topic}
-          exportDisabled={exportDisabled}
-          dynamicTheme={dynamicTheme}
-        />
+        {useServerRendered && !renderError ? (
+          <ServerRenderedCarousel
+            images={renderedImages}
+            loading={isRendering}
+            error={null}
+            topicSlug={bundle.topic}
+            slideCount={bundle.content.carousel_outline.length}
+            onRetry={handleRetryRender}
+          />
+        ) : (
+          <VisualCarouselRenderer
+            slides={bundle.content.carousel_outline}
+            selectedTheme={carouselTheme}
+            onThemeChange={setCarouselTheme}
+            topicSlug={bundle.topic}
+            exportDisabled={exportDisabled}
+            dynamicTheme={dynamicTheme}
+          />
+        )}
+        {renderError ? (
+          <p className="mt-2 text-center text-xs text-[var(--text-tertiary)]">{renderError}</p>
+        ) : null}
       </SectionShell>
 
       <SectionShell
@@ -567,6 +717,10 @@ export default function InstagramPage() {
   const [referenceUploadStatus, setReferenceUploadStatus] = useState<ReferenceUploadStatus>('idle')
   const [referenceUploadError, setReferenceUploadError] = useState<string | null>(null)
   const [referencePalette, setReferencePalette] = useState<{ background: string; textPrimary: string; accent: string; textSecondary: string } | null>(null)
+  const [availableTemplates, setAvailableTemplates] = useState<TemplateInfo[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('professional-dark')
+  const [customTemplateSpec, setCustomTemplateSpec] = useState<TemplateSpec | null>(null)
+  const [showTemplateUploader, setShowTemplateUploader] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const latestTopicRef = useRef(topic)
   const referencePreviewUrlRef = useRef<string | null>(null)
@@ -595,6 +749,16 @@ export default function InstagramPage() {
       cancelled = true
     }
   }, [demoConfig.apiSurface, demoConfig.demoKey])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchTemplates()
+      .then((templates) => {
+        if (!cancelled) setAvailableTemplates(templates)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     latestTopicRef.current = topic
@@ -885,6 +1049,20 @@ export default function InstagramPage() {
 
         {!needsAccess ? (
           <>
+            {availableTemplates.length > 0 ? (
+              <section>
+                <TemplateGallery
+                  templates={availableTemplates}
+                  selectedId={selectedTemplateId}
+                  onSelect={(id) => {
+                    setSelectedTemplateId(id)
+                    setCustomTemplateSpec(null)
+                  }}
+                  onUploadCustom={() => setShowTemplateUploader(true)}
+                />
+              </section>
+            ) : null}
+
             <section className="grid gap-6 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]">
               <div className="space-y-6 rounded-[20px] bg-transparent pr-0 lg:pr-6">
                 <div className="space-y-4">
@@ -1018,7 +1196,7 @@ export default function InstagramPage() {
                 {isWorking && !streamedContent ? (
                   <LoadingPreview />
                 ) : previewTab === 'instagram' ? (
-                  <InstagramPreview bundle={displayBundle} copy={copy} exportDisabled={isWorking} dynamicTheme={dynamicTheme} />
+                  <InstagramPreview bundle={displayBundle} copy={copy} exportDisabled={isWorking} dynamicTheme={dynamicTheme} selectedTemplateId={selectedTemplateId} customTemplateSpec={customTemplateSpec} />
                 ) : (
                   <ArticlePreviewPanel bundle={displayBundle} copy={copy} />
                 )}
@@ -1027,6 +1205,21 @@ export default function InstagramPage() {
           </>
         ) : null}
       </div>
+
+      {showTemplateUploader ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-[20px] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-lg)]">
+            <TemplateUploader
+              onTemplateExtracted={(spec) => {
+                setCustomTemplateSpec(spec)
+                setSelectedTemplateId('custom')
+                setShowTemplateUploader(false)
+              }}
+              onCancel={() => setShowTemplateUploader(false)}
+            />
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }
