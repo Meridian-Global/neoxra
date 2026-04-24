@@ -4,6 +4,7 @@ import asyncio
 import base64
 import io
 import logging
+import os
 import zipfile
 
 from fastapi import HTTPException
@@ -20,7 +21,20 @@ router.tags = ["render"]
 logger = logging.getLogger(__name__)
 
 _MAX_SLIDES = 10
-_RENDER_TIMEOUT_SECONDS = 30
+
+
+def _int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+        return value if value > 0 else default
+    except ValueError:
+        return default
+
+
+_RENDER_TIMEOUT_SECONDS = _int_env("NEOXRA_RENDER_TIMEOUT_SECONDS", 90)
 
 
 class SlideInput(BaseModel):
@@ -221,7 +235,7 @@ async def render_carousel_endpoint(request: RenderCarouselRequest):
 # Combined generate-and-render endpoint
 # ---------------------------------------------------------------------------
 
-_GENERATE_AND_RENDER_TIMEOUT_SECONDS = 60
+_GENERATE_AND_RENDER_TIMEOUT_SECONDS = _int_env("NEOXRA_GENERATE_AND_RENDER_TIMEOUT_SECONDS", 120)
 
 
 class GenerateAndRenderRequest(BaseModel):
