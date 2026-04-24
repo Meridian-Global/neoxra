@@ -6,7 +6,7 @@ import io
 import logging
 import zipfile
 
-from fastapi import APIRouter, HTTPException
+from fastapi import HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -82,7 +82,6 @@ def _build_full_render_request(
     colors = _build_color_palette(spec_dict.get("colors", {}))
     layout = spec_dict.get("layout", {})
     typography = spec_dict.get("typography", {})
-    style = spec_dict.get("style", {})
 
     template = TemplateSpec(
         id=spec_dict.get("id", "custom"),
@@ -362,3 +361,151 @@ async def generate_and_render(request: GenerateAndRenderRequest):
         response_data["render_error"] = render_error
 
     return JSONResponse(response_data)
+
+
+# ---------------------------------------------------------------------------
+# Overlay rendering models
+# ---------------------------------------------------------------------------
+
+
+class TextLineInput(BaseModel):
+    text: str
+    emphasis: bool = False
+    partial_emphasis: str = ""
+
+
+class OverlayTextZoneInput(BaseModel):
+    y_start: int
+    y_end: int
+    x_left: int = 72
+    x_right: int = 72
+    font_size: int = 28
+    font_weight: int = 700
+    line_height: float = 1.65
+    text_align: str = "center"
+    color: str = "#FFFFFF"
+    emphasis_color: str = "#FFD700"
+
+
+class OverlaySlideInput(BaseModel):
+    title: str = ""
+    lines: list[TextLineInput]
+
+
+class RenderOverlayRequest(BaseModel):
+    template_image: str
+    slides: list[OverlaySlideInput]
+    title_zone: OverlayTextZoneInput
+    content_zone: OverlayTextZoneInput
+    watermark: str = ""
+    watermark_color: str = "rgba(255,255,255,0.6)"
+    watermark_x: int = 900
+    watermark_y: int = 1040
+    watermark_font_size: int = 24
+    output_size: int = Field(default=1080, ge=256, le=2160)
+
+
+# ---------------------------------------------------------------------------
+# Overlay rendering endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/render/overlay")
+async def render_overlay_endpoint(request: RenderOverlayRequest):
+    """Render slides using overlay mode — template image + text overlay."""
+    if not request.slides:
+        raise HTTPException(status_code=400, detail="At least one slide is required.")
+    if len(request.slides) > _MAX_SLIDES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {_MAX_SLIDES} slides per request.",
+        )
+    if not request.template_image:
+        raise HTTPException(status_code=400, detail="template_image is required.")
+    if not request.template_image.startswith("data:image/"):
+        raise HTTPException(
+            status_code=400,
+            detail="template_image must be a base64 data URL (data:image/png;base64,...).",
+        )
+
+    try:
+        from neoxra_renderer import render_overlay as do_render_overlay
+        from neoxra_renderer import (
+            OverlayRenderRequest as RendererOverlayRequest,
+            OverlaySlide,
+            OverlayTextZone,
+            TextLine,
+        )
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Server-side rendering is not available. neoxra-renderer is not installed.",
+        )
+
+    renderer_slides = [
+        OverlaySlide(
+            title=s.title,
+            lines=[
+                TextLine(
+                    text=line.text,
+                    emphasis=line.emphasis,
+                    partial_emphasis=line.partial_emphasis,
+                )
+                for line in s.lines
+            ],
+        )
+        for s in request.slides
+    ]
+
+    renderer_request = RendererOverlayRequest(
+        template_image=request.template_image,
+        slides=renderer_slides,
+        title_zone=OverlayTextZone(
+            y_start=request.title_zone.y_start,
+            y_end=request.title_zone.y_end,
+            x_left=request.title_zone.x_left,
+            x_right=request.title_zone.x_right,
+            font_size=request.title_zone.font_size,
+            font_weight=request.title_zone.font_weight,
+            line_height=request.title_zone.line_height,
+            text_align=request.title_zone.text_align,
+            color=request.title_zone.color,
+            emphasis_color=request.title_zone.emphasis_color,
+        ),
+        content_zone=OverlayTextZone(
+            y_start=request.content_zone.y_start,
+            y_end=request.content_zone.y_end,
+            x_left=request.content_zone.x_left,
+            x_right=request.content_zone.x_right,
+            font_size=request.content_zone.font_size,
+            font_weight=request.content_zone.font_weight,
+            line_height=request.content_zone.line_height,
+            text_align=request.content_zone.text_align,
+            color=request.content_zone.color,
+            emphasis_color=request.content_zone.emphasis_color,
+        ),
+        watermark=request.watermark,
+        watermark_color=request.watermark_color,
+        watermark_x=request.watermark_x,
+        watermark_y=request.watermark_y,
+        watermark_font_size=request.watermark_font_size,
+        output_size=request.output_size,
+    )
+
+    try:
+        response = await asyncio.wait_for(
+            do_render_overlay(renderer_request),
+            timeout=_RENDER_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Rendering timed out.")
+    except Exception as exc:
+        logger.exception("Overlay rendering failed")
+        raise HTTPException(status_code=500, detail="Overlay rendering failed.") from exc
+
+    zip_buf = _package_zip(response.images)
+    return StreamingResponse(
+        zip_buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="overlay-carousel.zip"'},
+    )

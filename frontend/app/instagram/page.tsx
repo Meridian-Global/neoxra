@@ -8,8 +8,10 @@ import { useLanguage } from '../../components/LanguageProvider'
 import { ServerRenderedCarousel } from '../../components/ServerRenderedCarousel'
 import { TemplateGallery } from '../../components/TemplateGallery'
 import { TemplateUploader } from '../../components/TemplateUploader'
+import { OverlayEditor } from '../../components/OverlayEditor'
 import { VisualCarouselRenderer } from '../../components/VisualCarouselRenderer'
 import { API_BASE_URL } from '../../lib/api'
+import { Upload } from 'lucide-react'
 import { renderCarousel } from '../../lib/render-api'
 import { fetchTemplates } from '../../lib/template-api'
 import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../lib/analytics'
@@ -751,6 +753,10 @@ export default function InstagramPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('editorial-green')
   const [customTemplateSpec, setCustomTemplateSpec] = useState<TemplateSpec | null>(null)
   const [showTemplateUploader, setShowTemplateUploader] = useState(false)
+  type PageMode = 'ai-generate' | 'template-overlay'
+  const [pageMode, setPageMode] = useState<PageMode>('ai-generate')
+  const [overlayTemplateImage, setOverlayTemplateImage] = useState<string | null>(null)
+  const [overlayRenderedImages, setOverlayRenderedImages] = useState<string[]>([])
   const abortRef = useRef<AbortController | null>(null)
   const latestTopicRef = useRef(topic)
   const referencePreviewUrlRef = useRef<string | null>(null)
@@ -1062,11 +1068,54 @@ export default function InstagramPage() {
     })
   }
 
+  function handleOverlayTemplateUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setOverlayTemplateImage(reader.result)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
   return (
     <main className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 pb-16 pt-8 sm:px-6 lg:px-8">
         <GlobalNav />
 
+        {/* Mode toggle */}
+        <div className="flex justify-center">
+          <div className="inline-flex gap-1 rounded-full bg-[var(--bg-sunken)] p-1">
+            <button
+              type="button"
+              onClick={() => setPageMode('ai-generate')}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                pageMode === 'ai-generate'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm'
+                  : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+              }`}
+            >
+              {language === 'zh-TW' ? 'AI 生成' : 'AI Generate'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPageMode('template-overlay')}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                pageMode === 'template-overlay'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm'
+                  : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+              }`}
+            >
+              {language === 'zh-TW' ? '模板套用' : 'Template Overlay'}
+            </button>
+          </div>
+        </div>
+
+        {pageMode === 'ai-generate' ? (
+        <>
         {needsAccess ? (
           <section className="pt-10">
             <DemoAccessGate
@@ -1237,6 +1286,59 @@ export default function InstagramPage() {
             </section>
           </>
         ) : null}
+        </>
+        ) : (
+          <>
+            {!overlayTemplateImage ? (
+              <section className="flex flex-col items-center gap-6 pt-10">
+                <div className="text-center">
+                  <h2 className="text-xl font-bold text-[var(--text-primary)]">
+                    {language === 'zh-TW' ? '上傳空白模板' : 'Upload Blank Template'}
+                  </h2>
+                  <p className="mt-2 text-sm text-[var(--text-tertiary)]">
+                    {language === 'zh-TW'
+                      ? '上傳你的模板圖片 (1080×1080 PNG/JPG)，然後貼上文字內容'
+                      : 'Upload your template image (1080×1080 PNG/JPG), then paste your text content'}
+                  </p>
+                </div>
+                <label className="flex h-48 w-full max-w-md cursor-pointer flex-col items-center justify-center gap-3 rounded-[16px] border-2 border-dashed border-[var(--border)] bg-[var(--bg-sunken)] transition hover:border-[var(--accent)]">
+                  <Upload className="h-8 w-8 text-[var(--text-tertiary)]" />
+                  <span className="text-sm font-medium text-[var(--text-tertiary)]">
+                    {language === 'zh-TW' ? '點擊或拖放上傳' : 'Click or drag to upload'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={handleOverlayTemplateUpload}
+                  />
+                </label>
+              </section>
+            ) : (
+              <section className="space-y-6">
+                <OverlayEditor
+                  templateImage={overlayTemplateImage}
+                  onRenderComplete={(images) => setOverlayRenderedImages(images)}
+                  onBack={() => {
+                    setOverlayTemplateImage(null)
+                    setOverlayRenderedImages([])
+                  }}
+                />
+                {overlayRenderedImages.length > 0 && (
+                  <div className="mx-auto max-w-xl">
+                    <ServerRenderedCarousel
+                      images={overlayRenderedImages}
+                      loading={false}
+                      error={null}
+                      topicSlug="overlay-render"
+                      slideCount={overlayRenderedImages.length}
+                    />
+                  </div>
+                )}
+              </section>
+            )}
+          </>
+        )}
       </div>
 
       {showTemplateUploader ? (
