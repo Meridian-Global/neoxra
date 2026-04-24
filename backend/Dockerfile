@@ -37,17 +37,19 @@ RUN pip install --upgrade pip setuptools wheel \
 # Runtime stage: includes Playwright Chromium for server-side rendering
 FROM python:3.11-slim
 
+# Pin Playwright browser path so build-time install is found at runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PORT=8000 \
-    PATH="/venv/bin:$PATH"
+    PATH="/venv/bin:$PATH" \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 
 WORKDIR /app
 
 COPY --from=builder /venv /venv
 
-# Install Playwright system dependencies and Chromium browser
+# Install Playwright system dependencies and Chromium browser into the pinned path
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
@@ -61,7 +63,8 @@ COPY . .
 RUN python scripts/check_neoxra_core.py \
     && addgroup --system app \
     && adduser --system --ingroup app --home /app app \
-    && chown -R app:app /app
+    && chown -R app:app /app \
+    && chmod -R a+rX /opt/pw-browsers
 
 USER app
 
