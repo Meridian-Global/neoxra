@@ -46,4 +46,6 @@ export interface TemplateInfo {
     accent: string
   }
   style: string
+  hasFrame?: boolean
+  backgroundType?: string
 }

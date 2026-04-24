@@ -30,9 +30,16 @@ function slugifyTopic(topicSlug: string) {
 
 async function downloadAllAsZip(images: string[], topicSlug: string) {
   const zip = new JSZip()
-  for (const [i, dataUrl] of images.entries()) {
-    const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-    zip.file(`slide-${String(i + 1).padStart(2, '0')}.png`, base64, { base64: true })
+  for (const [i, image] of images.entries()) {
+    const name = `slide-${String(i + 1).padStart(2, '0')}.png`
+    if (image.startsWith('data:')) {
+      const base64 = image.replace(/^data:image\/png;base64,/, '')
+      zip.file(name, base64, { base64: true })
+    } else {
+      const response = await fetch(image)
+      const blob = await response.blob()
+      zip.file(name, blob)
+    }
   }
   const blob = await zip.generateAsync({ type: 'blob' })
   saveAs(blob, `${slugifyTopic(topicSlug)}-carousel.zip`)

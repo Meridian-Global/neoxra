@@ -467,10 +467,22 @@ function LoadingPreview() {
   )
 }
 
+function buildSamplePaths(templateId: string, locale: Language): string[] {
+  return Array.from({ length: 5 }, (_, i) =>
+    `/samples/instagram/${templateId}/${locale}/slide-${String(i + 1).padStart(2, '0')}.png`
+  )
+}
+
+const DEFAULT_SLIDES_KEY_ZH = DEFAULT_PREVIEWS['zh-TW'].content.carousel_outline.map((s) => s.title).join('|')
+const DEFAULT_SLIDES_KEY_EN = DEFAULT_PREVIEWS.en.content.carousel_outline.map((s) => s.title).join('|')
+const DEFAULT_SLIDES_KEYS: Record<Language, string> = { 'zh-TW': DEFAULT_SLIDES_KEY_ZH, en: DEFAULT_SLIDES_KEY_EN }
+
 const TEMPLATE_TO_THEME: Record<string, CarouselThemeId> = {
-  'professional-dark': 'professional',
-  'bold-gradient': 'bold',
-  'minimal-light': 'minimal',
+  'editorial-green': 'professional',
+  'luxury-dark': 'professional',
+  'fresh-coral': 'bold',
+  'modern-minimal': 'minimal',
+  'ocean-editorial': 'professional',
 }
 
 function InstagramPreview({
@@ -480,6 +492,7 @@ function InstagramPreview({
   dynamicTheme,
   selectedTemplateId,
   customTemplateSpec,
+  language,
 }: {
   bundle: PreviewBundle
   copy: InstagramCopy
@@ -487,6 +500,7 @@ function InstagramPreview({
   dynamicTheme?: CarouselTheme
   selectedTemplateId: string
   customTemplateSpec?: TemplateSpec | null
+  language: Language
 }) {
   const fallbackTheme: CarouselThemeId = TEMPLATE_TO_THEME[selectedTemplateId] ?? 'professional'
   const [carouselTheme, setCarouselTheme] = useState<CarouselThemeId>(fallbackTheme)
@@ -502,6 +516,10 @@ function InstagramPreview({
 
   const slidesKey = bundle.content.carousel_outline.map((s) => s.title).join('|')
   const renderKey = `${selectedTemplateId}::${slidesKey}`
+  const isDefaultPreview = slidesKey === DEFAULT_SLIDES_KEYS[language]
+  const staticSamplePaths = isDefaultPreview && selectedTemplateId !== 'custom'
+    ? buildSamplePaths(selectedTemplateId, language)
+    : null
 
   function triggerRender() {
     const slides = bundle.content.carousel_outline
@@ -540,6 +558,14 @@ function InstagramPreview({
     if (renderKey === lastRenderKeyRef.current) return
     lastRenderKeyRef.current = renderKey
 
+    // Use pre-rendered static images for default sample content
+    if (staticSamplePaths) {
+      setRenderedImages(staticSamplePaths)
+      setIsRendering(false)
+      setRenderError(null)
+      return
+    }
+
     let cancelled = false
     setIsRendering(true)
     setRenderError(null)
@@ -575,11 +601,15 @@ function InstagramPreview({
     return () => {
       cancelled = true
     }
-  }, [renderKey, bundle.content.carousel_outline, copy.labels.renderError, selectedTemplateId, customTemplateSpec])
+  }, [renderKey, bundle.content.carousel_outline, copy.labels.renderError, selectedTemplateId, customTemplateSpec, staticSamplePaths])
 
   function handleRetryRender() {
     lastRenderKeyRef.current = ''
     setRenderedImages([])
+    if (staticSamplePaths) {
+      setRenderedImages(staticSamplePaths)
+      return
+    }
     triggerRender()
   }
 
@@ -718,7 +748,7 @@ export default function InstagramPage() {
   const [referenceUploadError, setReferenceUploadError] = useState<string | null>(null)
   const [referencePalette, setReferencePalette] = useState<{ background: string; textPrimary: string; accent: string; textSecondary: string } | null>(null)
   const [availableTemplates, setAvailableTemplates] = useState<TemplateInfo[]>([])
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('professional-dark')
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('editorial-green')
   const [customTemplateSpec, setCustomTemplateSpec] = useState<TemplateSpec | null>(null)
   const [showTemplateUploader, setShowTemplateUploader] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -1049,21 +1079,7 @@ export default function InstagramPage() {
 
         {!needsAccess ? (
           <>
-            {availableTemplates.length > 0 ? (
-              <section>
-                <TemplateGallery
-                  templates={availableTemplates}
-                  selectedId={selectedTemplateId}
-                  onSelect={(id) => {
-                    setSelectedTemplateId(id)
-                    setCustomTemplateSpec(null)
-                  }}
-                  onUploadCustom={() => setShowTemplateUploader(true)}
-                />
-              </section>
-            ) : null}
-
-            <section className="grid gap-6 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]">
+            <section className="grid gap-6 lg:grid-cols-[minmax(0,0.55fr)_minmax(0,0.45fr)]">
               <div className="space-y-6 rounded-[20px] bg-transparent pr-0 lg:pr-6">
                 <div className="space-y-4">
                   <label htmlFor="instagram-topic" className="block text-sm font-medium text-[var(--text-secondary)]">
@@ -1166,6 +1182,22 @@ export default function InstagramPage() {
                 </div>
               </div>
 
+              <div className="space-y-6">
+                {availableTemplates.length > 0 ? (
+                  <div className="rounded-[20px] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
+                    <TemplateGallery
+                      templates={availableTemplates}
+                      selectedId={selectedTemplateId}
+                      onSelect={(id) => {
+                        setSelectedTemplateId(id)
+                        setCustomTemplateSpec(null)
+                      }}
+                      onUploadCustom={() => setShowTemplateUploader(true)}
+                      compact
+                    />
+                  </div>
+                ) : null}
+
               <div className="rounded-[20px] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-sm)]">
                 <div className="sticky top-[72px] z-10 mb-6 flex items-end justify-between gap-4 border-b border-[var(--border)] bg-[var(--bg-elevated)] pb-4">
                   <div>
@@ -1196,10 +1228,11 @@ export default function InstagramPage() {
                 {isWorking && !streamedContent ? (
                   <LoadingPreview />
                 ) : previewTab === 'instagram' ? (
-                  <InstagramPreview bundle={displayBundle} copy={copy} exportDisabled={isWorking} dynamicTheme={dynamicTheme} selectedTemplateId={selectedTemplateId} customTemplateSpec={customTemplateSpec} />
+                  <InstagramPreview bundle={displayBundle} copy={copy} exportDisabled={isWorking} dynamicTheme={dynamicTheme} selectedTemplateId={selectedTemplateId} customTemplateSpec={customTemplateSpec} language={language} />
                 ) : (
                   <ArticlePreviewPanel bundle={displayBundle} copy={copy} />
                 )}
+              </div>
               </div>
             </section>
           </>

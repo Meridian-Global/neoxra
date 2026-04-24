@@ -86,6 +86,18 @@ export function TemplateGallery({
                 </span>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={onUploadCustom}
+              className="flex shrink-0 flex-col items-center gap-1.5 rounded-[10px] border-2 border-dashed border-[var(--border)] p-1.5 transition hover:border-[var(--accent)]"
+            >
+              <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[8px] bg-[var(--bg-sunken)]">
+                <Upload className="h-5 w-5 text-[var(--text-tertiary)]" />
+              </div>
+              <span className="max-w-[72px] truncate text-[10px] font-medium text-[var(--text-tertiary)]">
+                {copy.uploadCustom}
+              </span>
+            </button>
           </div>
         )}
       </div>

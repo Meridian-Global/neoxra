@@ -103,7 +103,7 @@ class TestGenerateAndRenderMocked:
         ):
             response = client.post(
                 "/api/instagram/generate-and-render",
-                json={"topic": "AI tools for lawyers", "template_id": "professional-dark"},
+                json={"topic": "AI tools for lawyers", "template_id": "editorial-green"},
             )
 
         assert response.status_code == 200
@@ -128,7 +128,7 @@ class TestGenerateAndRenderMocked:
         ):
             response = client.post(
                 "/api/instagram/generate-and-render",
-                json={"topic": "test", "template_id": "bold-gradient"},
+                json={"topic": "test", "template_id": "luxury-dark"},
             )
 
         data = response.json()
@@ -175,7 +175,7 @@ class TestGenerateAndRenderMocked:
             # No neoxra_renderer mock → import will fail → render_error returned
             response = client.post(
                 "/api/instagram/generate-and-render",
-                json={"topic": "test topic", "template_id": "professional-dark"},
+                json={"topic": "test topic", "template_id": "editorial-green"},
             )
 
         assert response.status_code == 200
