@@ -35,3 +35,15 @@ export interface InstagramResult {
   critique: string;
   style_analysis: StyleAnalysis;
 }
+
+export interface TemplateInfo {
+  id: string
+  name: string
+  nameZh: string
+  previewColors: {
+    background: string
+    textPrimary: string
+    accent: string
+  }
+  style: string
+}
