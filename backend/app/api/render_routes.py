@@ -13,8 +13,10 @@ from pydantic import BaseModel, Field
 from ..core.instagram_pipeline import generate_instagram_content
 from ..core.localization import DEFAULT_LOCALE
 from ..core.template_registry import get_template
+from .access_groups import build_gated_demo_router
 
-router = APIRouter(tags=["render"])
+router = build_gated_demo_router()
+router.tags = ["render"]
 logger = logging.getLogger(__name__)
 
 _MAX_SLIDES = 10
@@ -173,7 +175,7 @@ async def render_carousel_endpoint(request: RenderCarouselRequest):
         logger.exception("Carousel rendering failed")
         raise HTTPException(
             status_code=500,
-            detail=f"Rendering failed: {exc}",
+            detail="Rendering failed due to an internal server error.",
         ) from exc
 
     zip_buf = _package_zip(response.images)
@@ -197,7 +199,6 @@ class GenerateAndRenderRequest(BaseModel):
     template_id: str = "professional-dark"
     template_spec: dict | None = None
     goal: str = "engagement"
-    voice_profile: str = "default"
     locale: str = DEFAULT_LOCALE
     reference_image_description: str = ""
 
@@ -264,7 +265,7 @@ async def _render_images(
         logger.exception("Carousel rendering failed during generate-and-render")
         raise HTTPException(
             status_code=500,
-            detail=f"Rendering failed: {exc}",
+            detail="Rendering failed.",
         ) from exc
 
     return response.images
@@ -288,7 +289,6 @@ async def generate_and_render(request: GenerateAndRenderRequest):
                 goal=request.goal,
                 locale=request.locale,
                 reference_image_description=request.reference_image_description,
-                voice_profile=request.voice_profile,
             ),
             timeout=_GENERATE_AND_RENDER_TIMEOUT_SECONDS,
         )

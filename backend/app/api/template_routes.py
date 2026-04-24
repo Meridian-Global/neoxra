@@ -1,17 +1,20 @@
 """Template management API endpoints."""
 
+import asyncio
 import base64
 import json
 import logging
 import os
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from ..core.template_parsing_prompt import TEMPLATE_PARSE_PROMPT, map_parsed_to_template_spec
 from ..core.template_registry import get_template, list_templates
+from .access_groups import build_gated_demo_router
 
-router = APIRouter(tags=["templates"])
+router = build_gated_demo_router()
+router.tags = ["templates"]
 logger = logging.getLogger(__name__)
 
 _ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg"}
@@ -56,31 +59,34 @@ async def parse_template_image(file: UploadFile = File(...)):
     try:
         from anthropic import Anthropic
 
-        client = Anthropic()
-        response = client.messages.create(
-            model=os.getenv("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-20250514"),
-            max_tokens=1024,
-            temperature=0,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": file.content_type,
-                                "data": base64.b64encode(image_bytes).decode("ascii"),
+        def _call_anthropic() -> object:
+            client = Anthropic()
+            return client.messages.create(
+                model=os.getenv("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-20250514"),
+                max_tokens=1024,
+                temperature=0,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": file.content_type,
+                                    "data": base64.b64encode(image_bytes).decode("ascii"),
+                                },
                             },
-                        },
-                        {
-                            "type": "text",
-                            "text": TEMPLATE_PARSE_PROMPT,
-                        },
-                    ],
-                }
-            ],
-        )
+                            {
+                                "type": "text",
+                                "text": TEMPLATE_PARSE_PROMPT,
+                            },
+                        ],
+                    }
+                ],
+            )
+
+        response = await asyncio.to_thread(_call_anthropic)
     except HTTPException:
         raise
     except Exception as exc:

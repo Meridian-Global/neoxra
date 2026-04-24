@@ -77,7 +77,6 @@ async def generate_instagram_content(
     locale: str = DEFAULT_LOCALE,
     reference_image_description: str = "",
     template_text: str | None = None,
-    voice_profile: str = "default",
 ) -> InstagramGenerationResult:
     """Run the Instagram generation pipeline and return structured content.
 
