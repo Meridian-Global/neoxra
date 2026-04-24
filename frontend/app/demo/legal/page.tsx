@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { GlobalNav } from '../../../components/GlobalNav'
+import { ServerRenderedCarousel } from '../../../components/ServerRenderedCarousel'
 import { API_BASE_URL } from '../../../lib/api'
+import { renderCarousel } from '../../../lib/render-api'
 import { normalizeLegalLivePayload } from '../../../lib/legal-live-parser'
 import { APIError, streamSSE } from '../../../lib/sse'
 import type { CarouselSlide, InstagramContent } from '../../../lib/instagram-types'
@@ -287,6 +289,76 @@ function CarouselDeck({ slides }: { slides: CarouselSlide[] }) {
   )
 }
 
+const SAMPLE_CAROUSEL_SLIDES = [
+  { title: '簽約前先看這 5 點', body: '租約裡最常忽略的條款，往往在搬離時才會變成問題。' },
+  { title: '押金怎樣才合理', body: '押金金額、扣除條件與返還時程，都應該在簽約前確認。' },
+  { title: '修繕責任怎麼分', body: '漏水、設備損壞由誰處理，合約上要有明確約定。' },
+  { title: '提前解約的條件', body: '通知期限、違約金計算與例外情況，都要事先看清楚。' },
+  { title: '專業協助最安心', body: '涉及押金扣留或違約爭議時，建議及早諮詢律師。' },
+]
+const SAMPLE_CAROUSEL_TEMPLATE = 'professional-dark'
+
+function SampleCarouselSection() {
+  const [renderedImages, setRenderedImages] = useState<string[]>([])
+  const [isRendering, setIsRendering] = useState(false)
+  const [renderError, setRenderError] = useState<string | null>(null)
+  const hasTriggeredRef = useRef(false)
+
+  useEffect(() => {
+    if (hasTriggeredRef.current) return
+    hasTriggeredRef.current = true
+
+    setIsRendering(true)
+    renderCarousel(
+      SAMPLE_CAROUSEL_TEMPLATE,
+      SAMPLE_CAROUSEL_SLIDES.map((s) => ({
+        title: s.title,
+        body: s.body,
+        text_alignment: 'center',
+        emphasis: 'normal',
+      })),
+    )
+      .then((images) => {
+        setRenderedImages(images)
+        setIsRendering(false)
+      })
+      .catch(() => {
+        setRenderError('render_failed')
+        setIsRendering(false)
+      })
+  }, [])
+
+  return (
+    <div className="space-y-5">
+      {renderedImages.length > 0 || isRendering ? (
+        <>
+          <ServerRenderedCarousel
+            images={renderedImages}
+            loading={isRendering}
+            error={null}
+            topicSlug="legal-sample"
+            slideCount={SAMPLE_CAROUSEL_SLIDES.length}
+          />
+          <p className="text-center text-xs text-[var(--text-tertiary)]">
+            由 Neoxra AI 生成 + 渲染
+          </p>
+        </>
+      ) : (
+        <CarouselDeck slides={SAMPLE_CAROUSEL_SLIDES} />
+      )}
+
+      <div className="flex justify-center pt-2">
+        <Link
+          href="/instagram"
+          className="inline-flex items-center justify-center rounded-[8px] bg-[image:var(--gradient-cta)] px-6 py-3 text-[15px] font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
+        >
+          用你的主題試試看
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function ShowcaseTabs({
   content,
   activeTab,
@@ -553,6 +625,16 @@ export default function LegalLandingPage() {
               <h3 className="text-2xl font-black text-[var(--text-primary)]">{activeCase.label}</h3>
             </div>
             <ShowcaseTabs content={activeCase.instagram} activeTab={activeSampleTab} onChange={setActiveSampleTab} />
+          </SurfaceCard>
+        </LegalSection>
+
+        <LegalSection
+          eyebrow="範例 INSTAGRAM 輪播"
+          title="AI 渲染的輪播圖片"
+          description="以下是用 Neoxra AI 自動生成的法律主題 Instagram 輪播，直接產出 1080×1080 高畫質 PNG 圖片。"
+        >
+          <SurfaceCard className="p-6 md:p-8">
+            <SampleCarouselSection />
           </SurfaceCard>
         </LegalSection>
 

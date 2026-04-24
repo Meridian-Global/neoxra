@@ -28,6 +28,7 @@ interface TemplateGalleryProps {
   onSelect: (templateId: string) => void
   onUploadCustom: () => void
   loading?: boolean
+  compact?: boolean
 }
 
 export function TemplateGallery({
@@ -36,9 +37,60 @@ export function TemplateGallery({
   onSelect,
   onUploadCustom,
   loading = false,
+  compact = false,
 }: TemplateGalleryProps) {
   const { language } = useLanguage()
   const copy = COPY[language]
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-[var(--text-tertiary)]">{copy.title}</p>
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-bold)] border-t-[var(--text-primary)]" />
+            {copy.loading}
+          </div>
+        ) : templates.length === 0 ? null : (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => onSelect(template.id)}
+                className={`group flex shrink-0 flex-col items-center gap-1.5 rounded-[10px] p-1.5 transition ${
+                  selectedId === template.id
+                    ? 'bg-[var(--bg-elevated)] ring-2 ring-[var(--accent)]'
+                    : 'hover:bg-[var(--bg-elevated)]'
+                }`}
+              >
+                <div
+                  className="relative h-[72px] w-[72px] overflow-hidden rounded-[8px]"
+                  style={{ backgroundColor: template.previewColors.background }}
+                >
+                  <div
+                    className="absolute left-1.5 top-1.5 h-3 w-3 rounded-full"
+                    style={{ backgroundColor: template.previewColors.accent }}
+                  />
+                  <div className="absolute left-2 right-2 top-[38%] space-y-1">
+                    <div className="h-1.5 w-[70%] rounded-full" style={{ backgroundColor: template.previewColors.textPrimary, opacity: 0.85 }} />
+                    <div className="h-1.5 w-[50%] rounded-full" style={{ backgroundColor: template.previewColors.textPrimary, opacity: 0.85 }} />
+                  </div>
+                  <div className="absolute bottom-[22%] left-2 right-2 space-y-0.5">
+                    <div className="h-1 w-[85%] rounded-full" style={{ backgroundColor: template.previewColors.textPrimary, opacity: 0.3 }} />
+                    <div className="h-1 w-[60%] rounded-full" style={{ backgroundColor: template.previewColors.textPrimary, opacity: 0.3 }} />
+                  </div>
+                </div>
+                <span className="max-w-[72px] truncate text-[10px] font-medium text-[var(--text-tertiary)]">
+                  {language === 'zh-TW' ? template.nameZh : template.name}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

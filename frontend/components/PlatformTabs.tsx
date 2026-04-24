@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FacebookPreview } from './FacebookPreview'
 import { useLanguage } from './LanguageProvider'
+import { ServerRenderedCarousel } from './ServerRenderedCarousel'
 import { SeoArticlePreview } from './SeoArticlePreview'
 import { ThreadsPreview } from './ThreadsPreview'
 import { PlatformIcon } from './ui'
 import { VisualCarouselRenderer } from './VisualCarouselRenderer'
 import type { PipelineStepStatus } from './PipelineProgress'
+import { renderCarousel } from '../lib/render-api'
 import { toHTML, toMarkdown } from '../lib/seo-export'
 import type { CarouselThemeId } from '../lib/carousel-themes'
 import type { FacebookPost } from '../lib/facebook-types'
@@ -46,6 +48,7 @@ const COPY: Record<Language, Record<string, string>> = {
     copyHashtags: '複製 hashtags',
     copyMarkdown: '複製 Markdown',
     copyHtml: '複製 HTML',
+    renderError: '圖片渲染失敗，使用預覽版本',
   },
   en: {
     copied: 'Copied',
@@ -57,6 +60,7 @@ const COPY: Record<Language, Record<string, string>> = {
     copyHashtags: 'Copy hashtags',
     copyMarkdown: 'Copy Markdown',
     copyHtml: 'Copy HTML',
+    renderError: 'Image rendering failed, using preview',
   },
 }
 
@@ -105,19 +109,65 @@ function InstagramTab({
   topicSlug,
   exportDisabled,
   copy,
+  selectedTemplateId,
 }: {
   content?: InstagramContent
   topicSlug: string
   exportDisabled: boolean
   copy: Record<string, string>
+  selectedTemplateId: string
 }) {
   const [theme, setTheme] = useState<CarouselThemeId>('professional')
+  const [renderedImages, setRenderedImages] = useState<string[]>([])
+  const [isRendering, setIsRendering] = useState(false)
+  const [renderError, setRenderError] = useState<string | null>(null)
+  const lastRenderKeyRef = useRef<string>('')
+
+  const slides = content?.carousel_outline ?? []
+  const slidesKey = slides.map((s) => s.title).join('|')
+  const renderKey = `${selectedTemplateId}::${slidesKey}`
+
+  useEffect(() => {
+    if (slides.length === 0) return
+    if (renderKey === lastRenderKeyRef.current) return
+    lastRenderKeyRef.current = renderKey
+
+    let cancelled = false
+    setIsRendering(true)
+    setRenderError(null)
+
+    renderCarousel(
+      selectedTemplateId,
+      slides.map((s) => ({
+        title: s.title,
+        body: s.body,
+        text_alignment: s.text_alignment ?? 'center',
+        emphasis: s.emphasis ?? 'normal',
+      })),
+    )
+      .then((images) => {
+        if (!cancelled) {
+          setRenderedImages(images)
+          setIsRendering(false)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRenderError(copy.renderError ?? 'Rendering failed')
+          setIsRendering(false)
+        }
+      })
+
+    return () => { cancelled = true }
+  }, [renderKey, slides, copy.renderError, selectedTemplateId])
 
   if (!content) return <EmptyState label="Instagram" copy={copy} />
 
   const slidesText = content.carousel_outline
     .map((slide, index) => `${index + 1}/${content.carousel_outline.length}\n${slide.title}\n${slide.body}`)
     .join('\n\n')
+
+  const useServerRendered = renderedImages.length > 0 || isRendering
 
   return (
     <div className="space-y-6">
@@ -136,13 +186,26 @@ function InstagramTab({
           <h3 className="text-lg font-bold text-[var(--text-primary)]">Carousel</h3>
           <CopyButton label={copy.copySlides} copiedLabel={copy.copied} value={slidesText} />
         </div>
-        <VisualCarouselRenderer
-          slides={content.carousel_outline}
-          selectedTheme={theme}
-          onThemeChange={setTheme}
-          topicSlug={topicSlug}
-          exportDisabled={exportDisabled}
-        />
+        {useServerRendered && !renderError ? (
+          <ServerRenderedCarousel
+            images={renderedImages}
+            loading={isRendering}
+            error={null}
+            topicSlug={topicSlug}
+            slideCount={content.carousel_outline.length}
+          />
+        ) : (
+          <VisualCarouselRenderer
+            slides={content.carousel_outline}
+            selectedTheme={theme}
+            onThemeChange={setTheme}
+            topicSlug={topicSlug}
+            exportDisabled={exportDisabled}
+          />
+        )}
+        {renderError ? (
+          <p className="mt-2 text-center text-xs text-[var(--text-tertiary)]">{renderError}</p>
+        ) : null}
       </section>
 
       <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
@@ -182,12 +245,14 @@ export function PlatformTabs({
   errors,
   topicSlug,
   isGenerating,
+  selectedTemplateId = 'professional-dark',
 }: {
   results: PlatformResults
   statuses: PlatformStatuses
   errors: PlatformErrors
   topicSlug: string
   isGenerating: boolean
+  selectedTemplateId?: string
 }) {
   const { language } = useLanguage()
   const copy = COPY[language]
@@ -227,7 +292,7 @@ export function PlatformTabs({
         {errors[active.id] ? (
           <EmptyState label={active.label} error={errors[active.id]} copy={copy} />
         ) : active.id === 'instagram' ? (
-          <InstagramTab content={results.instagram} topicSlug={topicSlug} exportDisabled={isGenerating} copy={copy} />
+          <InstagramTab content={results.instagram} topicSlug={topicSlug} exportDisabled={isGenerating} copy={copy} selectedTemplateId={selectedTemplateId} />
         ) : active.id === 'seo' ? (
           <SeoTab article={results.seo} copy={copy} />
         ) : active.id === 'threads' ? (
