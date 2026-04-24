@@ -5,8 +5,11 @@ import { GlobalNav } from '../../components/GlobalNav'
 import { useLanguage } from '../../components/LanguageProvider'
 import { PipelineProgress, type PipelineStep, type PipelineStepStatus } from '../../components/PipelineProgress'
 import { PlatformTabs, type PlatformErrors, type PlatformResults, type PlatformStatuses } from '../../components/PlatformTabs'
+import { TemplateGallery } from '../../components/TemplateGallery'
 import { API_BASE_URL } from '../../lib/api'
 import { getCarouselTheme } from '../../lib/carousel-themes'
+import type { TemplateInfo } from '../../lib/instagram-types'
+import { fetchTemplates } from '../../lib/template-api'
 import { buildDemoHeaders } from '../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { DEMO_SCENARIOS, type DemoScenario } from '../../lib/demo-scenarios'
@@ -43,6 +46,7 @@ type GenerateCopy = {
   deliveryBody: string
   packing: string
   downloadAll: string
+  templatePicker: string
   errors: {
     unavailable: string
     invalid: string
@@ -82,6 +86,7 @@ const COPY: Record<Language, GenerateCopy> = {
     deliveryBody: '一鍵下載 Instagram 圖片、caption、SEO Markdown/HTML、Threads 與 Facebook 文案。',
     packing: '打包中…',
     downloadAll: '下載全部 ZIP',
+    templatePicker: '選擇 Instagram 模板',
     errors: {
       unavailable: 'Generate All 服務目前尚未開啟，請確認 core 能力與 API key。',
       invalid: '請確認主題、產業與語氣設定後再試一次。',
@@ -137,6 +142,7 @@ const COPY: Record<Language, GenerateCopy> = {
     deliveryBody: 'Download Instagram images, caption, SEO Markdown/HTML, Threads, and Facebook copy in one ZIP.',
     packing: 'Packaging…',
     downloadAll: 'Download ZIP',
+    templatePicker: 'Choose Instagram Template',
     errors: {
       unavailable: 'Generate All is not available yet. Please check core capabilities and API key configuration.',
       invalid: 'Please check the topic, industry, and voice settings before trying again.',
@@ -295,6 +301,8 @@ export default function GeneratePage() {
   const [pageError, setPageError] = useState<string | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [availableTemplates, setAvailableTemplates] = useState<TemplateInfo[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('professional-dark')
   const abortRef = useRef<AbortController | null>(null)
   const runSlugRef = useRef<string>('')
   const exportSlideRefs = useRef<HTMLDivElement[]>([])
@@ -305,6 +313,14 @@ export default function GeneratePage() {
     setIdea(copy.defaultIdea)
     setAudience(copy.defaultAudience)
   }, [copy.defaultAudience, copy.defaultIdea])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchTemplates()
+      .then((templates) => { if (!cancelled) setAvailableTemplates(templates) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const progressSteps: PipelineStep[] = [
     { id: 'planner', label: 'Planner', status: plannerStatus },
@@ -567,6 +583,16 @@ export default function GeneratePage() {
               </SelectField>
             </div>
 
+            {availableTemplates.length > 0 ? (
+              <TemplateGallery
+                templates={availableTemplates}
+                selectedId={selectedTemplateId}
+                onSelect={setSelectedTemplateId}
+                onUploadCustom={() => {}}
+                compact
+              />
+            ) : null}
+
             <button
               type="button"
               onClick={() => void handleGenerate()}
@@ -609,6 +635,7 @@ export default function GeneratePage() {
               errors={errors}
               topicSlug={runSlugRef.current}
               isGenerating={isGenerating}
+              selectedTemplateId={selectedTemplateId}
             />
 
             <div className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
