@@ -43,14 +43,12 @@ python -c "import neoxra_core.models.context, neoxra_core.models.outputs, neoxra
 python scripts/check_neoxra_core.py
 
 # Install Playwright Chromium for server-side rendering.
-# Install to the exact default path Playwright uses at runtime on Render,
-# so no extra env var is needed.
-export PLAYWRIGHT_BROWSERS_PATH=/opt/render/.cache/ms-playwright
+# Install inside the project directory so browsers persist from build to runtime.
+# The start script (render-start.sh) sets the same env var at runtime.
+export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers
 echo "== Installing Playwright Chromium to ${PLAYWRIGHT_BROWSERS_PATH} =="
 mkdir -p "${PLAYWRIGHT_BROWSERS_PATH}"
 python -m playwright install chromium
 echo "== Playwright browser installed =="
-ls -R "${PLAYWRIGHT_BROWSERS_PATH}/" | head -30
-# Verify the headless shell binary exists
 find "${PLAYWRIGHT_BROWSERS_PATH}" -name "chrome-headless-shell" -type f || echo "WARNING: chrome-headless-shell not found"
 python -c "import neoxra_renderer; print(f'neoxra_renderer_import=ok path={neoxra_renderer.__file__}')"
