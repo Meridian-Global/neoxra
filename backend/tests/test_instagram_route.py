@@ -515,7 +515,12 @@ class TestInstagramSSERoute:
 class TestInstagramReferenceUpload:
     def test_upload_reference_accepts_png(self, monkeypatch):
         async def fake_describe_reference_image(file):
-            return "Cream layout with centered headline."
+            return "Cream layout with centered headline.", {
+                "background": "#FFFBF0",
+                "text_primary": "#1A1A1A",
+                "text_secondary": "#6B7280",
+                "accent": "#D4A574",
+            }
 
         monkeypatch.setattr(
             instagram_routes,
@@ -529,7 +534,9 @@ class TestInstagramReferenceUpload:
         )
 
         assert response.status_code == 200
-        assert response.json() == {"description": "Cream layout with centered headline."}
+        data = response.json()
+        assert data["description"] == "Cream layout with centered headline."
+        assert data["palette"]["background"] == "#FFFBF0"
 
     def test_upload_reference_rejects_non_image(self):
         response = client.post(

@@ -201,7 +201,7 @@ async def _describe_reference_image(file: UploadFile) -> str:
         client = Anthropic()
         response = client.messages.create(
             model=os.getenv("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-20250514"),
-            max_tokens=600,
+            max_tokens=800,
             temperature=0,
             messages=[
                 {
@@ -221,7 +221,11 @@ async def _describe_reference_image(file: UploadFile) -> str:
                                 "Describe the visual style of this Instagram reference image for a carousel generator. "
                                 "Focus only on layout, colors, typography feel, spacing, hierarchy, text density, image usage, and overall mood. "
                                 "Do not identify private people or infer sensitive attributes. "
-                                "Return 4-6 concise bullet points in Traditional Chinese."
+                                "Return 4-6 concise bullet points in Traditional Chinese.\n\n"
+                                "Also extract the dominant color palette as JSON:\n"
+                                '{"background": "#hexcolor", "text_primary": "#hexcolor", '
+                                '"text_secondary": "#hexcolor", "accent": "#hexcolor"}\n\n'
+                                "Return the description first, then on a new line return PALETTE_JSON: followed by the JSON."
                             ),
                         },
                     ],
@@ -237,13 +241,26 @@ async def _describe_reference_image(file: UploadFile) -> str:
             detail="Reference image analysis is temporarily unavailable.",
         ) from exc
 
-    description = _extract_anthropic_text(response)
-    if not description:
+    raw_text = _extract_anthropic_text(response)
+    if not raw_text:
         raise HTTPException(
             status_code=503,
             detail="Reference image analysis returned no usable description.",
         )
-    return description[:REFERENCE_IMAGE_DESCRIPTION_MAX_LENGTH]
+
+    description = raw_text
+    palette = None
+    if "PALETTE_JSON:" in raw_text:
+        parts = raw_text.split("PALETTE_JSON:", 1)
+        description = parts[0].strip()
+        try:
+            import json as _json
+
+            palette = _json.loads(parts[1].strip())
+        except Exception:
+            logger.debug("Failed to parse palette JSON from vision response")
+
+    return description[:REFERENCE_IMAGE_DESCRIPTION_MAX_LENGTH], palette
 
 
 @router.post("/api/instagram/upload-reference")
@@ -253,8 +270,11 @@ async def upload_instagram_reference(request: Request, file: UploadFile = File(.
         default_surface="instagram",
         allowed_surfaces={"instagram", "legal"},
     )
-    description = await _describe_reference_image(file)
-    return JSONResponse({"description": description})
+    description, palette = await _describe_reference_image(file)
+    response_data: dict = {"description": description}
+    if palette:
+        response_data["palette"] = palette
+    return JSONResponse(response_data)
 
 
 @router.post("/api/instagram/generate")

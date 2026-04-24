@@ -1,4 +1,4 @@
-export type CarouselThemeId = 'professional' | 'bold' | 'minimal'
+export type CarouselThemeId = 'professional' | 'bold' | 'minimal' | 'dynamic'
 
 export interface CarouselTheme {
   id: CarouselThemeId
@@ -7,6 +7,11 @@ export interface CarouselTheme {
   textColor: string
   accentColor: string
   subtextColor: string
+}
+
+export interface DynamicCarouselTheme extends CarouselTheme {
+  id: 'dynamic'
+  source: 'reference-image'
 }
 
 export const CAROUSEL_THEMES: CarouselTheme[] = [
@@ -36,6 +41,24 @@ export const CAROUSEL_THEMES: CarouselTheme[] = [
   },
 ]
 
-export function getCarouselTheme(themeId: CarouselThemeId): CarouselTheme {
+export function createDynamicTheme(palette: {
+  background: string
+  textPrimary: string
+  accent: string
+  textSecondary: string
+}): DynamicCarouselTheme {
+  return {
+    id: 'dynamic',
+    name: 'Custom',
+    bgColor: palette.background,
+    textColor: palette.textPrimary,
+    accentColor: palette.accent,
+    subtextColor: palette.textSecondary,
+    source: 'reference-image',
+  }
+}
+
+export function getCarouselTheme(themeId: CarouselThemeId, dynamicTheme?: CarouselTheme): CarouselTheme {
+  if (themeId === 'dynamic' && dynamicTheme) return dynamicTheme
   return CAROUSEL_THEMES.find((theme) => theme.id === themeId) ?? CAROUSEL_THEMES[0]
 }

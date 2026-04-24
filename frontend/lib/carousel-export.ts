@@ -26,9 +26,9 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   })
 }
 
-export async function renderCarouselSlideToPng(slideElement: HTMLElement): Promise<Blob> {
+export async function renderCarouselSlideToPng(slideElement: HTMLElement, bgFallback?: string): Promise<Blob> {
   const sourceCanvas = await html2canvas(slideElement, {
-    backgroundColor: null,
+    backgroundColor: bgFallback || '#101828',
     scale: 2,
     useCORS: true,
     width: slideElement.offsetWidth,
@@ -36,6 +36,23 @@ export async function renderCarouselSlideToPng(slideElement: HTMLElement): Promi
     windowWidth: slideElement.scrollWidth,
     windowHeight: slideElement.scrollHeight,
   })
+
+  // Blank-canvas check: sample pixels to detect failed renders
+  const checkCtx = sourceCanvas.getContext('2d')
+  if (checkCtx) {
+    const samplePoints = [
+      [10, 10],
+      [Math.floor(sourceCanvas.width / 2), Math.floor(sourceCanvas.height / 2)],
+      [sourceCanvas.width - 10, sourceCanvas.height - 10],
+    ]
+    const allTransparent = samplePoints.every(([x, y]) => {
+      const pixel = checkCtx.getImageData(x, y, 1, 1).data
+      return pixel[3] === 0
+    })
+    if (allTransparent) {
+      console.warn('[carousel-export] Rendered canvas appears blank — check if slide styles resolved correctly.')
+    }
+  }
 
   const outputCanvas = document.createElement('canvas')
   outputCanvas.width = EXPORT_SIZE
@@ -53,7 +70,7 @@ export async function renderCarouselSlideToPng(slideElement: HTMLElement): Promi
   return canvasToBlob(outputCanvas)
 }
 
-export async function exportCarousel(slideElements: HTMLElement[], topicSlug: string): Promise<void> {
+export async function exportCarousel(slideElements: HTMLElement[], topicSlug: string, bgFallback?: string): Promise<void> {
   const validSlideElements = slideElements.filter(Boolean)
 
   if (validSlideElements.length === 0) {
@@ -63,7 +80,7 @@ export async function exportCarousel(slideElements: HTMLElement[], topicSlug: st
   const zip = new JSZip()
 
   for (const [index, slideElement] of validSlideElements.entries()) {
-    const pngBlob = await renderCarouselSlideToPng(slideElement)
+    const pngBlob = await renderCarouselSlideToPng(slideElement, bgFallback)
     zip.file(`slide-${String(index + 1).padStart(2, '0')}.png`, pngBlob)
   }
 
