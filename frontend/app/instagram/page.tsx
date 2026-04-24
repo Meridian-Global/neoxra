@@ -8,7 +8,7 @@ import { useLanguage } from '../../components/LanguageProvider'
 import { VisualCarouselRenderer } from '../../components/VisualCarouselRenderer'
 import { API_BASE_URL } from '../../lib/api'
 import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../lib/analytics'
-import type { CarouselThemeId } from '../../lib/carousel-themes'
+import { createDynamicTheme, type CarouselTheme, type CarouselThemeId } from '../../lib/carousel-themes'
 import { buildDemoHeaders, clearStoredDemoToken, getStoredDemoSource } from '../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { fetchDemoClientConfig } from '../../lib/demo-client-config'
@@ -446,7 +446,7 @@ function LoadingPreview() {
   )
 }
 
-function InstagramPreview({ bundle, copy, exportDisabled = false }: { bundle: PreviewBundle; copy: InstagramCopy; exportDisabled?: boolean }) {
+function InstagramPreview({ bundle, copy, exportDisabled = false, dynamicTheme }: { bundle: PreviewBundle; copy: InstagramCopy; exportDisabled?: boolean; dynamicTheme?: CarouselTheme }) {
   const [carouselTheme, setCarouselTheme] = useState<CarouselThemeId>('professional')
   const firstSentence = splitSentences(bundle.content.caption)[0] ?? bundle.content.caption
   const remainingCaption = bundle.content.caption.replace(firstSentence, '').trim()
@@ -476,6 +476,7 @@ function InstagramPreview({ bundle, copy, exportDisabled = false }: { bundle: Pr
           onThemeChange={setCarouselTheme}
           topicSlug={bundle.topic}
           exportDisabled={exportDisabled}
+          dynamicTheme={dynamicTheme}
         />
       </SectionShell>
 
@@ -565,6 +566,7 @@ export default function InstagramPage() {
   const [referenceImageDescription, setReferenceImageDescription] = useState('')
   const [referenceUploadStatus, setReferenceUploadStatus] = useState<ReferenceUploadStatus>('idle')
   const [referenceUploadError, setReferenceUploadError] = useState<string | null>(null)
+  const [referencePalette, setReferencePalette] = useState<{ background: string; textPrimary: string; accent: string; textSecondary: string } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const latestTopicRef = useRef(topic)
   const referencePreviewUrlRef = useRef<string | null>(null)
@@ -641,6 +643,11 @@ export default function InstagramPage() {
     return previewBundle
   }, [copy, lastSubmittedTopic, previewBundle, streamedContent])
 
+  const dynamicTheme = useMemo(
+    () => referencePalette ? createDynamicTheme(referencePalette) : undefined,
+    [referencePalette],
+  )
+
   function clearReferenceImage() {
     if (referencePreviewUrlRef.current) {
       URL.revokeObjectURL(referencePreviewUrlRef.current)
@@ -651,6 +658,7 @@ export default function InstagramPage() {
     setReferenceImageDescription('')
     setReferenceUploadStatus('idle')
     setReferenceUploadError(null)
+    setReferencePalette(null)
   }
 
   async function handleReferenceFileSelect(file: File) {
@@ -704,6 +712,18 @@ export default function InstagramPage() {
 
       setReferenceImageDescription(description)
       setReferenceUploadStatus('ready')
+
+      if (payload?.palette && typeof payload.palette === 'object') {
+        const p = payload.palette
+        if (p.background && p.text_primary && p.accent && p.text_secondary) {
+          setReferencePalette({
+            background: p.background,
+            textPrimary: p.text_primary,
+            accent: p.accent,
+            textSecondary: p.text_secondary,
+          })
+        }
+      }
     } catch (err) {
       setReferenceImageDescription('')
       setReferenceUploadStatus('error')
@@ -998,7 +1018,7 @@ export default function InstagramPage() {
                 {isWorking && !streamedContent ? (
                   <LoadingPreview />
                 ) : previewTab === 'instagram' ? (
-                  <InstagramPreview bundle={displayBundle} copy={copy} exportDisabled={isWorking} />
+                  <InstagramPreview bundle={displayBundle} copy={copy} exportDisabled={isWorking} dynamicTheme={dynamicTheme} />
                 ) : (
                   <ArticlePreviewPanel bundle={displayBundle} copy={copy} />
                 )}

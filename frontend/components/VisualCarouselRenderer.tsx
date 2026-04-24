@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CAROUSEL_THEMES, getCarouselTheme, type CarouselThemeId } from '../lib/carousel-themes'
+import { CAROUSEL_THEMES, getCarouselTheme, type CarouselTheme, type CarouselThemeId } from '../lib/carousel-themes'
 import { exportCarousel } from '../lib/carousel-export'
 import { useLanguage } from './LanguageProvider'
 import type { CarouselSlide } from '../lib/instagram-types'
@@ -37,11 +37,13 @@ const THEME_LABELS: Record<
     professional: '專業',
     bold: '醒目',
     minimal: '極簡',
+    dynamic: '自訂',
   },
   en: {
     professional: 'Professional',
     bold: 'Bold',
     minimal: 'Minimal',
+    dynamic: 'Custom',
   },
 }
 
@@ -51,6 +53,7 @@ interface VisualCarouselRendererProps {
   onThemeChange: (theme: CarouselThemeId) => void
   topicSlug: string
   exportDisabled?: boolean
+  dynamicTheme?: CarouselTheme
 }
 
 function clampSlideIndex(index: number, slideCount: number) {
@@ -66,6 +69,7 @@ export function VisualCarouselRenderer({
   onThemeChange,
   topicSlug,
   exportDisabled = false,
+  dynamicTheme,
 }: VisualCarouselRendererProps) {
   const { language } = useLanguage()
   const copy = COPY[language]
@@ -74,7 +78,7 @@ export function VisualCarouselRenderer({
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const exportSlideRefs = useRef<HTMLDivElement[]>([])
-  const theme = getCarouselTheme(selectedTheme)
+  const theme = getCarouselTheme(selectedTheme, dynamicTheme)
   const activeSlide = slides[activeIndex] ?? slides[0]
 
   useEffect(() => {
@@ -96,7 +100,8 @@ export function VisualCarouselRenderer({
     setExportError(null)
 
     try {
-      await exportCarousel(exportSlideRefs.current.slice(0, slides.length), topicSlug)
+      const exportBg = theme.bgColor.startsWith('linear') ? '#111827' : theme.bgColor
+      await exportCarousel(exportSlideRefs.current.slice(0, slides.length), topicSlug, exportBg)
     } catch (err) {
       setExportError(err instanceof Error ? err.message : copy.exportError)
     } finally {
@@ -120,11 +125,15 @@ export function VisualCarouselRenderer({
     return (
       <div
         className={`relative aspect-square w-full ${isExport ? 'p-[88px]' : 'p-7 sm:p-8'}`}
-        style={{ background: theme.bgColor, color: theme.textColor }}
+        style={{
+          background: theme.bgColor,
+          backgroundColor: isExport && theme.bgColor.startsWith('linear') ? '#111827' : theme.bgColor,
+          color: theme.textColor,
+        }}
       >
         <div
           className={`inline-flex rounded-full font-bold ${isExport ? 'px-8 py-3 text-[32px]' : 'px-3 py-1 text-xs'}`}
-          style={{ background: theme.accentColor, color: theme.id === 'minimal' ? '#FFFFFF' : '#111827' }}
+          style={{ backgroundColor: theme.accentColor, color: theme.id === 'minimal' ? '#FFFFFF' : '#111827' }}
         >
           {index + 1}/{slides.length || 1}
         </div>
@@ -147,7 +156,7 @@ export function VisualCarouselRenderer({
 
         <div
           className={`absolute rounded-full ${isExport ? 'bottom-[88px] left-[88px] h-3 w-44' : 'bottom-6 left-7 h-1 w-16 sm:left-8'}`}
-          style={{ background: theme.accentColor }}
+          style={{ backgroundColor: theme.accentColor }}
         />
       </div>
     )
@@ -170,6 +179,19 @@ export function VisualCarouselRenderer({
             {themeLabels[themeOption.id]}
           </button>
         ))}
+        {dynamicTheme ? (
+          <button
+            type="button"
+            onClick={() => onThemeChange('dynamic')}
+            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+              selectedTheme === 'dynamic'
+                ? 'border-[var(--border-bold)] bg-[var(--bg-accent)] text-[var(--text-on-accent)]'
+                : 'border-[var(--border)] bg-[var(--bg-sunken)] text-[var(--text-secondary)] hover:border-[var(--border-bold)]'
+            }`}
+          >
+            {themeLabels.dynamic}
+          </button>
+        ) : null}
       </div>
 
       <div className="mx-auto w-full max-w-[420px] rounded-[34px] border border-[var(--border)] bg-[var(--bg-sunken)] p-3 shadow-[var(--shadow-lg)] sm:p-4">
@@ -238,7 +260,7 @@ export function VisualCarouselRenderer({
         {exportError ? <p className="text-sm text-[var(--text-secondary)]">{exportError}</p> : null}
       </div>
 
-      <div className="pointer-events-none fixed left-[-12000px] top-0 z-[-1]">
+      <div className="pointer-events-none fixed left-0 top-0 z-[-1] opacity-0">
         {slides.map((slide, index) => (
           <div
             key={`${slide.title}-export-${index}`}
