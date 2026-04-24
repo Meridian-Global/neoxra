@@ -42,7 +42,11 @@ python -c "import neoxra_core; print(f'neoxra_core_import=ok path={neoxra_core._
 python -c "import neoxra_core.models.context, neoxra_core.models.outputs, neoxra_core.voice; print('neoxra_core_deep_imports=ok')"
 python scripts/check_neoxra_core.py
 
-# Install Playwright Chromium for server-side rendering
+# Install Playwright Chromium for server-side rendering.
+# Avoid `--with-deps` here because Render native builds do not allow the
+# Playwright installer to elevate to root for apt-based system dependency setup.
+# If runtime shared-library issues still appear later, switch this service to the
+# Docker deployment path defined in backend/Dockerfile.
 echo "== Installing Playwright Chromium =="
-python -m playwright install --with-deps chromium
+python -m playwright install chromium
 python -c "import neoxra_renderer; print(f'neoxra_renderer_import=ok path={neoxra_renderer.__file__}')"
