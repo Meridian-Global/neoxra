@@ -7,4 +7,6 @@ uvicorn[standard]>=0.29.0
 sqlalchemy>=2.0.36
 alembic>=1.14.0
 psycopg[binary]>=3.2.3
+# Server-side rendering (requires Python >=3.11 and `playwright install chromium`)
+neoxra-renderer @ file:///../neoxra-renderer
 # Integration dependencies (Gmail, LinkedIn): see requirements-integrations.txt

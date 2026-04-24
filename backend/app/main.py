@@ -33,7 +33,9 @@ from .api.health_routes import internal_router as internal_health_router
 from .api.health_routes import public_router as health_router
 from .api.integrations_routes import router as integrations_router
 from .api.instagram_routes import router as instagram_router
+from .api.render_routes import router as render_router
 from .api.seo_routes import router as seo_router
+from .api.template_routes import router as template_router
 from .api.threads_routes import router as threads_router
 from .api.unified_routes import router as unified_router
 from .core.demo_access import get_runtime_mode
@@ -94,7 +96,9 @@ app.include_router(health_router)
 app.include_router(internal_health_router)
 app.include_router(integrations_router)
 app.include_router(instagram_router)
+app.include_router(render_router)
 app.include_router(seo_router)
+app.include_router(template_router)
 app.include_router(threads_router)
 app.include_router(unified_router)
 
