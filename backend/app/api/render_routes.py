@@ -175,7 +175,7 @@ async def render_carousel_endpoint(request: RenderCarouselRequest):
         logger.exception("Carousel rendering failed")
         raise HTTPException(
             status_code=500,
-            detail="Rendering failed due to an internal server error.",
+            detail="Carousel rendering failed.",
         ) from exc
 
     zip_buf = _package_zip(response.images)
@@ -265,7 +265,7 @@ async def _render_images(
         logger.exception("Carousel rendering failed during generate-and-render")
         raise HTTPException(
             status_code=500,
-            detail="Rendering failed.",
+            detail="Carousel rendering failed.",
         ) from exc
 
     return response.images
