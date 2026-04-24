@@ -48,7 +48,7 @@ class TestRenderCarouselValidation:
     def test_empty_slides_returns_400(self):
         response = client.post(
             "/api/render/carousel",
-            json={"template_id": "professional-dark", "slides": []},
+            json={"template_id": "editorial-green", "slides": []},
         )
         assert response.status_code == 400
         assert "at least one slide" in response.json()["detail"].lower()
@@ -57,7 +57,7 @@ class TestRenderCarouselValidation:
         slides = [{"title": f"S{i}", "body": f"B{i}"} for i in range(11)]
         response = client.post(
             "/api/render/carousel",
-            json={"template_id": "professional-dark", "slides": slides},
+            json={"template_id": "editorial-green", "slides": slides},
         )
         assert response.status_code == 400
         assert "maximum" in response.json()["detail"].lower()
@@ -89,7 +89,7 @@ class TestRenderCarouselMocked:
         with patch.dict("sys.modules", {"neoxra_renderer": _build_mock_module(mock_render)}):
             response = client.post(
                 "/api/render/carousel",
-                json={"template_id": "professional-dark", "slides": VALID_SLIDES},
+                json={"template_id": "editorial-green", "slides": VALID_SLIDES},
             )
 
         assert response.status_code == 200
@@ -109,7 +109,7 @@ class TestRenderCarouselMocked:
             response = client.post(
                 "/api/render/carousel",
                 json={
-                    "template_id": "bold-gradient",
+                    "template_id": "luxury-dark",
                     "slides": [{"title": "Only Slide", "body": "Solo content"}],
                 },
             )
@@ -155,7 +155,7 @@ class TestRenderCarouselMocked:
         with patch.dict("sys.modules", {"neoxra_renderer": _build_mock_module(mock_render)}):
             response = client.post(
                 "/api/render/carousel",
-                json={"template_id": "minimal-light", "slides": slides},
+                json={"template_id": "modern-minimal", "slides": slides},
             )
 
         assert response.status_code == 200

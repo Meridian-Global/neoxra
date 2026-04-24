@@ -245,7 +245,7 @@ export function PlatformTabs({
   errors,
   topicSlug,
   isGenerating,
-  selectedTemplateId = 'professional-dark',
+  selectedTemplateId = 'editorial-green',
 }: {
   results: PlatformResults
   statuses: PlatformStatuses

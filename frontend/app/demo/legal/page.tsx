@@ -296,7 +296,7 @@ const SAMPLE_CAROUSEL_SLIDES = [
   { title: '提前解約的條件', body: '通知期限、違約金計算與例外情況，都要事先看清楚。' },
   { title: '專業協助最安心', body: '涉及押金扣留或違約爭議時，建議及早諮詢律師。' },
 ]
-const SAMPLE_CAROUSEL_TEMPLATE = 'professional-dark'
+const SAMPLE_CAROUSEL_TEMPLATE = 'editorial-green'
 
 function SampleCarouselSection() {
   const [renderedImages, setRenderedImages] = useState<string[]>([])

@@ -302,7 +302,7 @@ export default function GeneratePage() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [availableTemplates, setAvailableTemplates] = useState<TemplateInfo[]>([])
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('professional-dark')
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('editorial-green')
   const abortRef = useRef<AbortController | null>(null)
   const runSlugRef = useRef<string>('')
   const exportSlideRefs = useRef<HTMLDivElement[]>([])

@@ -196,7 +196,7 @@ _GENERATE_AND_RENDER_TIMEOUT_SECONDS = 60
 
 class GenerateAndRenderRequest(BaseModel):
     topic: str
-    template_id: str = "professional-dark"
+    template_id: str = "editorial-green"
     template_spec: dict | None = None
     goal: str = "engagement"
     locale: str = DEFAULT_LOCALE

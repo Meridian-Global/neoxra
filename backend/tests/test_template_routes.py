@@ -40,31 +40,30 @@ class TestListTemplates:
         data = response.json()
         ids = {t["id"] for t in data["templates"]}
         assert ids == {
-            "professional-dark",
-            "bold-gradient",
-            "minimal-light",
-            "emerald-editorial",
-            "neon-purple",
+            "editorial-green",
+            "luxury-dark",
+            "fresh-coral",
+            "modern-minimal",
+            "ocean-editorial",
         }
 
 
 class TestGetTemplateDetail:
     def test_returns_valid_template(self):
-        response = client.get("/api/templates/professional-dark")
+        response = client.get("/api/templates/editorial-green")
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == "professional-dark"
-        assert data["name"] == "Professional Dark"
+        assert data["id"] == "editorial-green"
+        assert data["name"] == "Editorial Green"
         assert "spec" in data
 
     def test_spec_has_all_sections(self):
-        response = client.get("/api/templates/professional-dark")
+        response = client.get("/api/templates/editorial-green")
         data = response.json()
         spec = data["spec"]
         assert "colors" in spec
         assert "layout" in spec
         assert "typography" in spec
-        assert "style" in spec
 
     def test_returns_404_for_nonexistent(self):
         response = client.get("/api/templates/nonexistent")
@@ -74,10 +73,10 @@ class TestGetTemplateDetail:
 
 class TestTemplateRegistry:
     def test_get_template_existing(self):
-        template = get_template("bold-gradient")
+        template = get_template("luxury-dark")
         assert template is not None
-        assert template["id"] == "bold-gradient"
-        assert template["style"] == "bold"
+        assert template["id"] == "luxury-dark"
+        assert template["style"] == "professional"
 
     def test_get_template_nonexistent(self):
         assert get_template("does-not-exist") is None
@@ -86,11 +85,11 @@ class TestTemplateRegistry:
         templates = list_templates()
         ids = {t["id"] for t in templates}
         assert {
-            "professional-dark",
-            "bold-gradient",
-            "minimal-light",
-            "emerald-editorial",
-            "neon-purple",
+            "editorial-green",
+            "luxury-dark",
+            "fresh-coral",
+            "modern-minimal",
+            "ocean-editorial",
         }.issubset(ids)
 
     def test_list_templates_excludes_spec(self):
