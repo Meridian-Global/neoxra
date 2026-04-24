@@ -10,6 +10,11 @@ CORE_GIT_URL="${NEOXRA_CORE_GIT_URL:-https://github.com/Meridian-Global/neoxra-c
 echo "core_git_ref=${CORE_GIT_REF}"
 echo "core_git_url=${CORE_GIT_URL}"
 
+RENDERER_GIT_REF="${NEOXRA_RENDERER_GIT_REF:-main}"
+RENDERER_GIT_URL="${NEOXRA_RENDERER_GIT_URL:-https://github.com/Meridian-Global/neoxra-renderer.git}"
+echo "renderer_git_ref=${RENDERER_GIT_REF}"
+echo "renderer_git_url=${RENDERER_GIT_URL}"
+
 if [[ "${CORE_GIT_URL}" == https://github.com/* ]]; then
   if [[ -z "${GITHUB_TOKEN:-}" ]]; then
     echo "GITHUB_TOKEN is required when using a private GitHub HTTPS repository for neoxra_core."
@@ -18,13 +23,26 @@ if [[ "${CORE_GIT_URL}" == https://github.com/* ]]; then
   CORE_GIT_URL="https://x-access-token:${GITHUB_TOKEN}@${CORE_GIT_URL#https://}"
 fi
 
+if [[ "${RENDERER_GIT_URL}" == https://github.com/* ]] && [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  RENDERER_GIT_URL="https://x-access-token:${GITHUB_TOKEN}@${RENDERER_GIT_URL#https://}"
+fi
+
 CORE_INSTALL_SOURCE="neoxra-core @ git+${CORE_GIT_URL}@${CORE_GIT_REF}"
+RENDERER_INSTALL_SOURCE="neoxra-renderer @ git+${RENDERER_GIT_URL}@${RENDERER_GIT_REF}"
 echo "core_install_source=${CORE_INSTALL_SOURCE}"
+echo "renderer_install_source=${RENDERER_INSTALL_SOURCE}"
 
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
 python -m pip install --no-build-isolation "${CORE_INSTALL_SOURCE}"
+python -m pip install --no-build-isolation "${RENDERER_INSTALL_SOURCE}"
+
 python -m pip show neoxra-core
 python -c "import neoxra_core; print(f'neoxra_core_import=ok path={neoxra_core.__file__}')"
 python -c "import neoxra_core.models.context, neoxra_core.models.outputs, neoxra_core.voice; print('neoxra_core_deep_imports=ok')"
 python scripts/check_neoxra_core.py
+
+# Install Playwright Chromium for server-side rendering
+echo "== Installing Playwright Chromium =="
+python -m playwright install --with-deps chromium
+python -c "import neoxra_renderer; print(f'neoxra_renderer_import=ok path={neoxra_renderer.__file__}')"
