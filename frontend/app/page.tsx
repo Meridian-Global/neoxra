@@ -104,7 +104,7 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       titleHighlight: '流量',
       tagline: '一個想法，四個平台，直接發布。',
       body:
-        'Neoxra 將一個想法轉化為 Instagram 輪播、SEO 文章、Threads 貼文與 Facebook 內容，結構完整、格式就緒、可直接上線。',
+        'Neoxra 把一個想法轉化為可持續累積的數位流量。AI 會依照不同平台的格式、結構與心理 hook，生成可直接發布的內容，而不只是產生一段文字。',
       primaryCta: '免費開始使用',
       secondaryCta: '預約 Demo',
       trustSignals: ['無需信用卡', '3 分鐘快速開始', '支援繁中'],
@@ -122,10 +122,10 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       },
     },
     stats: [
-      { value: '4 平台內容', label: '一次生成' },
+      { value: '多平台內容', label: '一次生成' },
       { value: '節省 80% 時間', label: '從構想到發布' },
       { value: '提升 300% 效率', label: '內容產出速度' },
-      { value: '10,000+ 用戶', label: '專業團隊信賴' },
+      { value: 'AI 產生流量', label: '不是只生成文字' },
     ],
     howItWorks: {
       title: '內容交響樂團如何運作',
@@ -198,7 +198,7 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
     },
     ctaFooter: {
       title: '準備好把想法變成流量了嗎？',
-      subtitle: '加入數千個專業團隊，讓 Neoxra 成為你的內容交響樂團。',
+      subtitle: '讓 Neoxra 成為你的 AI 流量基礎設施，把一個想法擴展成可持續分發的內容系統。',
       button: '免費開始使用',
       trust: '✓ 無需信用卡 · 3 分鐘設定完成',
     },
@@ -222,7 +222,7 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       titleHighlight: 'Traffic',
       tagline: 'One idea. Four platforms. Ready to publish.',
       body:
-        'Neoxra turns a single idea into Instagram carousels, SEO articles, Threads posts, and Facebook content — structured, formatted, and built to perform.',
+        'Neoxra turns one idea into compounding digital traffic. AI adapts every output to the format, structure, and psychological hook of each platform, so you create distribution outcomes instead of just generating text.',
       primaryCta: 'Get Started Free',
       secondaryCta: 'Book a Demo',
       trustSignals: ['No credit card', '3-minute setup', 'Traditional Chinese support'],
@@ -240,10 +240,10 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
       },
     },
     stats: [
-      { value: '4 Platforms', label: 'One generation' },
+      { value: 'Multi-platform output', label: 'One generation' },
       { value: '80% Time Saved', label: 'Idea to publish' },
       { value: '300% More Output', label: 'Content velocity' },
-      { value: '10,000+ Users', label: 'Trusted by pros' },
+      { value: 'AI-generated traffic', label: 'Not just text generation' },
     ],
     howItWorks: {
       title: 'How Your Content Orchestra Works',
@@ -316,7 +316,7 @@ const COPY: Record<'en' | 'zh-TW', LocalizedCopy> = {
     },
     ctaFooter: {
       title: 'Ready to Turn Ideas Into Traffic?',
-      subtitle: 'Join the teams that let Neoxra orchestrate their content.',
+      subtitle: 'Make Neoxra your AI-powered traffic infrastructure for scalable distribution across every platform.',
       button: 'Get Started Free',
       trust: '✓ No credit card · 3 minutes to set up',
     },

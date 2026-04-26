@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import { AnalyticsProvider } from '../components/AnalyticsProvider'
 import { LanguageProvider } from '../components/LanguageProvider'
+// @ts-ignore -- Global CSS is resolved by Next.js bundler at build time.
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Neoxra | Multi-agent content system',
-  description: 'Turn one idea into platform-native content for LinkedIn, Instagram, and Threads.',
+  title: 'Neoxra | AI-Powered Traffic Infrastructure',
+  description: 'Turn ideas into traffic. Neoxra is the AI-powered infrastructure layer for scalable distribution across every surface, language, and region.',
   icons: { icon: '/favicon.ico' },
 }
 
