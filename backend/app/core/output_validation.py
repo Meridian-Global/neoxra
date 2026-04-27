@@ -183,6 +183,7 @@ class SeoArticlePayload(BaseModel):
     summary_points: list[str]
     cta: str
     estimated_word_count: int
+    estimated_character_count: int = 0
 
     @field_validator("h1", "introduction", "conclusion", "cta")
     @classmethod
@@ -210,8 +211,8 @@ class SeoArticlePayload(BaseModel):
     @field_validator("estimated_word_count")
     @classmethod
     def _word_count_range(cls, value: int) -> int:
-        if not 1200 <= value <= 2000:
-            raise ValueError("estimated_word_count must be between 1200 and 2000")
+        if not 2000 <= value <= 8000:
+            raise ValueError("estimated_word_count must be between 2000 and 8000")
         return value
 
 
