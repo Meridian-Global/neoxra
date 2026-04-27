@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable
+
 from .base import CoreClientNotImplementedError
 from .signing import sign_internal_request_from_env
 from .types import (
@@ -111,7 +113,7 @@ class HttpCoreClient:
         generation_request: CoreSeoGenerationRequest,
         brief_context: dict[str, object],
         voice_profile: dict[str, object] | None = None,
-        on_section_ready=None,
+        on_section_ready: Callable[[str, object], None] | None = None,
     ) -> dict[str, object]:
         raise self._not_ready()
 

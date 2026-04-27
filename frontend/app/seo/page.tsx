@@ -234,7 +234,12 @@ export default function SeoPage() {
       )) {
         if (abort.signal.aborted) break
         if (chunk.event === 'phase_started') {
+          setArticle((prev) => ({ ...prev, sections: [], h1: '', introduction: '' }))
           setStatus('streaming')
+          continue
+        }
+        if (chunk.event === 'retry_started') {
+          setArticle((prev) => ({ ...prev, sections: [], h1: '', introduction: '' }))
           continue
         }
         if (chunk.event === 'outline_ready') {

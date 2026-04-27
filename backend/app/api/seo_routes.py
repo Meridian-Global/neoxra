@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import queue
+from typing import Callable
 
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -24,9 +25,16 @@ router = build_gated_demo_router()
 logger = logging.getLogger(__name__)
 
 
-def _validate_with_retry(generate_article, *, platform: str) -> tuple[dict[str, object], bool]:
+def _validate_with_retry(
+    generate_article: Callable[[], dict[str, object]],
+    *,
+    platform: str,
+    on_retry: Callable[[], None] | None = None,
+) -> tuple[dict[str, object], bool]:
     last_article = None
     for attempt in range(2):
+        if attempt > 0 and on_retry is not None:
+            on_retry()
         article = generate_article()
         last_article = article
         try:
@@ -155,6 +163,15 @@ async def seo_generate(req: SeoGenerateRequest, request: Request):
                 data = asdict(data)  # type: ignore[arg-type]
             event_queue.put((event_name, data))
 
+        def on_retry() -> None:
+            # Drain any events queued from the failed attempt and signal a reset.
+            while True:
+                try:
+                    event_queue.get_nowait()
+                except queue.Empty:
+                    break
+            event_queue.put(("retry_started", {}))
+
         def run_generation() -> tuple[dict, bool]:
             return _validate_with_retry(
                 lambda: core_client.generate_seo_article(
@@ -167,9 +184,10 @@ async def seo_generate(req: SeoGenerateRequest, request: Request):
                     on_section_ready=on_section_ready,
                 ),
                 platform="seo",
+                on_retry=on_retry,
             )
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         future = loop.run_in_executor(None, run_generation)
 
         # Drain section-ready events while generation runs in the background
@@ -182,16 +200,18 @@ async def seo_generate(req: SeoGenerateRequest, request: Request):
                     yield _sse("outline_ready", data if isinstance(data, dict) else {})
                 elif event_name == "section_ready":
                     yield _sse("section_ready", data if isinstance(data, dict) else {})
-            except Exception:
+                elif event_name == "retry_started":
+                    yield _sse("retry_started", {})
+            except queue.Empty:
                 continue
 
         # Drain remaining queued events
         while not event_queue.empty():
             try:
                 event_name, data = event_queue.get_nowait()
-                if event_name in ("outline_ready", "section_ready"):
+                if event_name in ("outline_ready", "section_ready", "retry_started"):
                     yield _sse(event_name, data if isinstance(data, dict) else {})
-            except Exception:
+            except queue.Empty:
                 break
 
         try:
