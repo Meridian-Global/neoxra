@@ -206,6 +206,7 @@ class LocalCoreClient:
             brief_context=brief_context,
             voice_profile=voice_profile,
             locale=getattr(generation_request, "locale", "en"),
+            on_section_ready=on_section_ready,
         )
         return article.to_dict()
 

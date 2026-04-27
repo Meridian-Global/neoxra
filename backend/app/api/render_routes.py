@@ -517,7 +517,7 @@ async def render_overlay_endpoint(request: RenderOverlayRequest):
         logger.exception("Overlay rendering failed")
         raise HTTPException(
             status_code=500,
-            detail=f"Overlay rendering failed: {exc}",
+            detail="Overlay rendering failed.",
         ) from exc
 
     zip_buf = _package_zip(response.images)
