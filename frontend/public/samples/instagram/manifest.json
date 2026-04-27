@@ -1,5 +1,10 @@
 {
-  "templates": {},
+  "templates": {
+    "editorial-green": {
+      "locales": ["en", "zh-TW"],
+      "slide_count": 5
+    }
+  },
   "default_template": "editorial-green",
-  "generated_at": ""
+  "generated_at": "2026-04-27"
 }
