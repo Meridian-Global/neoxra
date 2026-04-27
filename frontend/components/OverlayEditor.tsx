@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from './LanguageProvider'
 import { parseOverlayInput, serializeOverlaySlides } from '../lib/overlay-parser'
 import { renderOverlay } from '../lib/render-api'
@@ -207,6 +207,19 @@ export function OverlayEditor({ templateImage, onRenderComplete, onBack }: Overl
   const [renderError, setRenderError] = useState<string | null>(null)
   const [editMode, setEditMode] = useState<'bulk' | 'per-slide'>('bulk')
   const [zoneConfigExpanded, setZoneConfigExpanded] = useState(false)
+  const prevLanguageRef = useRef(language)
+
+  // Update sample content when user switches language, but only if they haven't
+  // manually edited the text (i.e., it still matches the previous language's sample)
+  useEffect(() => {
+    if (prevLanguageRef.current !== language) {
+      const previousSample = SAMPLE_CONTENT[prevLanguageRef.current]
+      if (bulkText === previousSample) {
+        setBulkText(SAMPLE_CONTENT[language])
+      }
+      prevLanguageRef.current = language
+    }
+  }, [language, bulkText])
 
   const parsedSlides = parseOverlayInput(bulkText)
   const slideCount = parsedSlides.length
