@@ -35,10 +35,10 @@ export async function* streamSSE(
 ): AsyncGenerator<SSEEvent> {
   const options =
     signalOrOptions instanceof AbortSignal
-      ? { signal: signalOrOptions, timeoutMs: 45_000, headers: undefined }
+      ? { signal: signalOrOptions, timeoutMs: 120_000, headers: undefined }
       : {
           signal: signalOrOptions?.signal,
-          timeoutMs: signalOrOptions?.timeoutMs ?? 45_000,
+          timeoutMs: signalOrOptions?.timeoutMs ?? 120_000,
           headers: signalOrOptions?.headers,
         }
 

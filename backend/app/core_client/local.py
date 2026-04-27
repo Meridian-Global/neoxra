@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable
+
 from .base import CoreClientUnavailableError
 from .types import (
     CoreFacebookGenerationRequest,
@@ -195,6 +197,7 @@ class LocalCoreClient:
         generation_request: CoreSeoGenerationRequest,
         brief_context: dict[str, object],
         voice_profile: dict[str, object] | None = None,
+        on_section_ready: Callable[[str, object], None] | None = None,
     ) -> dict[str, object]:
         self.ensure_seo_available()
         pipeline = SeoPipeline()

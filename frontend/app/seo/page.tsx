@@ -9,7 +9,7 @@ import { buildDemoHeaders } from '../../lib/demo-access'
 import { getDemoSurfaceConfig } from '../../lib/demo-config'
 import { APIError, streamSSE } from '../../lib/sse'
 import { toHTML, toMarkdown } from '../../lib/seo-export'
-import type { SeoArticle } from '../../lib/seo-types'
+import type { SeoArticle, SeoSection } from '../../lib/seo-types'
 
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
 type Language = 'en' | 'zh-TW'
@@ -228,18 +228,36 @@ export default function SeoPage() {
         },
         {
           signal: abort.signal,
-          timeoutMs: 60_000,
+          timeoutMs: 180_000,
           headers: buildDemoHeaders(demoConfig.apiSurface),
         },
       )) {
         if (abort.signal.aborted) break
         if (chunk.event === 'phase_started') {
+          setArticle((prev) => ({ ...prev, sections: [], h1: '', introduction: '' }))
           setStatus('streaming')
+          continue
+        }
+        if (chunk.event === 'retry_started') {
+          setArticle((prev) => ({ ...prev, sections: [], h1: '', introduction: '' }))
+          continue
+        }
+        if (chunk.event === 'outline_ready') {
+          const outline = chunk.data
+          if (outline?.h1) {
+            setArticle((prev) => ({ ...prev, h1: outline.h1, introduction: outline.introduction || prev.introduction }))
+          }
+          continue
+        }
+        if (chunk.event === 'section_ready') {
+          const section = chunk.data as SeoSection
+          if (section?.heading) {
+            setArticle((prev) => ({ ...prev, sections: [...prev.sections, section] }))
+          }
           continue
         }
         if (chunk.event === 'article_ready') {
           setArticle(chunk.data as SeoArticle)
-          setStatus('streaming')
           continue
         }
         if (chunk.event === 'pipeline_completed') {
@@ -343,7 +361,7 @@ export default function SeoPage() {
               </div>
             </div>
 
-            {isWorking ? <LoadingSkeleton /> : <SeoArticlePreview article={article} />}
+            {status === 'loading' ? <LoadingSkeleton /> : <SeoArticlePreview article={article} isStreaming={status === 'streaming'} />}
           </section>
         </section>
       </div>
