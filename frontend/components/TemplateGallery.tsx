@@ -52,16 +52,16 @@ export function TemplateGallery({
             {copy.loading}
           </div>
         ) : templates.length === 0 ? null : (
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto px-1 py-1">
             {templates.map((template) => (
               <button
                 key={template.id}
                 type="button"
                 onClick={() => onSelect(template.id)}
-                className={`group flex shrink-0 flex-col items-center gap-1.5 rounded-[10px] p-1.5 transition ${
+                className={`group flex shrink-0 flex-col items-center gap-1.5 rounded-[10px] border-2 p-1.5 transition ${
                   selectedId === template.id
-                    ? 'bg-[var(--bg-elevated)] ring-2 ring-[var(--accent)]'
-                    : 'hover:bg-[var(--bg-elevated)]'
+                    ? 'border-[var(--accent)] bg-[var(--bg-elevated)]'
+                    : 'border-transparent hover:bg-[var(--bg-elevated)]'
                 }`}
               >
                 <div
