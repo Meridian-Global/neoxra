@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 import os
+import queue
 
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -132,18 +134,29 @@ async def seo_generate(req: SeoGenerateRequest, request: Request):
         raise HTTPException(status_code=422, detail="Request validation failed.") from exc
 
     async def stream():
-        completed = False
-        try:
-            yield _sse(
-                "phase_started",
-                {
-                    "phase": "generation",
-                    "topic": generation_request.topic,
-                    "goal": generation_request.goal,
-                    "locale": generation_request.locale,
-                },
-            )
-            article, had_retry = _validate_with_retry(
+        yield _sse(
+            "phase_started",
+            {
+                "phase": "generation",
+                "topic": generation_request.topic,
+                "goal": generation_request.goal,
+                "locale": generation_request.locale,
+            },
+        )
+
+        event_queue: queue.Queue = queue.Queue()
+
+        def on_section_ready(event_name: str, data: object) -> None:
+            if hasattr(data, "to_dict"):
+                data = data.to_dict()  # type: ignore[union-attr]
+            elif hasattr(data, "__dataclass_fields__"):
+                from dataclasses import asdict
+
+                data = asdict(data)  # type: ignore[arg-type]
+            event_queue.put((event_name, data))
+
+        def run_generation() -> tuple[dict, bool]:
+            return _validate_with_retry(
                 lambda: core_client.generate_seo_article(
                     generation_request=generation_request,
                     brief_context={
@@ -151,22 +164,38 @@ async def seo_generate(req: SeoGenerateRequest, request: Request):
                         "locale": generation_request.locale,
                         "demo_surface": demo_surface,
                     },
+                    on_section_ready=on_section_ready,
                 ),
                 platform="seo",
             )
-            yield _sse("article_ready", article)
-            completed = True
-            yield _sse(
-                "pipeline_completed",
-                {
-                    "article": article,
-                    "topic": generation_request.topic,
-                    "goal": generation_request.goal,
-                    "locale": generation_request.locale,
-                    "warning": article.get("warning"),
-                    "validation_retry": had_retry,
-                },
-            )
+
+        loop = asyncio.get_event_loop()
+        future = loop.run_in_executor(None, run_generation)
+
+        # Drain section-ready events while generation runs in the background
+        while not future.done():
+            try:
+                event_name, data = await loop.run_in_executor(
+                    None, lambda: event_queue.get(timeout=1)
+                )
+                if event_name == "outline_ready":
+                    yield _sse("outline_ready", data if isinstance(data, dict) else {})
+                elif event_name == "section_ready":
+                    yield _sse("section_ready", data if isinstance(data, dict) else {})
+            except Exception:
+                continue
+
+        # Drain remaining queued events
+        while not event_queue.empty():
+            try:
+                event_name, data = event_queue.get_nowait()
+                if event_name in ("outline_ready", "section_ready"):
+                    yield _sse(event_name, data if isinstance(data, dict) else {})
+            except Exception:
+                break
+
+        try:
+            article, had_retry = future.result()
         except Exception as exc:
             logger.exception("SEO pipeline failed before completion")
             error_code, safe_message = public_generation_error("seo")
@@ -180,7 +209,17 @@ async def seo_generate(req: SeoGenerateRequest, request: Request):
             )
             return
 
-        if not completed:
-            logger.error("SEO pipeline stream ended without pipeline_completed")
+        yield _sse("article_ready", article)
+        yield _sse(
+            "pipeline_completed",
+            {
+                "article": article,
+                "topic": generation_request.topic,
+                "goal": generation_request.goal,
+                "locale": generation_request.locale,
+                "warning": article.get("warning"),
+                "validation_retry": had_retry,
+            },
+        )
 
     return StreamingResponse(stream(), media_type="text/event-stream")

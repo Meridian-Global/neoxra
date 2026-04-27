@@ -111,6 +111,7 @@ class HttpCoreClient:
         generation_request: CoreSeoGenerationRequest,
         brief_context: dict[str, object],
         voice_profile: dict[str, object] | None = None,
+        on_section_ready=None,
     ) -> dict[str, object]:
         raise self._not_ready()
 

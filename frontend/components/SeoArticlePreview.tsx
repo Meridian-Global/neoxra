@@ -47,7 +47,7 @@ function ArticleSection({ section }: { section: SeoSection }) {
   )
 }
 
-export function SeoArticlePreview({ article }: { article: SeoArticle }) {
+export function SeoArticlePreview({ article, isStreaming = false }: { article: SeoArticle; isStreaming?: boolean }) {
   const { language } = useLanguage()
   const copy = COPY[language]
 
@@ -104,24 +104,32 @@ export function SeoArticlePreview({ article }: { article: SeoArticle }) {
             {article.sections.map((section, index) => (
               <ArticleSection key={`${section.heading}-${index}`} section={section} />
             ))}
+            {isStreaming && (
+              <div className="flex items-center gap-3 py-6 text-sm text-[var(--text-tertiary)]">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border-bold)] border-t-[var(--text-primary)]" />
+                {language === 'zh-TW' ? '正在生成文章中…' : 'Generating article…'}
+              </div>
+            )}
           </div>
 
-          <section className="rounded-[18px] bg-[var(--bg-sunken)] p-6">
-            <h2 className="text-2xl font-bold text-[var(--text-primary)]">{copy.conclusion}</h2>
-            <p className="mt-3 text-[16px] leading-8 text-[var(--text-secondary)]">{article.conclusion}</p>
-            <h3 className="mt-6 text-lg font-semibold text-[var(--text-primary)]">{copy.summary}</h3>
-            <ul className="mt-3 space-y-2 text-[15px] leading-7 text-[var(--text-secondary)]">
-              {article.summary_points.map((point) => (
-                <li key={point} className="flex gap-2">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-6 rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 text-[15px] font-medium leading-7 text-[var(--text-primary)]">
-              {article.cta}
-            </p>
-          </section>
+          {!isStreaming && (
+            <section className="rounded-[18px] bg-[var(--bg-sunken)] p-6">
+              <h2 className="text-2xl font-bold text-[var(--text-primary)]">{copy.conclusion}</h2>
+              <p className="mt-3 text-[16px] leading-8 text-[var(--text-secondary)]">{article.conclusion}</p>
+              <h3 className="mt-6 text-lg font-semibold text-[var(--text-primary)]">{copy.summary}</h3>
+              <ul className="mt-3 space-y-2 text-[15px] leading-7 text-[var(--text-secondary)]">
+                {article.summary_points.map((point) => (
+                  <li key={point} className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-6 rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 text-[15px] font-medium leading-7 text-[var(--text-primary)]">
+                {article.cta}
+              </p>
+            </section>
+          )}
         </div>
       </section>
     </article>
