@@ -41,9 +41,9 @@ const COPY = {
 } satisfies Record<Language, Record<string, string>>
 
 function formatThread(thread: ThreadsThread) {
-  return thread.posts
-    .map((post) => `${post.post_number}/${thread.posts.length}\n${post.content}`)
-    .join('\n\n')
+  // The Threads app does not need numbering, so plain text is enough.
+  // Paste the first post directly and separate the rest with blank lines.
+  return thread.posts.map((post) => post.content).join('\n\n---\n\n')
 }
 
 function CopyButton({ label, value, copiedLabel }: { label: string; value: string; copiedLabel: string }) {
@@ -52,7 +52,7 @@ function CopyButton({ label, value, copiedLabel }: { label: string; value: strin
   async function handleCopy() {
     await navigator.clipboard.writeText(value)
     setCopied(true)
-    window.setTimeout(() => setCopied(false), 1400)
+    window.setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -143,8 +143,11 @@ export function ThreadsPreview({ thread }: { thread: ThreadsThread }) {
       </div>
 
       <div className="mt-8 rounded-[18px] border border-[var(--border)] bg-[var(--bg-sunken)] p-5">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-          Reply bait
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+            Reply bait
+          </div>
+          <CopyButton label={copy.copyOne} copiedLabel={copy.copied} value={thread.reply_bait} />
         </div>
         <p className="mt-2 text-[15px] leading-7 text-[var(--text-primary)]">{thread.reply_bait}</p>
       </div>

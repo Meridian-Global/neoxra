@@ -12,15 +12,15 @@ import type { OverlaySlideData, TextLineData } from './render-api'
  *
  * Example:
  * ```
- * 前言：RUNWAY 是誰
+ * Intro: Who is RUNWAY?
  * ---
- * 他們是雲端上的數位電影工作室
- * **讓每個人都能成為電影導演**
- * 目前估值已達到==三十億美元==
+ * They are a cloud-based digital film studio.
+ * **Making everyone feel like a film director**
+ * Their valuation has reached ==three billion dollars==
  * ===
- * 第二張標題
+ * Second slide title
  * ---
- * 正文行...
+ * Body text...
  * ```
  */
 export function parseOverlayInput(raw: string): OverlaySlideData[] {
