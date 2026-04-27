@@ -34,14 +34,15 @@ const COPY: Record<Language, Record<string, string>> = {
 }
 
 function formatFacebookPost(post: FacebookPost) {
-  return [
-    post.hook,
-    post.body,
-    post.discussion_prompt,
-    post.share_hook,
-  ]
-    .filter(Boolean)
-    .join('\n\n')
+  // Assemble a format that can be pasted directly into Facebook.
+  const parts = [post.hook, '', post.body]
+  if (post.discussion_prompt) {
+    parts.push('', post.discussion_prompt)
+  }
+  if (post.share_hook) {
+    parts.push('', post.share_hook)
+  }
+  return parts.join('\n')
 }
 
 function CopyButton({ value, copy }: { value: string; copy: Record<string, string> }) {
@@ -50,7 +51,7 @@ function CopyButton({ value, copy }: { value: string; copy: Record<string, strin
   async function handleCopy() {
     await navigator.clipboard.writeText(value)
     setCopied(true)
-    window.setTimeout(() => setCopied(false), 1400)
+    window.setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -108,8 +109,11 @@ export function FacebookPreview({ post }: { post: FacebookPost }) {
 
           <div className="relative overflow-hidden rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 pl-6">
             <div className="absolute bottom-0 left-0 top-0 w-[3px]" style={{ background: 'var(--gradient-fb)' }} />
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              {copy.discussion}
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                {copy.discussion}
+              </div>
+              <CopyButton value={post.discussion_prompt} copy={copy} />
             </div>
             <p className="mt-2 text-[15px] font-semibold leading-7 text-[var(--text-primary)]">
               {post.discussion_prompt}
