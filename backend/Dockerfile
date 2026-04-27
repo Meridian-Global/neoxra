@@ -34,37 +34,25 @@ RUN pip install --upgrade pip setuptools wheel \
         pip install --no-build-isolation "neoxra-renderer @ git+${NEOXRA_RENDERER_GIT_URL}@${NEOXRA_RENDERER_GIT_REF}"; \
     fi
 
-# Runtime stage: includes Playwright Chromium for server-side rendering
+# Runtime stage: Pillow-based rendering (no browser needed)
 FROM python:3.11-slim
 
-# Pin Playwright browser path so build-time install is found at runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PORT=8000 \
-    PATH="/venv/bin:$PATH" \
-    PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+    PATH="/venv/bin:$PATH"
 
 WORKDIR /app
 
 COPY --from=builder /venv /venv
-
-# Install Playwright system dependencies and Chromium browser into the pinned path
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
-        libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
-        libpango-1.0-0 libcairo2 libasound2 libxshmfence1 \
-    && rm -rf /var/lib/apt/lists/* \
-    && playwright install chromium
 
 COPY . .
 
 RUN python scripts/check_neoxra_core.py \
     && addgroup --system app \
     && adduser --system --ingroup app --home /app app \
-    && chown -R app:app /app \
-    && chmod -R a+rX /opt/pw-browsers
+    && chown -R app:app /app
 
 USER app
 

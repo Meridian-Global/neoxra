@@ -19,7 +19,7 @@ There are currently two realistic deployment paths for the backend:
 1. Render using `render-build.sh`
 2. Docker build using `backend/Dockerfile`
 
-Docker is the recommended production path because server-side rendering (Playwright + Chromium) requires system libraries that cannot be installed in Render's native build environment.
+Docker is the recommended production path for consistent builds. Server-side rendering uses Pillow (no browser or system libraries needed).
 
 ## Render Deployment (Docker)
 
