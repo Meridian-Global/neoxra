@@ -1,6 +1,32 @@
 import JSZip from 'jszip'
 import { API_BASE_URL } from './api'
 
+export async function fetchSampleCarousel(
+  templateId: string = 'editorial-green',
+  locale: string = 'en',
+): Promise<string[]> {
+  // First try: load from static files in /samples/instagram/{templateId}/{locale}/
+  // This avoids an API call entirely — just use <img> src paths
+  const manifest = await fetch('/samples/instagram/manifest.json').then(r => r.json()).catch(() => null)
+
+  if (manifest?.templates?.[templateId]) {
+    const info = manifest.templates[templateId]
+    const useLocale = info.locales?.includes(locale) ? locale : 'en'
+    const count = info.slide_count || 5
+    return Array.from({ length: count }, (_, i) =>
+      `/samples/instagram/${templateId}/${useLocale}/slide-${String(i + 1).padStart(2, '0')}.png`
+    )
+  }
+
+  // Fallback: call the backend API
+  const res = await fetch(
+    `${API_BASE_URL}/api/instagram/sample-carousel?template_id=${encodeURIComponent(templateId)}&locale=${encodeURIComponent(locale)}`,
+  )
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.images || []
+}
+
 export async function renderCarousel(
   templateId: string,
   slides: { title: string; body: string; text_alignment?: string; emphasis?: string }[],

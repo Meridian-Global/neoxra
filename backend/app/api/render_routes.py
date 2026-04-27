@@ -5,6 +5,7 @@ import base64
 import io
 import logging
 import os
+import pathlib
 import zipfile
 
 from fastapi import HTTPException
@@ -34,7 +35,7 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
-_RENDER_TIMEOUT_SECONDS = _int_env("NEOXRA_RENDER_TIMEOUT_SECONDS", 90)
+_RENDER_TIMEOUT_SECONDS = _int_env("NEOXRA_RENDER_TIMEOUT_SECONDS", 15)
 
 
 class SlideInput(BaseModel):
@@ -232,10 +233,64 @@ async def render_carousel_endpoint(request: RenderCarouselRequest):
 
 
 # ---------------------------------------------------------------------------
+# Pre-rendered sample carousel images
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/instagram/sample-carousel")
+async def sample_carousel_images(
+    template_id: str = "editorial-green",
+    locale: str = "en",
+):
+    """Return pre-rendered sample carousel images for instant page load.
+
+    These are static sample slides that show immediately when a user first
+    visits the Instagram studio page, before they generate any content.
+    The images are stored in frontend/public/samples/instagram/{template_id}/{locale}/
+    but we serve base64 data URLs so the frontend can display them
+    in the same format as dynamically rendered images.
+    """
+    samples_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "frontend" / "public" / "samples" / "instagram" / template_id / locale
+    )
+
+    if not samples_dir.is_dir():
+        # Fall back to English if locale-specific samples don't exist
+        samples_dir = (
+            pathlib.Path(__file__).resolve().parents[3]
+            / "frontend" / "public" / "samples" / "instagram" / template_id / "en"
+        )
+
+    if not samples_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"No sample images for template '{template_id}'")
+
+    images: list[str] = []
+    for i in range(1, 11):  # Up to 10 slides
+        slide_path = samples_dir / f"slide-{str(i).zfill(2)}.png"
+        if not slide_path.exists():
+            break
+        png_bytes = slide_path.read_bytes()
+        b64 = base64.b64encode(png_bytes).decode()
+        images.append(f"data:image/png;base64,{b64}")
+
+    if not images:
+        raise HTTPException(status_code=404, detail="No sample slide images found")
+
+    return JSONResponse({
+        "images": images,
+        "template_id": template_id,
+        "locale": locale,
+        "slide_count": len(images),
+        "source": "pre-rendered",
+    })
+
+
+# ---------------------------------------------------------------------------
 # Combined generate-and-render endpoint
 # ---------------------------------------------------------------------------
 
-_GENERATE_AND_RENDER_TIMEOUT_SECONDS = _int_env("NEOXRA_GENERATE_AND_RENDER_TIMEOUT_SECONDS", 120)
+_GENERATE_AND_RENDER_TIMEOUT_SECONDS = _int_env("NEOXRA_GENERATE_AND_RENDER_TIMEOUT_SECONDS", 30)
 
 
 class GenerateAndRenderRequest(BaseModel):
@@ -370,6 +425,7 @@ async def generate_and_render(request: GenerateAndRenderRequest):
         "content": content,
         "rendered_images": rendered_images,
         "slide_count": len(rendered_images) if rendered_images else len(carousel_outline),
+        "renderer": "pillow",
     }
     if render_error:
         response_data["render_error"] = render_error

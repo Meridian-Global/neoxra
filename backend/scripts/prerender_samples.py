@@ -7,7 +7,6 @@ Usage:
 
 Requires:
     - neoxra-renderer (pip install -e ../neoxra-renderer)
-    - playwright chromium (playwright install chromium)
 """
 
 from __future__ import annotations
