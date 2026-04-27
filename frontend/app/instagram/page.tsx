@@ -12,7 +12,7 @@ import { OverlayEditor } from '../../components/OverlayEditor'
 import { VisualCarouselRenderer } from '../../components/VisualCarouselRenderer'
 import { API_BASE_URL } from '../../lib/api'
 import { Upload } from 'lucide-react'
-import { renderCarousel, fetchSampleCarousel } from '../../lib/render-api'
+import { renderCarousel } from '../../lib/render-api'
 import { fetchTemplates } from '../../lib/template-api'
 import { sendBeaconAnalyticsEvent, trackPlausibleEvent } from '../../lib/analytics'
 import { createDynamicTheme, type CarouselTheme, type CarouselThemeId } from '../../lib/carousel-themes'
@@ -24,6 +24,13 @@ import { APIError, streamSSE } from '../../lib/sse'
 import type { InstagramContent, Scorecard, StyleAnalysis, TemplateInfo } from '../../lib/instagram-types'
 import type { TemplateSpec } from '../../lib/template-types'
 import type { DemoClientConfig } from '../../lib/demo-config'
+
+function getSampleImagePaths(templateId: string, locale: string, count: number = 5): string[] {
+  const useLocale = locale.startsWith('zh') ? 'zh-TW' : 'en'
+  return Array.from({ length: count }, (_, i) =>
+    `/samples/instagram/${templateId}/${useLocale}/slide-${String(i + 1).padStart(2, '0')}.png`
+  )
+}
 
 type PageStatus = 'idle' | 'loading' | 'streaming' | 'completed' | 'error'
 type Language = 'en' | 'zh-TW'
@@ -486,7 +493,7 @@ function InstagramPreview({
   selectedTemplateId,
   customTemplateSpec,
   language,
-  sampleImages,
+  hasUserGenerated,
 }: {
   bundle: PreviewBundle
   copy: InstagramCopy
@@ -495,12 +502,17 @@ function InstagramPreview({
   selectedTemplateId: string
   customTemplateSpec?: TemplateSpec | null
   language: Language
-  sampleImages?: string[]
+  hasUserGenerated?: boolean
 }) {
   const fallbackTheme: CarouselThemeId = TEMPLATE_TO_THEME[selectedTemplateId] ?? 'professional'
   const [carouselTheme, setCarouselTheme] = useState<CarouselThemeId>(fallbackTheme)
-  // Initialize with sample images if available (instant preview, no API call)
-  const [renderedImages, setRenderedImages] = useState<string[]>(sampleImages ?? [])
+  // Use pre-rendered sample images for the default preview (no API call needed)
+  const [renderedImages, setRenderedImages] = useState<string[]>(() => {
+    if (selectedTemplateId === 'editorial-green') {
+      return getSampleImagePaths('editorial-green', language)
+    }
+    return []
+  })
   const [isRendering, setIsRendering] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
   const lastRenderKeyRef = useRef<string>('')
@@ -549,9 +561,9 @@ function InstagramPreview({
     if (bundle.content.carousel_outline.length === 0) return
     if (renderKey === lastRenderKeyRef.current) return
 
-    // If we have sample images and this is the initial default content, use them directly
-    if (sampleImages && sampleImages.length > 0 && renderedImages.length === 0) {
-      setRenderedImages(sampleImages)
+    // If we already have images (e.g., from sample images), skip the API call
+    // until the user actually generates new content
+    if (renderedImages.length > 0 && !hasUserGenerated) {
       lastRenderKeyRef.current = renderKey
       return
     }
@@ -593,14 +605,14 @@ function InstagramPreview({
     return () => {
       cancelled = true
     }
-  }, [renderKey, bundle.content.carousel_outline, copy.labels.renderError, selectedTemplateId, customTemplateSpec, sampleImages, renderedImages.length])
+  }, [renderKey, bundle.content.carousel_outline, copy.labels.renderError, selectedTemplateId, customTemplateSpec, hasUserGenerated]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When sampleImages prop changes and renderedImages is still empty, update
+  // Update sample images when language changes (only for default preview)
   useEffect(() => {
-    if (sampleImages && sampleImages.length > 0 && renderedImages.length === 0) {
-      setRenderedImages(sampleImages)
+    if (!hasUserGenerated && selectedTemplateId === 'editorial-green') {
+      setRenderedImages(getSampleImagePaths('editorial-green', language))
     }
-  }, [sampleImages]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [language, hasUserGenerated, selectedTemplateId])
 
   function handleRetryRender() {
     lastRenderKeyRef.current = ''
@@ -750,8 +762,6 @@ export default function InstagramPage() {
   const [pageMode, setPageMode] = useState<PageMode>('ai-generate')
   const [overlayTemplateImage, setOverlayTemplateImage] = useState<string | null>(null)
   const [overlayRenderedImages, setOverlayRenderedImages] = useState<string[]>([])
-  const [sampleImages, setSampleImages] = useState<string[]>([])
-  const [sampleImagesLoaded, setSampleImagesLoaded] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const latestTopicRef = useRef(topic)
   const referencePreviewUrlRef = useRef<string | null>(null)
@@ -790,24 +800,6 @@ export default function InstagramPage() {
       .catch(() => {})
     return () => { cancelled = true }
   }, [])
-
-  useEffect(() => {
-    let cancelled = false
-
-    // Load pre-rendered sample carousel images for instant preview
-    fetchSampleCarousel(selectedTemplateId, language)
-      .then((images) => {
-        if (!cancelled) {
-          setSampleImages(images)
-          setSampleImagesLoaded(true)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setSampleImagesLoaded(true)  // Don't block on failure
-      })
-
-    return () => { cancelled = true }
-  }, [selectedTemplateId, language])
 
   useEffect(() => {
     latestTopicRef.current = topic
@@ -1290,7 +1282,7 @@ export default function InstagramPage() {
                 {isWorking && !streamedContent ? (
                   <LoadingPreview />
                 ) : previewTab === 'instagram' ? (
-                  <InstagramPreview bundle={displayBundle} copy={copy} exportDisabled={isWorking} dynamicTheme={dynamicTheme} selectedTemplateId={selectedTemplateId} customTemplateSpec={customTemplateSpec} language={language} sampleImages={sampleImages} />
+                  <InstagramPreview bundle={displayBundle} copy={copy} exportDisabled={isWorking} dynamicTheme={dynamicTheme} selectedTemplateId={selectedTemplateId} customTemplateSpec={customTemplateSpec} language={language} hasUserGenerated={status === 'completed'} />
                 ) : (
                   <ArticlePreviewPanel bundle={displayBundle} copy={copy} />
                 )}
