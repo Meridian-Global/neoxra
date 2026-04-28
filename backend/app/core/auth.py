@@ -5,13 +5,11 @@ import os
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote as urlquote
 
 from fastapi import HTTPException, Request
-from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 
-from ..db import AuthSession, MagicLinkToken, Organization, OrganizationMembership, User, create_session
+from ..db import AuthSession, Organization, OrganizationMembership, User, create_session
 
 
 def _utcnow() -> datetime:
@@ -46,38 +44,12 @@ def _hash_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
-def _validate_redirect_path(value: str | None) -> str | None:
-    """Return a safe relative path or None. Rejects absolute URLs and protocol-relative paths."""
-    if not value:
-        return None
-    stripped = value.strip()
-    if not stripped.startswith("/") or stripped.startswith("//") or "://" in stripped:
-        return None
-    return stripped
-
-
-def _magic_link_ttl_minutes() -> int:
-    raw = os.getenv("AUTH_MAGIC_LINK_TTL_MINUTES", "20").strip()
-    try:
-        return max(5, int(raw))
-    except ValueError:
-        return 20
-
-
 def _session_ttl_days() -> int:
     raw = os.getenv("AUTH_SESSION_TTL_DAYS", "14").strip()
     try:
         return max(1, int(raw))
     except ValueError:
         return 14
-
-
-def _frontend_app_url() -> str:
-    return os.getenv("FRONTEND_APP_URL", "http://localhost:3000").rstrip("/")
-
-
-def magic_link_debug_enabled() -> bool:
-    return os.getenv("AUTH_MAGIC_LINK_DEBUG", "").strip().lower() in {"1", "true", "yes"}
 
 
 @dataclass
@@ -228,7 +200,7 @@ def create_authenticated_session(
     *,
     email: str,
     full_name: str | None = None,
-    auth_method: str = "magic_link",
+    auth_method: str = "google",
     organization_key: str | None = None,
 ) -> dict[str, object]:
     """Find-or-create user/org/membership and issue a new AuthSession.
@@ -280,129 +252,6 @@ def create_authenticated_session(
             "name": organization.name,
         },
     }
-
-
-def request_magic_link(
-    *,
-    email: str,
-    organization_key: str | None = None,
-    redirect_path: str | None = None,
-    full_name: str | None = None,
-) -> dict[str, object]:
-    try:
-        normalized_email = _normalize_email(email)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail={"detail": str(exc), "error_code": "invalid_email"},
-        ) from exc
-
-    if organization_key:
-        try:
-            tenant_key = _normalize_tenant_key(organization_key)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"detail": str(exc), "error_code": "invalid_organization_key"},
-            ) from exc
-    else:
-        tenant_key = "personal"
-
-    safe_redirect = _validate_redirect_path(redirect_path)
-
-    user = _find_or_create_user(normalized_email, full_name)
-    organization = _find_or_create_organization(tenant_key)
-    _ensure_membership(organization.id, user.id)
-
-    raw_token = secrets.token_urlsafe(32)
-    token_hash = _hash_token(raw_token)
-    expires_at = _utcnow() + timedelta(minutes=_magic_link_ttl_minutes())
-
-    session = create_session()
-    try:
-        token = MagicLinkToken(
-            user_id=user.id,
-            organization_id=organization.id,
-            email=normalized_email,
-            token_hash=token_hash,
-            redirect_path=safe_redirect,
-            expires_at=expires_at,
-        )
-        session.add(token)
-        session.commit()
-    finally:
-        session.close()
-
-    base_link = f"{_frontend_app_url()}/login?token={raw_token}"
-    magic_link = f"{base_link}&redirect={urlquote(safe_redirect, safe='/')}" if safe_redirect else base_link
-    response: dict[str, object] = {
-        "status": "ok",
-        "delivery": "magic_link",
-        "email": normalized_email,
-        "organization": {
-            "tenant_key": organization.tenant_key,
-            "name": organization.name,
-        },
-        "expires_at": expires_at.isoformat(),
-    }
-    if magic_link_debug_enabled():
-        response["magic_link"] = magic_link
-    return response
-
-
-def verify_magic_link(token: str) -> dict[str, object]:
-    raw_token = token.strip()
-    if not raw_token:
-        raise HTTPException(
-            status_code=400,
-            detail={"detail": "Token is required.", "error_code": "TOKEN_REQUIRED"},
-        )
-
-    token_hash = _hash_token(raw_token)
-    now = _utcnow()
-    session = create_session()
-    try:
-        # Atomically mark the token as used. Only the first concurrent request will
-        # match (used_at IS NULL), preventing double-redemption races.
-        result = session.execute(
-            sa_update(MagicLinkToken)
-            .where(
-                MagicLinkToken.token_hash == token_hash,
-                MagicLinkToken.used_at.is_(None),
-                MagicLinkToken.expires_at > now,
-            )
-            .values(used_at=now)
-        )
-        session.flush()
-        if result.rowcount != 1:
-            raise HTTPException(
-                status_code=401,
-                detail={"detail": "Magic link is invalid or expired.", "error_code": "INVALID_MAGIC_LINK"},
-            )
-
-        match = (
-            session.query(MagicLinkToken, User, Organization)
-            .join(User, MagicLinkToken.user_id == User.id)
-            .outerjoin(Organization, MagicLinkToken.organization_id == Organization.id)
-            .filter(MagicLinkToken.token_hash == token_hash)
-            .one()
-        )
-
-        magic_token, user, organization = match
-        redirect_path = magic_token.redirect_path
-        session.commit()
-
-        org_key = organization.tenant_key if organization else None
-        result = create_authenticated_session(
-            email=user.email,
-            full_name=user.full_name,
-            auth_method="magic_link",
-            organization_key=org_key,
-        )
-        result["redirect_path"] = redirect_path
-        return result
-    finally:
-        session.close()
 
 
 def revoke_session_token(raw_token: str) -> None:

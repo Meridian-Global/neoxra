@@ -2,7 +2,6 @@ from .base import Base
 from .models import (
     AuthSession,
     DemoRun,
-    MagicLinkToken,
     Organization,
     OrganizationMembership,
     TenantConfig,
@@ -21,7 +20,6 @@ __all__ = [
     "Base",
     "AuthSession",
     "DemoRun",
-    "MagicLinkToken",
     "Organization",
     "OrganizationMembership",
     "TenantConfig",

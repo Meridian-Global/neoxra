@@ -1,0 +1,69 @@
+'use client'
+
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useRef, useState } from 'react'
+import { useAuth } from '../../../../contexts/AuthContext'
+import { handleGoogleCallback } from '../../../../lib/auth'
+
+function isSafeRedirectPath(path: string): boolean {
+  return (
+    typeof path === 'string' &&
+    path.startsWith('/') &&
+    !path.startsWith('//') &&
+    !path.includes('://')
+  )
+}
+
+function GoogleCallbackContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const auth = useAuth()
+  const handled = useRef(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (handled.current) return
+    handled.current = true
+
+    const code = searchParams.get('code')
+    const state = searchParams.get('state')
+
+    if (!code || !state) {
+      setError('Missing authorization parameters.')
+      window.setTimeout(() => router.push('/login'), 2000)
+      return
+    }
+
+    void handleGoogleCallback(code, state)
+      .then(async (result) => {
+        await auth.login(result.session_token)
+        const rawRedirect = searchParams.get('redirect') || '/generate'
+        const redirectPath = isSafeRedirectPath(rawRedirect) ? rawRedirect : '/generate'
+        router.push(redirectPath)
+      })
+      .catch(() => {
+        setError('Sign-in failed. Redirecting to login...')
+        window.setTimeout(() => router.push('/login'), 2000)
+      })
+  }, [searchParams, router, auth])
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] text-[var(--text)]">
+      <div className="text-center">
+        {error ? (
+          <p className="text-sm text-rose-500">{error}</p>
+        ) : (
+          <p className="text-sm text-[var(--text-secondary)]">Signing you in...</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function GoogleCallbackPage() {
+  return (
+    <Suspense fallback={null}>
+      <GoogleCallbackContent />
+    </Suspense>
+  )
+}

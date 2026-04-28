@@ -7,6 +7,11 @@ export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl
   const hasAuthCookie = request.cookies.get(AUTH_COOKIE_NAME)?.value === '1'
 
+  // Allow Google OAuth callback through without redirect
+  if (pathname === '/login/google/callback') {
+    return NextResponse.next()
+  }
+
   // Already logged in — skip the login page
   if (pathname === '/login' && hasAuthCookie) {
     return NextResponse.redirect(new URL('/generate', request.url))

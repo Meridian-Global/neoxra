@@ -44,57 +44,26 @@ export function clearSessionToken(): void {
   } catch {}
 }
 
-export async function requestMagicLink(input: {
-  email: string
-  organizationKey?: string
-  redirectPath?: string
-  fullName?: string
-}) {
-  const response = await fetch(`${API_BASE_URL}/api/auth/request-link`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: input.email,
-      organization_key: input.organizationKey || undefined,
-      redirect_path: input.redirectPath || '/instagram',
-      full_name: input.fullName || undefined,
-    }),
-  })
-
+export async function getGoogleAuthUrl(): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/google/url`)
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(typeof payload?.detail === 'string' ? payload.detail : 'Magic link request failed.')
+    throw new Error(typeof payload?.detail === 'string' ? payload.detail : 'Failed to get Google auth URL.')
   }
-  return payload as {
-    status: string
-    delivery: string
-    email: string
-    expires_at: string
-    magic_link?: string
-    organization?: { tenant_key?: string; name?: string }
-  }
+  return payload.url as string
 }
 
-export async function verifyMagicLink(token: string) {
-  const response = await fetch(`${API_BASE_URL}/api/auth/verify`, {
+export async function handleGoogleCallback(code: string, state: string): Promise<{ session_token: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/google/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ code, state }),
   })
-
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(typeof payload?.detail === 'string' ? payload.detail : 'Magic link verification failed.')
+    throw new Error(typeof payload?.detail === 'string' ? payload.detail : 'Google sign-in failed.')
   }
-  if (typeof payload?.session_token === 'string') {
-    setSessionToken(payload.session_token)
-  }
-  return payload as {
-    status: string
-    session_token: string
-    expires_at: string
-    redirect_path?: string | null
-  } & AuthIdentity
+  return payload as { session_token: string }
 }
 
 export async function fetchCurrentUser() {

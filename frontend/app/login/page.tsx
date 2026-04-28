@@ -1,26 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight, CheckCircle2, KeyRound, Mail, ShieldCheck, Sparkles } from 'lucide-react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowRight, CheckCircle2, KeyRound, ShieldCheck } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { Suspense, useMemo, useState } from 'react'
 import { GlobalNav } from '../../components/GlobalNav'
 import { useLanguage } from '../../components/LanguageProvider'
 import { useAuth } from '../../contexts/AuthContext'
-import { requestMagicLink, verifyMagicLink } from '../../lib/auth'
+import { getGoogleAuthUrl } from '../../lib/auth'
 
 function createCopy(language: 'en' | 'zh-TW') {
   if (language === 'zh-TW') {
     return {
-      badge: '早期客戶登入',
-      title: '用 email magic link 進入 Neoxra。',
-      body: '這是給早期客戶與客製 demo 使用的最小登入入口。輸入 email 後，我們會建立一個 magic link session。',
-      email: 'Email',
-      fullName: '姓名（選填）',
-      organizationKey: '組織代碼（選填）',
-      requestLink: '寄送 magic link',
-      requesting: '建立中…',
-      verifying: '驗證中…',
+      badge: '登入',
+      title: '登入 Neoxra',
+      body: '使用 Google 帳號開始使用。',
+      google: '使用 Google 登入',
+      signingIn: '登入中…',
       signedIn: '已登入',
       signedOut: '未登入',
       currentUser: '目前身份',
@@ -29,33 +25,24 @@ function createCopy(language: 'en' | 'zh-TW') {
       openInstagram: '前往 Instagram Studio',
       openLegal: '前往法律 demo',
       openGenerate: '前往 Generate All',
-      linkReady: 'Magic link 已建立',
-      linkHint: '如果目前環境開啟 debug，你會看到可直接使用的 magic link。',
-      verifyError: 'Magic link 無效或已過期。',
-      requestError: '無法建立 magic link，請稍後再試。',
-      success: '登入成功，正在導向…',
+      error: '無法開始 Google 登入，請稍後再試。',
       panelEyebrow: 'Secure access',
-      panelTitle: '給早期客戶與受邀 demo 的登入入口',
-      panelBody: '用 email 建立一次性 magic link，不需要密碼，也不用額外記憶登入資訊。',
-      emailHint: '我們會寄送一封可直接登入的連結。',
+      panelTitle: '使用 Google 帳號登入',
+      panelBody: '點選下方按鈕，透過 Google 帳號安全登入 Neoxra。',
       identityCard: 'Session 狀態',
       signedInBody: '目前 session 已可使用受保護頁面與指定 demo。',
-      signedOutBody: '尚未建立 session。送出 email 後即可取得登入連結。',
+      signedOutBody: '尚未建立 session。使用 Google 登入即可開始。',
       quickActions: '快速前往',
-      trustPoints: ['無密碼登入', '一次性驗證連結', '適合客戶 demo 與內部測試'],
+      trustPoints: ['Google 帳號登入', '安全驗證', '適合客戶 demo 與內部測試'],
     }
   }
 
   return {
-    badge: 'Early customer login',
-    title: 'Sign in to Neoxra with a magic link.',
-    body: 'This is the smallest practical login path for early customers and client-specific demos. Enter an email and Neoxra will issue a magic link session.',
-    email: 'Email',
-    fullName: 'Full name (optional)',
-    organizationKey: 'Organization key (optional)',
-    requestLink: 'Send magic link',
-    requesting: 'Creating…',
-    verifying: 'Verifying…',
+    badge: 'Sign in',
+    title: 'Sign in to Neoxra',
+    body: 'Use your Google account to get started.',
+    google: 'Continue with Google',
+    signingIn: 'Signing in…',
     signedIn: 'Signed in',
     signedOut: 'Signed out',
     currentUser: 'Current identity',
@@ -64,107 +51,64 @@ function createCopy(language: 'en' | 'zh-TW') {
     openInstagram: 'Open Instagram Studio',
     openLegal: 'Open Legal Demo',
     openGenerate: 'Open Generate All',
-    linkReady: 'Magic link ready',
-    linkHint: 'If debug mode is enabled for this environment, the direct magic link will appear below.',
-    verifyError: 'That magic link is invalid or has expired.',
-    requestError: 'Could not create a magic link. Please try again.',
-    success: 'Signed in successfully. Redirecting…',
+    error: 'Could not start Google sign-in. Please try again.',
     panelEyebrow: 'Secure access',
-    panelTitle: 'A focused sign-in flow for invited demos and early customers',
-    panelBody: 'Use an email-based magic link instead of a password. It keeps the entry point simple while still gating protected surfaces.',
-    emailHint: 'We will issue a one-time sign-in link for this address.',
+    panelTitle: 'Sign in with your Google account',
+    panelBody: 'Click below to securely sign in to Neoxra with your Google account.',
     identityCard: 'Session status',
     signedInBody: 'This session can already access protected product surfaces and configured demos.',
-    signedOutBody: 'No active session yet. Submit an email to request access.',
+    signedOutBody: 'No active session yet. Sign in with Google to get started.',
     quickActions: 'Quick actions',
-    trustPoints: ['Passwordless sign-in', 'One-time verification link', 'Built for guided demos and internal testing'],
+    trustPoints: ['Google account sign-in', 'Secure authentication', 'Built for guided demos and internal testing'],
   }
 }
 
-function isSafeRedirectPath(path: string): boolean {
-  return (
-    typeof path === 'string' &&
-    path.startsWith('/') &&
-    !path.startsWith('//') &&
-    !path.includes('://')
-  )
-}
+const GOOGLE_ICON = (
+  <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+      fill="#4285F4"
+    />
+    <path
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      fill="#34A853"
+    />
+    <path
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.43 3.45 1.18 4.93l3.66-2.84z"
+      fill="#FBBC05"
+    />
+    <path
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+      fill="#EA4335"
+    />
+  </svg>
+)
 
 function LoginPageContent() {
   const { language } = useLanguage()
   const copy = useMemo(() => createCopy(language), [language])
-  const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
   const auth = useAuth()
 
-  const [email, setEmail] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [organizationKey, setOrganizationKey] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
-  const [magicLink, setMagicLink] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isVerifying, setIsVerifying] = useState(false)
-  const hasVerified = useRef(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
 
   const identity = auth.user
 
-  useEffect(() => {
-    const token = searchParams.get('token')
-    if (!token || hasVerified.current) return
-    hasVerified.current = true
-    setIsVerifying(true)
+  async function handleGoogleLogin() {
     setError(null)
-    void verifyMagicLink(token)
-      .then(async (result) => {
-        if (result.session_token) {
-          await auth.login(result.session_token)
-        }
-        setMessage(copy.success)
-        // Remove the token from the URL so refreshes / language switches don't re-trigger
-        const params = new URLSearchParams(searchParams.toString())
-        params.delete('token')
-        const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname
-        router.replace(nextUrl)
-        const rawRedirect = searchParams.get('redirect') || result.redirect_path || '/instagram'
-        const redirectPath = isSafeRedirectPath(rawRedirect) ? rawRedirect : '/instagram'
-        window.setTimeout(() => router.push(redirectPath), 800)
-      })
-      .catch(() => {
-        setError(copy.verifyError)
-      })
-      .finally(() => {
-        setIsVerifying(false)
-      })
-  }, [searchParams, router, copy.success, copy.verifyError])
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setIsSubmitting(true)
-    setError(null)
-    setMessage(null)
-    setMagicLink(null)
+    setIsRedirecting(true)
     try {
-      const payload = await requestMagicLink({
-        email,
-        fullName,
-        organizationKey,
-        redirectPath: '/instagram',
-      })
-      setMessage(`${copy.linkReady}. ${copy.linkHint}`)
-      setMagicLink(payload.magic_link ?? null)
+      const url = await getGoogleAuthUrl()
+      window.location.href = url
     } catch {
-      setError(copy.requestError)
-    } finally {
-      setIsSubmitting(false)
+      setError(copy.error)
+      setIsRedirecting(false)
     }
   }
 
   async function handleLogout() {
     await auth.logout()
-    setMessage(null)
-    setMagicLink(null)
   }
 
   return (
@@ -223,71 +167,22 @@ function LoginPageContent() {
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit} className="mt-8 grid gap-5">
-                <label className="block text-sm font-semibold text-[var(--text-secondary)]">
-                  {copy.email}
-                  <div className="relative mt-2">
-                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-tertiary)]" />
-                    <input
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      className="h-14 w-full rounded-2xl border border-[var(--border)] bg-[var(--bg-sunken)] pl-11 pr-4 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
-                      type="email"
-                      placeholder="name@company.com"
-                      required
-                    />
-                  </div>
-                  <p className="mt-2 text-xs font-normal leading-5 text-[var(--text-tertiary)]">{copy.emailHint}</p>
-                </label>
-
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <label className="block text-sm font-semibold text-[var(--text-secondary)]">
-                    {copy.fullName}
-                    <input
-                      value={fullName}
-                      onChange={(event) => setFullName(event.target.value)}
-                      className="mt-2 h-14 w-full rounded-2xl border border-[var(--border)] bg-[var(--bg-sunken)] px-4 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
-                    />
-                  </label>
-
-                  <label className="block text-sm font-semibold text-[var(--text-secondary)]">
-                    {copy.organizationKey}
-                    <input
-                      value={organizationKey}
-                      onChange={(event) => setOrganizationKey(event.target.value)}
-                      className="mt-2 h-14 w-full rounded-2xl border border-[var(--border)] bg-[var(--bg-sunken)] px-4 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
-                    />
-                  </label>
-                </div>
-
+              <div className="mt-8 grid gap-5">
                 {error ? (
                   <div className="rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-500">
                     {error}
                   </div>
                 ) : null}
 
-                {message ? (
-                  <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-500">
-                    {message}
-                  </div>
-                ) : null}
-
-                {magicLink ? (
-                  <div className="rounded-2xl border border-[var(--accent-soft)] bg-[var(--bg-sunken)] p-4 text-sm break-all text-[var(--text-secondary)]">
-                    <a href={magicLink} className="text-[var(--accent)] underline underline-offset-4">
-                      {magicLink}
-                    </a>
-                  </div>
-                ) : null}
-
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button
-                    type="submit"
-                    disabled={isSubmitting || isVerifying}
-                    className="inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-cta)] px-6 text-base font-semibold text-white shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    disabled={isRedirecting}
+                    className="inline-flex h-14 items-center justify-center gap-3 rounded-xl border border-[var(--border)] bg-white px-6 text-base font-semibold text-gray-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Sparkles className="h-4 w-4" />
-                    {isVerifying ? copy.verifying : isSubmitting ? copy.requesting : copy.requestLink}
+                    {GOOGLE_ICON}
+                    {isRedirecting ? copy.signingIn : copy.google}
                   </button>
 
                   <Link
@@ -297,7 +192,7 @@ function LoginPageContent() {
                     {copy.back}
                   </Link>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
 
