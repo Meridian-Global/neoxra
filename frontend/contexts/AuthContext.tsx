@@ -28,12 +28,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = getSessionToken()
     if (!token) {
+      // Ensure the auth cookie marker is cleared when no session token exists
+      clearSessionToken()
       setIsLoading(false)
       return
     }
     fetchCurrentUser()
       .then((result) => {
-        setUser(result ?? null)
+        if (result) {
+          // Re-sync the auth cookie marker for users who had a localStorage token
+          // from before the cookie marker was introduced
+          setSessionToken(token)
+          setUser(result)
+        } else {
+          clearSessionToken()
+          setUser(null)
+        }
       })
       .catch(() => {
         clearSessionToken()
