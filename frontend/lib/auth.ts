@@ -1,6 +1,7 @@
 'use client'
 
 import { API_BASE_URL } from './api'
+import { AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME } from './auth-constants'
 
 const SESSION_TOKEN_KEY = 'neoxra-session-token'
 
@@ -30,6 +31,8 @@ export function setSessionToken(token: string): void {
   if (typeof window === 'undefined') return
   try {
     window.localStorage.setItem(SESSION_TOKEN_KEY, token)
+    const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+    document.cookie = `${AUTH_COOKIE_NAME}=1; path=/; max-age=${AUTH_COOKIE_MAX_AGE}; SameSite=Lax${secure}`
   } catch {}
 }
 
@@ -37,6 +40,7 @@ export function clearSessionToken(): void {
   if (typeof window === 'undefined') return
   try {
     window.localStorage.removeItem(SESSION_TOKEN_KEY)
+    document.cookie = `${AUTH_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`
   } catch {}
 }
 

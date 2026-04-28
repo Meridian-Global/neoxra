@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { AnalyticsProvider } from '../components/AnalyticsProvider'
 import { LanguageProvider } from '../components/LanguageProvider'
+import { AuthProvider } from '../contexts/AuthContext'
 // @ts-ignore -- Global CSS is resolved by Next.js bundler at build time.
 import './globals.css'
 
@@ -45,8 +46,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <LanguageProvider>
-          <AnalyticsProvider />
-          {children}
+          <AuthProvider>
+            <AnalyticsProvider />
+            {children}
+          </AuthProvider>
         </LanguageProvider>
       </body>
     </html>

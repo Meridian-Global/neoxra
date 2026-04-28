@@ -6,7 +6,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { GlobalNav } from '../../components/GlobalNav'
 import { useLanguage } from '../../components/LanguageProvider'
-import { fetchCurrentUser, logout, requestMagicLink, verifyMagicLink } from '../../lib/auth'
+import { useAuth } from '../../contexts/AuthContext'
+import { requestMagicLink, verifyMagicLink } from '../../lib/auth'
 
 function createCopy(language: 'en' | 'zh-TW') {
   if (language === 'zh-TW') {
@@ -95,6 +96,7 @@ function LoginPageContent() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const auth = useAuth()
 
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
@@ -104,12 +106,9 @@ function LoginPageContent() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
-  const [identity, setIdentity] = useState<Awaited<ReturnType<typeof fetchCurrentUser>>>(null)
   const hasVerified = useRef(false)
 
-  useEffect(() => {
-    void fetchCurrentUser().then(setIdentity)
-  }, [])
+  const identity = auth.user
 
   useEffect(() => {
     const token = searchParams.get('token')
@@ -119,15 +118,16 @@ function LoginPageContent() {
     setError(null)
     void verifyMagicLink(token)
       .then(async (result) => {
-        const me = await fetchCurrentUser()
-        setIdentity(me)
+        if (result.session_token) {
+          await auth.login(result.session_token)
+        }
         setMessage(copy.success)
         // Remove the token from the URL so refreshes / language switches don't re-trigger
         const params = new URLSearchParams(searchParams.toString())
         params.delete('token')
         const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname
         router.replace(nextUrl)
-        const rawRedirect = result.redirect_path || searchParams.get('redirect') || '/instagram'
+        const rawRedirect = searchParams.get('redirect') || result.redirect_path || '/instagram'
         const redirectPath = isSafeRedirectPath(rawRedirect) ? rawRedirect : '/instagram'
         window.setTimeout(() => router.push(redirectPath), 800)
       })
@@ -162,8 +162,7 @@ function LoginPageContent() {
   }
 
   async function handleLogout() {
-    await logout()
-    setIdentity(null)
+    await auth.logout()
     setMessage(null)
     setMagicLink(null)
   }
