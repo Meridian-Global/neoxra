@@ -15,11 +15,13 @@ type NavCopy = {
   pricing: string
   login: string
   getStarted: string
+  logout?: string
 }
 
 type NavbarProps = {
   copy: NavCopy
   anchorPrefix?: string
+  auth?: { email: string; onLogout: () => void }
 }
 
 const NAV_ITEMS = [
@@ -36,7 +38,7 @@ const PRODUCT_LINKS = [
   { label: 'Facebook', href: '/facebook' },
 ] as const
 
-export default function Navbar({ copy, anchorPrefix = '' }: NavbarProps) {
+export default function Navbar({ copy, anchorPrefix = '', auth }: NavbarProps) {
   const [open, setOpen] = useState(false)
 
   const labels: Record<(typeof NAV_ITEMS)[number]['key'], string> = {
@@ -86,19 +88,34 @@ export default function Navbar({ copy, anchorPrefix = '' }: NavbarProps) {
         <div className="hidden items-center gap-3 lg:flex">
           <LanguageToggle />
           <ThemeToggle />
-          <Link
-            className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
-            href="/login"
-          >
-            {copy.login}
-          </Link>
-          <Link
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-cta)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
-            href="/generate"
-          >
-            {copy.getStarted}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          {auth ? (
+            <>
+              <span className="text-sm text-[var(--text-secondary)]">{auth.email}</span>
+              <button
+                className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
+                onClick={auth.onLogout}
+                type="button"
+              >
+                {copy.logout || 'Logout'}
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
+                href="/login"
+              >
+                {copy.login}
+              </Link>
+              <Link
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-cta)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
+                href="/generate"
+              >
+                {copy.getStarted}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -146,21 +163,36 @@ export default function Navbar({ copy, anchorPrefix = '' }: NavbarProps) {
             </Link>
           ))}
           <div className="mt-2 grid gap-2">
-            <Link
-              className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
-              href="/login"
-              onClick={() => setOpen(false)}
-            >
-              {copy.login}
-            </Link>
-            <Link
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-cta)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
-              href="/generate"
-              onClick={() => setOpen(false)}
-            >
-              {copy.getStarted}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            {auth ? (
+              <>
+                <span className="px-3 text-sm text-[var(--text-secondary)]">{auth.email}</span>
+                <button
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
+                  onClick={() => { auth.onLogout(); setOpen(false) }}
+                  type="button"
+                >
+                  {copy.logout || 'Logout'}
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                >
+                  {copy.login}
+                </Link>
+                <Link
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-cta)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-glow)] transition hover:-translate-y-0.5 hover:bg-[image:var(--gradient-cta-hover)]"
+                  href="/generate"
+                  onClick={() => setOpen(false)}
+                >
+                  {copy.getStarted}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

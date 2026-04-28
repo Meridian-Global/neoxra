@@ -30,6 +30,7 @@ export function setSessionToken(token: string): void {
   if (typeof window === 'undefined') return
   try {
     window.localStorage.setItem(SESSION_TOKEN_KEY, token)
+    document.cookie = 'neoxra-auth=1; path=/; max-age=1209600; SameSite=Lax'
   } catch {}
 }
 
@@ -37,6 +38,7 @@ export function clearSessionToken(): void {
   if (typeof window === 'undefined') return
   try {
     window.localStorage.removeItem(SESSION_TOKEN_KEY)
+    document.cookie = 'neoxra-auth=; path=/; max-age=0; SameSite=Lax'
   } catch {}
 }
 
