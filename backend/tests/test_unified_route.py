@@ -50,7 +50,7 @@ SEO_ARTICLE = {
     "conclusion": "越早整理資料越好。",
     "summary_points": ["報警", "拍照", "就醫"],
     "cta": "需要協助可先整理資料再諮詢。",
-    "estimated_word_count": 1500,
+    "estimated_word_count": 3000,
 }
 
 THREAD_CONTENT = {

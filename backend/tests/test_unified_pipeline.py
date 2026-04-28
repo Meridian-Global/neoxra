@@ -91,7 +91,7 @@ class MockUnifiedCoreClient:
             "conclusion": "Conclusion",
             "summary_points": ["One", "Two"],
             "cta": "Contact us",
-            "estimated_word_count": 1500,
+            "estimated_word_count": 3000,
         }
 
     def build_threads_generation_request(self, *, topic, goal, locale):

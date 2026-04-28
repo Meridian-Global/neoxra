@@ -211,8 +211,8 @@ class SeoArticlePayload(BaseModel):
     @field_validator("estimated_word_count")
     @classmethod
     def _word_count_range(cls, value: int) -> int:
-        if not 2000 <= value <= 8000:
-            raise ValueError("estimated_word_count must be between 2000 and 8000")
+        if not 2000 <= value <= 6000:
+            raise ValueError("estimated_word_count must be between 2000 and 6000")
         return value
 
 

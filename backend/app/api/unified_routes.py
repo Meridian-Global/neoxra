@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import queue
 from json import JSONDecodeError
 
 from fastapi import HTTPException, Request
@@ -298,7 +299,7 @@ def _generate_instagram(core_client, req: UnifiedGenerateRequest, brief: dict[st
     return _apply_law_firm_disclaimer(req, "instagram", content)
 
 
-def _generate_seo(core_client, req: UnifiedGenerateRequest, brief: dict[str, object]) -> dict[str, object]:
+def _generate_seo(core_client, req: UnifiedGenerateRequest, brief: dict[str, object], progress_callback=None) -> dict[str, object]:
     generation_request = core_client.build_seo_generation_request(
         topic=req.idea,
         goal="conversion" if req.goal == "conversion" else "authority",
@@ -317,6 +318,7 @@ def _generate_seo(core_client, req: UnifiedGenerateRequest, brief: dict[str, obj
                 "surface": "generate-all",
             },
             voice_profile=_voice_context(req),
+            on_section_ready=progress_callback,
         ),
     )
     return _apply_law_firm_disclaimer(req, "seo", content)
@@ -448,9 +450,21 @@ async def generate_all(req: UnifiedGenerateRequest, request: Request):
             outputs["brief"] = brief
             yield _sse("brief_ready", {"brief": brief})
 
+            # SEO progress callback — keeps SSE alive during multi-step generation
+            seo_progress_queue: queue.Queue = queue.Queue()
+
+            def seo_progress_callback(event_name: str, data: object) -> None:
+                if hasattr(data, "to_dict"):
+                    data = data.to_dict()  # type: ignore[union-attr]
+                elif hasattr(data, "__dataclass_fields__"):
+                    from dataclasses import asdict
+
+                    data = asdict(data)  # type: ignore[arg-type]
+                seo_progress_queue.put((event_name, data if isinstance(data, dict) else {}))
+
             ig_task = asyncio.create_task(_run_platform("instagram", _generate_instagram, core_client, req, brief))
             all_tasks.append(ig_task)
-            seo_task = asyncio.create_task(_run_platform("seo", _generate_seo, core_client, req, brief))
+            seo_task = asyncio.create_task(_run_platform("seo", _generate_seo, core_client, req, brief, seo_progress_callback))
             all_tasks.append(seo_task)
             threads_task = asyncio.create_task(_run_platform("threads", _generate_threads, core_client, req, brief))
             all_tasks.append(threads_task)
@@ -461,11 +475,31 @@ async def generate_all(req: UnifiedGenerateRequest, request: Request):
             }
             facebook_started = False
 
+            def _drain_seo_progress():
+                events = []
+                while True:
+                    try:
+                        events.append(seo_progress_queue.get_nowait())
+                    except queue.Empty:
+                        break
+                return events
+
             while task_to_platform:
                 done, _ = await asyncio.wait(
                     task_to_platform.keys(),
+                    timeout=2.0,
                     return_when=asyncio.FIRST_COMPLETED,
                 )
+
+                # Drain SEO progress events (keeps the SSE connection alive)
+                for event_name, data in _drain_seo_progress():
+                    yield _sse(f"seo_{event_name}", data)
+
+                if not done:
+                    # Timeout with no task completions — send keepalive
+                    yield _sse("keepalive", {})
+                    continue
+
                 for task in done:
                     platform = task_to_platform.pop(task)
                     _, result, exc = task.result()
@@ -511,6 +545,10 @@ async def generate_all(req: UnifiedGenerateRequest, request: Request):
                         )
                         all_tasks.append(facebook_task)
                         task_to_platform[facebook_task] = "facebook"
+
+            # Drain any remaining SEO progress events
+            for event_name, data in _drain_seo_progress():
+                yield _sse(f"seo_{event_name}", data)
 
             yield _sse("all_completed", {"brief": outputs.get("brief"), "outputs": outputs, "errors": errors})
         except Exception as exc:

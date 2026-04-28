@@ -43,7 +43,7 @@ def _valid_seo():
         "conclusion": "Clear conclusion",
         "summary_points": ["One thing", "Another thing"],
         "cta": "Contact us",
-        "estimated_word_count": 1500,
+        "estimated_word_count": 3000,
     }
 
 
@@ -81,7 +81,7 @@ def test_instagram_validation_rejects_wrong_slide_count():
 
 
 def test_seo_validation_accepts_valid_payload():
-    assert validate_seo_article_payload(_valid_seo())["estimated_word_count"] == 1500
+    assert validate_seo_article_payload(_valid_seo())["estimated_word_count"] == 3000
 
 
 def test_seo_validation_rejects_short_title():
