@@ -224,6 +224,64 @@ def _ensure_membership(organization_id: str, user_id: str) -> None:
         session.close()
 
 
+def create_authenticated_session(
+    *,
+    email: str,
+    full_name: str | None = None,
+    auth_method: str = "magic_link",
+    organization_key: str | None = None,
+) -> dict[str, object]:
+    """Find-or-create user/org/membership and issue a new AuthSession.
+
+    Shared by magic-link verify and Google OAuth callback.
+    """
+    normalized_email = _normalize_email(email)
+    tenant_key = "personal"
+    if organization_key:
+        tenant_key = _normalize_tenant_key(organization_key)
+
+    user = _find_or_create_user(normalized_email, full_name)
+    organization = _find_or_create_organization(tenant_key)
+    _ensure_membership(organization.id, user.id)
+
+    now = _utcnow()
+    session_token = secrets.token_urlsafe(32)
+    session = create_session()
+    try:
+        user_row = session.merge(user)
+        user_row.last_login_at = now
+
+        auth_session = AuthSession(
+            user_id=user.id,
+            organization_id=organization.id,
+            session_token_hash=_hash_token(session_token),
+            auth_method=auth_method,
+            expires_at=now + timedelta(days=_session_ttl_days()),
+            last_seen_at=now,
+        )
+        session.add(auth_session)
+        session.commit()
+        session.refresh(auth_session)
+    finally:
+        session.close()
+
+    return {
+        "status": "ok",
+        "session_token": session_token,
+        "expires_at": auth_session.expires_at.isoformat(),
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+        },
+        "organization": {
+            "id": organization.id,
+            "tenant_key": organization.tenant_key,
+            "name": organization.name,
+        },
+    }
+
+
 def request_magic_link(
     *,
     email: str,
@@ -331,38 +389,18 @@ def verify_magic_link(token: str) -> dict[str, object]:
         )
 
         magic_token, user, organization = match
-        user.last_login_at = now
         redirect_path = magic_token.redirect_path
-
-        session_token = secrets.token_urlsafe(32)
-        auth_session = AuthSession(
-            user_id=user.id,
-            organization_id=organization.id if organization else None,
-            session_token_hash=_hash_token(session_token),
-            auth_method="magic_link",
-            expires_at=now + timedelta(days=_session_ttl_days()),
-            last_seen_at=now,
-        )
-        session.add(auth_session)
         session.commit()
-        session.refresh(auth_session)
 
-        return {
-            "status": "ok",
-            "session_token": session_token,
-            "expires_at": auth_session.expires_at.isoformat(),
-            "redirect_path": redirect_path,
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "full_name": user.full_name,
-            },
-            "organization": {
-                "id": organization.id if organization else None,
-                "tenant_key": organization.tenant_key if organization else None,
-                "name": organization.name if organization else None,
-            },
-        }
+        org_key = organization.tenant_key if organization else None
+        result = create_authenticated_session(
+            email=user.email,
+            full_name=user.full_name,
+            auth_method="magic_link",
+            organization_key=org_key,
+        )
+        result["redirect_path"] = redirect_path
+        return result
     finally:
         session.close()
 
