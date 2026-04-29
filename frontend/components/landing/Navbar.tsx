@@ -17,12 +17,13 @@ type NavCopy = {
   getStarted: string
   usage?: string
   logout?: string
+  admin?: string
 }
 
 type NavbarProps = {
   copy: NavCopy
   anchorPrefix?: string
-  auth?: { email: string; onLogout: () => void }
+  auth?: { email: string; onLogout: () => void; isAdmin?: boolean }
 }
 
 const NAV_ITEMS = [
@@ -92,6 +93,14 @@ export default function Navbar({ copy, anchorPrefix = '', auth }: NavbarProps) {
           {auth ? (
             <>
               <span className="text-sm text-[var(--text-secondary)]">{auth.email}</span>
+              {auth.isAdmin && (
+                <Link
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
+                  href="/admin"
+                >
+                  {copy.admin || 'Admin'}
+                </Link>
+              )}
               <Link
                 className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
                 href="/usage"
@@ -173,6 +182,15 @@ export default function Navbar({ copy, anchorPrefix = '', auth }: NavbarProps) {
             {auth ? (
               <>
                 <span className="px-3 text-sm text-[var(--text-secondary)]">{auth.email}</span>
+                {auth.isAdmin && (
+                  <Link
+                    className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
+                    href="/admin"
+                    onClick={() => setOpen(false)}
+                  >
+                    {copy.admin || 'Admin'}
+                  </Link>
+                )}
                 <Link
                   className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
                   href="/usage"

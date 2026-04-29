@@ -6,7 +6,7 @@ import Navbar from './landing/Navbar'
 
 export function GlobalNav() {
   const { language } = useLanguage()
-  const { user, isAuthenticated, logout } = useAuth()
+  const { user, isAuthenticated, isAdmin, logout } = useAuth()
 
   const copy =
     language === 'zh-TW'
@@ -20,6 +20,7 @@ export function GlobalNav() {
           getStarted: '開始使用',
           usage: '用量',
           logout: '登出',
+          admin: '管理後台',
         }
       : {
           products: 'Products',
@@ -31,13 +32,14 @@ export function GlobalNav() {
           getStarted: 'Get Started',
           usage: 'Usage',
           logout: 'Logout',
+          admin: 'Admin',
         }
 
   return (
     <Navbar
       copy={copy}
       anchorPrefix="/"
-      auth={isAuthenticated ? { email: user!.user.email, onLogout: logout } : undefined}
+      auth={isAuthenticated ? { email: user!.user.email, onLogout: logout, isAdmin } : undefined}
     />
   )
 }
