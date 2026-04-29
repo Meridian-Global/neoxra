@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { GlobalNav } from '../../components/GlobalNav'
+import { QuotaWarning, QuotaExceededModal, isQuotaExceededError } from '../../components/QuotaWarning'
 import { useLanguage } from '../../components/LanguageProvider'
 import { ThreadsPreview } from '../../components/ThreadsPreview'
 import { API_BASE_URL } from '../../lib/api'
@@ -144,6 +145,7 @@ export default function ThreadsPage() {
   const [thread, setThread] = useState<ThreadsThread>(copy.defaultThread)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const [showQuotaModal, setShowQuotaModal] = useState(false)
   const isWorking = status === 'loading' || status === 'streaming'
 
   useEffect(() => {
@@ -200,6 +202,11 @@ export default function ThreadsPage() {
       }
     } catch (err) {
       if (!abort.signal.aborted) {
+        if (isQuotaExceededError(err)) {
+          setShowQuotaModal(true)
+          setStatus('error')
+          return
+        }
         setStatus('error')
         setError(friendlyError(err, copy))
       }
@@ -210,6 +217,7 @@ export default function ThreadsPage() {
     <main className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 pb-16 pt-8 sm:px-6 lg:px-8">
         <GlobalNav />
+        <QuotaWarning />
 
         <section className="grid gap-6 lg:grid-cols-[minmax(280px,0.36fr)_minmax(0,0.64fr)]">
           <aside className="space-y-6 rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-sm)] lg:sticky lg:top-24 lg:self-start">
@@ -308,6 +316,7 @@ export default function ThreadsPage() {
           </section>
         </section>
       </div>
+      {showQuotaModal && <QuotaExceededModal onClose={() => setShowQuotaModal(false)} />}
     </main>
   )
 }

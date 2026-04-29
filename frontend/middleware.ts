@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AUTH_COOKIE_NAME } from './lib/auth-constants'
 
-const PROTECTED_ROUTES = ['/generate', '/instagram', '/seo', '/threads', '/facebook']
+const PROTECTED_ROUTES = ['/generate', '/instagram', '/seo', '/threads', '/facebook', '/usage']
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl

@@ -18,6 +18,7 @@ export function GlobalNav() {
           pricing: '定價',
           login: '登入',
           getStarted: '開始使用',
+          usage: '用量',
           logout: '登出',
         }
       : {
@@ -28,6 +29,7 @@ export function GlobalNav() {
           pricing: 'Pricing',
           login: 'Login',
           getStarted: 'Get Started',
+          usage: 'Usage',
           logout: 'Logout',
         }
 
