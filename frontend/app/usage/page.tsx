@@ -152,7 +152,7 @@ export default function UsagePage() {
 
   return (
     <main className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-5 pb-16 pt-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 pb-16 pt-8 sm:px-6 lg:px-8">
         <GlobalNav />
 
         <h1 className="text-2xl font-bold">{copy.pageTitle}</h1>
