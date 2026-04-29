@@ -130,6 +130,89 @@ export async function fetchUserDetailFull(userId: string): Promise<UserDetailRes
   return response.json()
 }
 
+export interface PipelineMetrics {
+  total_runs: number
+  successful_runs: number
+  failed_runs: number
+  success_rate_percent: number
+  failures_by_reason: Record<string, number>
+}
+
+export interface SystemHealth {
+  database: {
+    status: string
+    database_enabled: boolean
+  }
+  core_library: {
+    status: string
+    import_ok: boolean
+    distribution_installed: boolean
+    distribution_version: string
+  }
+  generation_metrics: {
+    overall: {
+      total_runs: number
+      successful_runs: number
+      failed_runs: number
+      success_rate_percent: number
+    }
+    by_pipeline: Record<string, PipelineMetrics>
+  }
+  guardrails: {
+    rate_limit_backend: string
+    abuse_monitor: Record<string, unknown>
+  }
+}
+
+export interface ActivityItem {
+  id: string
+  route: string
+  pipeline: string
+  status: string
+  duration_ms: number | null
+  user_id: string | null
+  user_email: string | null
+  org_name: string | null
+  created_at: string
+}
+
+export interface PaginatedActivity {
+  activities: ActivityItem[]
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+  }
+}
+
+export async function fetchActivity(params: {
+  page?: number
+  per_page?: number
+  route?: string
+  status?: string
+} = {}): Promise<PaginatedActivity> {
+  const query = new URLSearchParams()
+  if (params.page) query.set('page', String(params.page))
+  if (params.per_page) query.set('per_page', String(params.per_page))
+  if (params.route) query.set('route', params.route)
+  if (params.status) query.set('status', params.status)
+  const qs = query.toString()
+  const response = await fetch(`${API_BASE_URL}/api/admin/activity${qs ? `?${qs}` : ''}`, {
+    headers: authHeaders(),
+  })
+  if (!response.ok) throw new Error('Failed to fetch activity')
+  return response.json()
+}
+
+export async function fetchSystemHealth(): Promise<SystemHealth> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/system/health`, {
+    headers: authHeaders(),
+  })
+  if (!response.ok) throw new Error('Failed to fetch system health')
+  return response.json()
+}
+
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   const response = await fetch(`${API_BASE_URL}/api/admin/dashboard/stats`, {
     headers: authHeaders(),
