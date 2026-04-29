@@ -73,11 +73,11 @@ function LoadingSkeleton() {
   )
 }
 
-function StatCard({ label, value, subtitle }: { label: string; value: number; subtitle?: string }) {
+function StatCard({ label, value, subtitle }: { label: string; value: number | undefined; subtitle?: string }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-sm)]">
       <p className="text-sm font-medium text-[var(--text-secondary)]">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-[var(--text-primary)]">{value.toLocaleString()}</p>
+      <p className="mt-2 text-3xl font-bold text-[var(--text-primary)]">{(value ?? 0).toLocaleString()}</p>
       {subtitle && (
         <p className="mt-1 text-xs text-[var(--text-tertiary)]">{subtitle}</p>
       )}
@@ -140,11 +140,24 @@ export default function AdminOverviewPage() {
     )
   }
 
-  const planEntries = Object.entries(stats.plan_distribution ?? {})
-  const maxPlanCount = Math.max(...planEntries.map(([, v]) => v), 1)
+  // The backend returns nested: { users: { total, active_today, new_this_week }, organizations: { total }, plans: {...}, generations: { today, this_month, by_platform } }
+  const raw = stats as Record<string, any>
+  const users = raw.users ?? {}
+  const orgs = raw.organizations ?? {}
+  const generations = raw.generations ?? {}
 
-  const platformEntries = Object.entries(stats.generations_by_platform ?? {})
-  const maxPlatformCount = Math.max(...platformEntries.map(([, v]) => v), 1)
+  const totalUsers = users.total ?? stats.total_users ?? 0
+  const newThisWeek = users.new_this_week ?? stats.new_users_this_week ?? 0
+  const activeToday = users.active_today ?? stats.active_today ?? 0
+  const generationsThisMonth = generations.this_month ?? stats.generations_this_month ?? 0
+  const generationsToday = generations.today ?? stats.generations_today ?? 0
+  const totalOrgs = orgs.total ?? stats.total_organizations ?? 0
+
+  const planEntries = Object.entries(raw.plans ?? stats.plan_distribution ?? {})
+  const maxPlanCount = Math.max(...planEntries.map(([, v]) => v as number), 1)
+
+  const platformEntries = Object.entries(generations.by_platform ?? stats.generations_by_platform ?? {})
+  const maxPlatformCount = Math.max(...platformEntries.map(([, v]) => v as number), 1)
 
   return (
     <div className="space-y-6">
@@ -152,12 +165,12 @@ export default function AdminOverviewPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label={copy.totalUsers}
-          value={stats.total_users}
-          subtitle={`${stats.new_users_this_week} ${copy.newThisWeek}`}
+          value={totalUsers}
+          subtitle={`${newThisWeek} ${copy.newThisWeek}`}
         />
-        <StatCard label={copy.activeToday} value={stats.active_today} />
-        <StatCard label={copy.generationsThisMonth} value={stats.generations_this_month} />
-        <StatCard label={copy.totalOrganizations} value={stats.total_organizations} />
+        <StatCard label={copy.activeToday} value={activeToday} />
+        <StatCard label={copy.generationsThisMonth} value={generationsThisMonth} />
+        <StatCard label={copy.totalOrganizations} value={totalOrgs} />
       </div>
 
       {/* Middle row — plan distribution + generations by platform */}
@@ -170,7 +183,7 @@ export default function AdminOverviewPage() {
                 <BarRow
                   key={plan}
                   label={plan}
-                  count={count}
+                  count={count as number}
                   max={maxPlanCount}
                   colorClass="bg-emerald-500"
                 />
@@ -189,7 +202,7 @@ export default function AdminOverviewPage() {
                 <BarRow
                   key={platform}
                   label={platform.charAt(0).toUpperCase() + platform.slice(1)}
-                  count={count}
+                  count={count as number}
                   max={maxPlatformCount}
                   colorClass={PLATFORM_COLORS[platform] ?? 'bg-gray-500'}
                 />
@@ -206,7 +219,7 @@ export default function AdminOverviewPage() {
         <h2 className="text-base font-semibold text-[var(--text-primary)]">{copy.todayStats}</h2>
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-[var(--text-secondary)]">
-            <span className="text-2xl font-bold text-[var(--text-primary)]">{stats.generations_today.toLocaleString()}</span>{' '}
+            <span className="text-2xl font-bold text-[var(--text-primary)]">{generationsToday.toLocaleString()}</span>{' '}
             {copy.generationsToday}
           </p>
           <Link
