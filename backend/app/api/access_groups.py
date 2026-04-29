@@ -6,6 +6,7 @@ from ..core.access_levels import (
     authenticated_route_access,
     gated_demo_route_access,
     public_route_access,
+    require_admin_user,
     require_authenticated_route_access,
     require_internal_route_access,
 )
@@ -21,6 +22,10 @@ def build_gated_demo_router() -> APIRouter:
 
 def build_authenticated_marker_router() -> APIRouter:
     return APIRouter(dependencies=[Depends(authenticated_route_access)])
+
+
+def build_admin_router() -> APIRouter:
+    return APIRouter(dependencies=[Depends(require_admin_user)])
 
 
 def build_internal_router() -> APIRouter:

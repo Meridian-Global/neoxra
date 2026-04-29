@@ -66,6 +66,7 @@ async def auth_me(request: Request) -> dict[str, object]:
         "user": {
             "id": auth.user_id,
             "email": auth.email,
+            "is_admin": auth.is_admin,
         },
         "organization": {
             "id": auth.organization_id,

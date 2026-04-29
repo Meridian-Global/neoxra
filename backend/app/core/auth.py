@@ -61,6 +61,7 @@ class AuthContext:
     tenant_key: str | None = None
     role: str | None = None
     session_id: str | None = None
+    is_admin: bool = False
 
 
 def resolve_auth_context(request: Request) -> AuthContext:
@@ -105,6 +106,7 @@ def resolve_auth_context(request: Request) -> AuthContext:
             organization_id=organization.id if organization else None,
             tenant_key=organization.tenant_key if organization else None,
             session_id=auth_session_row.id,
+            is_admin=user.is_admin,
         )
     finally:
         session.close()

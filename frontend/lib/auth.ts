@@ -1,7 +1,7 @@
 'use client'
 
 import { API_BASE_URL } from './api'
-import { AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME } from './auth-constants'
+import { ADMIN_COOKIE_NAME, AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME } from './auth-constants'
 
 const SESSION_TOKEN_KEY = 'neoxra-session-token'
 
@@ -12,6 +12,7 @@ export interface AuthIdentity {
     id: string
     email: string
     full_name?: string | null
+    is_admin?: boolean
   }
   organization: {
     id?: string | null
@@ -43,6 +44,19 @@ export function clearSessionToken(): void {
   try {
     window.localStorage.removeItem(SESSION_TOKEN_KEY)
     document.cookie = `${AUTH_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`
+    document.cookie = `${ADMIN_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`
+  } catch {}
+}
+
+export function setAdminCookie(isAdmin: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (isAdmin) {
+      const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+      document.cookie = `${ADMIN_COOKIE_NAME}=1; path=/; max-age=${AUTH_COOKIE_MAX_AGE}; SameSite=Lax${secure}`
+    } else {
+      document.cookie = `${ADMIN_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`
+    }
   } catch {}
 }
 

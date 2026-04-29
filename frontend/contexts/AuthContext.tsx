@@ -7,6 +7,7 @@ import {
   fetchCurrentUser,
   getSessionToken,
   logout as authLogout,
+  setAdminCookie,
   setSessionToken,
 } from '../lib/auth'
 
@@ -14,6 +15,7 @@ interface AuthContextValue {
   user: AuthIdentity | null
   isLoading: boolean
   isAuthenticated: boolean
+  isAdmin: boolean
   login: (token: string) => Promise<void>
   logout: () => Promise<void>
   refresh: () => Promise<void>
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Re-sync the auth cookie marker for users who had a localStorage token
           // from before the cookie marker was introduced
           setSessionToken(token)
+          setAdminCookie(result.user?.is_admin ?? false)
           setUser(result)
         } else {
           clearSessionToken()
@@ -57,11 +60,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (token: string) => {
     setSessionToken(token)
     const result = await fetchCurrentUser()
+    setAdminCookie(result?.user?.is_admin ?? false)
     setUser(result ?? null)
   }, [])
 
   const logout = useCallback(async () => {
     await authLogout()
+    setAdminCookie(false)
     setUser(null)
   }, [])
 
@@ -75,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isLoading,
       isAuthenticated: user !== null,
+      isAdmin: user?.user?.is_admin ?? false,
       login,
       logout,
       refresh,
