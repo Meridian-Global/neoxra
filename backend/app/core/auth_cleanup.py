@@ -29,10 +29,13 @@ def cleanup_expired_sessions() -> int:
                 (AuthSession.expires_at < now)
                 | ((AuthSession.status == "revoked") & (AuthSession.created_at < revoked_cutoff))
             )
-            .delete(synchronize_session="fetch")
+            .delete(synchronize_session=False)
         )
         session.commit()
         return deleted
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
 

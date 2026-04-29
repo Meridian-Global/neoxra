@@ -13,6 +13,7 @@ from ..core.google_oauth import exchange_code_for_tokens, google_redirect_uri, v
 from ..core.rate_limits import get_rate_limit_store
 from ..core.request_guards import get_client_ip
 from ..core.auth_cleanup import run_auth_cleanup
+from ..db import is_database_enabled
 from .access_groups import build_authenticated_marker_router, build_internal_router, build_public_router
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ async def _enforce_google_url_rate_limit(request: Request) -> None:
     if not allowed:
         raise HTTPException(
             status_code=429,
-            detail={"detail": "Too many requests. Please try again later.", "error_code": "RATE_LIMITED", "retry_after_seconds": retry_after},
+            detail={"detail": "Too many requests. Please try again later.", "error_code": "RATE_LIMITED"},
             headers={"Retry-After": str(retry_after)},
         )
 
@@ -53,7 +54,7 @@ async def _enforce_google_callback_rate_limit(request: Request) -> None:
     if not allowed:
         raise HTTPException(
             status_code=429,
-            detail={"detail": "Too many requests. Please try again later.", "error_code": "RATE_LIMITED", "retry_after_seconds": retry_after},
+            detail={"detail": "Too many requests. Please try again later.", "error_code": "RATE_LIMITED"},
             headers={"Retry-After": str(retry_after)},
         )
 
@@ -183,6 +184,11 @@ async def auth_google_callback(payload: GoogleCallbackRequest) -> dict[str, obje
 
 @internal_router.post("/api/internal/auth/cleanup")
 async def auth_cleanup() -> dict[str, int]:
+    if not is_database_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="Auth cleanup is unavailable because the database is not configured.",
+        )
     return run_auth_cleanup()
 
 
