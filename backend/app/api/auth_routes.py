@@ -5,18 +5,57 @@ import os
 import secrets
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from ..core.auth import create_authenticated_session, require_authenticated_user, revoke_session_token
 from ..core.google_oauth import exchange_code_for_tokens, google_redirect_uri, verify_google_id_token
-from .access_groups import build_authenticated_marker_router, build_public_router
+from ..core.rate_limits import get_rate_limit_store
+from ..core.request_guards import get_client_ip
+from ..core.auth_cleanup import run_auth_cleanup
+from .access_groups import build_authenticated_marker_router, build_internal_router, build_public_router
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 public_router = build_public_router()
 authenticated_router = build_authenticated_marker_router()
+internal_router = build_internal_router()
+
+# ---------------------------------------------------------------------------
+# Auth rate limiting
+# ---------------------------------------------------------------------------
+
+_AUTH_GOOGLE_URL_LIMIT = 20
+_AUTH_GOOGLE_URL_WINDOW = 900  # 15 minutes
+_AUTH_GOOGLE_CALLBACK_LIMIT = 10
+_AUTH_GOOGLE_CALLBACK_WINDOW = 900
+
+
+async def _enforce_google_url_rate_limit(request: Request) -> None:
+    client_ip = getattr(request.state, "client_ip", None) or get_client_ip(request)
+    allowed, retry_after, _ = await get_rate_limit_store().check_limit(
+        "rate:auth:google:url", client_ip, limit=_AUTH_GOOGLE_URL_LIMIT, window_seconds=_AUTH_GOOGLE_URL_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"detail": "Too many requests. Please try again later.", "error_code": "RATE_LIMITED", "retry_after_seconds": retry_after},
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+async def _enforce_google_callback_rate_limit(request: Request) -> None:
+    client_ip = getattr(request.state, "client_ip", None) or get_client_ip(request)
+    allowed, retry_after, _ = await get_rate_limit_store().check_limit(
+        "rate:auth:google:callback", client_ip, limit=_AUTH_GOOGLE_CALLBACK_LIMIT, window_seconds=_AUTH_GOOGLE_CALLBACK_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"detail": "Too many requests. Please try again later.", "error_code": "RATE_LIMITED", "retry_after_seconds": retry_after},
+            headers={"Retry-After": str(retry_after)},
+        )
 
 @authenticated_router.get("/api/auth/me")
 async def auth_me(request: Request) -> dict[str, object]:
@@ -66,7 +105,7 @@ def _prune_expired_states() -> None:
         _google_oauth_states.pop(k, None)
 
 
-@public_router.get("/api/auth/google/url")
+@public_router.get("/api/auth/google/url", dependencies=[Depends(_enforce_google_url_rate_limit)])
 async def auth_google_url() -> dict[str, str]:
     import time
 
@@ -99,7 +138,7 @@ class GoogleCallbackRequest(BaseModel):
     state: str
 
 
-@public_router.post("/api/auth/google/callback")
+@public_router.post("/api/auth/google/callback", dependencies=[Depends(_enforce_google_callback_rate_limit)])
 async def auth_google_callback(payload: GoogleCallbackRequest) -> dict[str, object]:
     import time
 
@@ -137,5 +176,16 @@ async def auth_google_callback(payload: GoogleCallbackRequest) -> dict[str, obje
     )
 
 
+# ---------------------------------------------------------------------------
+# Internal — auth cleanup
+# ---------------------------------------------------------------------------
+
+
+@internal_router.post("/api/internal/auth/cleanup")
+async def auth_cleanup() -> dict[str, int]:
+    return run_auth_cleanup()
+
+
 router.include_router(public_router)
 router.include_router(authenticated_router)
+router.include_router(internal_router)
