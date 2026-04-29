@@ -266,6 +266,18 @@ async def add_request_context(request: Request, call_next) -> Response:
 
 
 @app.on_event("startup")
+async def maybe_run_auth_cleanup_on_startup() -> None:
+    if os.getenv("AUTH_CLEANUP_ON_STARTUP", "").strip().lower() in {"1", "true", "yes"}:
+        try:
+            from .core.auth_cleanup import run_auth_cleanup
+
+            result = run_auth_cleanup()
+            logger.info("startup auth cleanup: sessions_deleted=%d", result["sessions_deleted"])
+        except Exception:
+            logger.exception("startup auth cleanup failed")
+
+
+@app.on_event("startup")
 async def log_core_diagnostics_on_startup() -> None:
     diagnostics = get_neoxra_core_diagnostics()
     logger.info(
