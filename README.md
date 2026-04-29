@@ -6,7 +6,7 @@ Today the product focuses on demo-ready content generation:
 - Generate All: one idea becomes Instagram, SEO, Threads, and Facebook output
 - Instagram Studio: visual carousel generation, style references, and PNG export
 - SEO Studio, Threads Studio, and Facebook Adapter product surfaces
-- a lightweight magic-link login path for early customer access and organization-aware onboarding
+- Google OAuth login for early customer access and organization-aware onboarding
 
 ## Live product
 
@@ -199,7 +199,9 @@ Most important variables:
 - `CORS_ALLOWED_ORIGINS`
 - `DATABASE_URL`
 - `FRONTEND_APP_URL`
-- `AUTH_MAGIC_LINK_DEBUG`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
 
 Frontend:
 - `NEXT_PUBLIC_API_BASE_URL`

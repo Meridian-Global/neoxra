@@ -1,80 +1,164 @@
-from urllib.parse import parse_qs, urlparse
+import os
 
 from fastapi.testclient import TestClient
 
 from app.db import Base, create_session, get_engine
-from app.db.models import AuthSession, MagicLinkToken, Organization, OrganizationMembership, User
+from app.db.models import AuthSession, Organization, OrganizationMembership, User
 from app.db.session import reset_database_state
 from app.main import app
 
 
-def test_magic_link_auth_flow(monkeypatch, tmp_path):
-    db_path = tmp_path / "auth.db"
+def _setup_sqlite_db(monkeypatch, tmp_path):
+    db_path = tmp_path / "neoxra-auth-test.db"
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path}")
-    monkeypatch.setenv("AUTH_MAGIC_LINK_DEBUG", "true")
-    monkeypatch.setenv("FRONTEND_APP_URL", "http://localhost:3000")
     reset_database_state()
     Base.metadata.create_all(get_engine())
 
+
+def _teardown_sqlite_db():
+    Base.metadata.drop_all(get_engine())
+    reset_database_state()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/auth/google/url
+# ---------------------------------------------------------------------------
+
+
+def test_google_url_returns_501_when_not_configured(monkeypatch):
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/api/auth/google/url")
+
+    assert response.status_code == 501
+    assert "not configured" in response.json().get("detail", "").lower()
+
+
+def test_google_url_returns_url_when_configured(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id.apps.googleusercontent.com")
+    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "http://localhost:3000/login/google/callback")
+
     client = TestClient(app)
+    response = client.get("/api/auth/google/url")
 
-    request_response = client.post(
-        "/api/auth/request-link",
-        json={
-            "email": "founder@example.com",
-            "organization_key": "acme-legal",
-            "redirect_path": "/demo/legal",
-            "full_name": "Founder",
-        },
+    assert response.status_code == 200
+    data = response.json()
+    assert "url" in data
+    assert isinstance(data["url"], str)
+    assert data["url"].startswith("https://accounts.google.com/")
+    assert "client_id=test-client-id.apps.googleusercontent.com" in data["url"]
+
+
+# ---------------------------------------------------------------------------
+# POST /api/auth/google/callback
+# ---------------------------------------------------------------------------
+
+
+def test_google_callback_rejects_invalid_state():
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(
+        "/api/auth/google/callback",
+        json={"code": "some-code", "state": "not-a-registered-state"},
     )
 
-    assert request_response.status_code == 200
-    payload = request_response.json()
-    assert payload["status"] == "ok"
-    assert payload["organization"]["tenant_key"] == "acme-legal"
-    assert "magic_link" in payload
+    assert response.status_code == 400
+    assert "state" in response.json().get("detail", "").lower()
 
-    magic_link = payload["magic_link"]
-    parsed = urlparse(magic_link)
-    token = parse_qs(parsed.query)["token"][0]
 
-    verify_response = client.post("/api/auth/verify", json={"token": token})
-    assert verify_response.status_code == 200
-    verified = verify_response.json()
-    session_token = verified["session_token"]
-    assert verified["redirect_path"] == "/demo/legal"
+def test_google_callback_rejects_expired_state(monkeypatch):
+    import time
 
-    me_response = client.get(
-        "/api/auth/me",
-        headers={"X-Neoxra-Session-Token": session_token},
+    import app.api.auth_routes as auth_routes
+
+    # Manually insert a state that expired long ago (past the module's own TTL)
+    stale_state = "stale-state-value-xyz"
+    expired_at = time.time() - (auth_routes._GOOGLE_STATE_TTL_SECONDS + 60)
+    monkeypatch.setitem(auth_routes._google_oauth_states, stale_state, expired_at)
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(
+        "/api/auth/google/callback",
+        json={"code": "some-code", "state": stale_state},
     )
-    assert me_response.status_code == 200
-    me = me_response.json()
-    assert me["authenticated"] is True
-    assert me["user"]["email"] == "founder@example.com"
-    assert me["organization"]["tenant_key"] == "acme-legal"
 
-    logout_response = client.post(
-        "/api/auth/logout",
-        headers={"X-Neoxra-Session-Token": session_token},
-    )
-    assert logout_response.status_code == 200
+    assert response.status_code == 400
 
-    me_after_logout = client.get(
-        "/api/auth/me",
-        headers={"X-Neoxra-Session-Token": session_token},
-    )
-    assert me_after_logout.status_code == 401
 
-    session = create_session()
+# ---------------------------------------------------------------------------
+# GET /api/auth/me
+# ---------------------------------------------------------------------------
+
+
+def test_auth_me_returns_401_when_unauthenticated():
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/api/auth/me")
+
+    assert response.status_code == 401
+
+
+def test_auth_me_returns_user_with_valid_session(monkeypatch, tmp_path):
+    _setup_sqlite_db(monkeypatch, tmp_path)
     try:
-        assert session.query(User).count() == 1
-        assert session.query(Organization).count() == 1
-        assert session.query(OrganizationMembership).count() == 1
-        assert session.query(MagicLinkToken).count() == 1
-        auth_session = session.query(AuthSession).one()
-        assert auth_session.status == "revoked"
+        from app.core.auth import create_authenticated_session
+
+        result = create_authenticated_session(
+            email="test@example.com",
+            full_name="Test User",
+            auth_method="google",
+        )
+        token = result["session_token"]
+
+        client = TestClient(app)
+        response = client.get("/api/auth/me", headers={"X-Neoxra-Session-Token": token})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["authenticated"] is True
+        assert data["user"]["email"] == "test@example.com"
     finally:
-        session.close()
-        Base.metadata.drop_all(get_engine())
-        reset_database_state()
+        _teardown_sqlite_db()
+
+
+# ---------------------------------------------------------------------------
+# POST /api/auth/logout
+# ---------------------------------------------------------------------------
+
+
+def test_logout_returns_ok_without_token():
+    client = TestClient(app)
+    response = client.post("/api/auth/logout")
+
+    assert response.status_code == 200
+    assert response.json().get("status") == "ok"
+
+
+def test_logout_revokes_active_session(monkeypatch, tmp_path):
+    _setup_sqlite_db(monkeypatch, tmp_path)
+    try:
+        from app.core.auth import create_authenticated_session
+
+        result = create_authenticated_session(
+            email="logout@example.com",
+            full_name="Logout User",
+            auth_method="google",
+        )
+        token = result["session_token"]
+
+        client = TestClient(app)
+
+        # Session is valid before logout
+        me_before = client.get("/api/auth/me", headers={"X-Neoxra-Session-Token": token})
+        assert me_before.status_code == 200
+
+        # Perform logout
+        logout_response = client.post("/api/auth/logout", headers={"X-Neoxra-Session-Token": token})
+        assert logout_response.status_code == 200
+        assert logout_response.json().get("status") == "ok"
+
+        # Session is no longer valid after logout
+        me_after = client.get("/api/auth/me", headers={"X-Neoxra-Session-Token": token})
+        assert me_after.status_code == 401
+    finally:
+        _teardown_sqlite_db()
+
