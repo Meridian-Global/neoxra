@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DemoAccessGate } from '../../components/DemoAccessGate'
 import { FileUpload } from '../../components/FileUpload'
 import { GlobalNav } from '../../components/GlobalNav'
+import { QuotaWarning, QuotaExceededModal, isQuotaExceededError } from '../../components/QuotaWarning'
 import { useLanguage } from '../../components/LanguageProvider'
 import { ServerRenderedCarousel } from '../../components/ServerRenderedCarousel'
 import { TemplateGallery } from '../../components/TemplateGallery'
@@ -762,6 +763,7 @@ export default function InstagramPage() {
   const [pageMode, setPageMode] = useState<PageMode>('ai-generate')
   const [overlayTemplateImage, setOverlayTemplateImage] = useState<string | null>(null)
   const [overlayRenderedImages, setOverlayRenderedImages] = useState<string[]>([])
+  const [showQuotaModal, setShowQuotaModal] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const latestTopicRef = useRef(topic)
   const referencePreviewUrlRef = useRef<string | null>(null)
@@ -1023,6 +1025,12 @@ export default function InstagramPage() {
         }
       } catch (err) {
         if (!abort.signal.aborted && (!(err instanceof DOMException) || err.name !== 'AbortError')) {
+          if (isQuotaExceededError(err)) {
+            setShowQuotaModal(true)
+            setStatus('error')
+            return
+          }
+
           if (err instanceof APIError && err.status === 401) {
             clearStoredDemoToken(demoConfig.apiSurface)
             setDemoToken(null)
@@ -1090,6 +1098,7 @@ export default function InstagramPage() {
     <main className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 pb-16 pt-8 sm:px-6 lg:px-8">
         <GlobalNav />
+        <QuotaWarning />
 
         {/* Mode toggle */}
         <div className="flex justify-center">
@@ -1360,6 +1369,7 @@ export default function InstagramPage() {
           </div>
         </div>
       ) : null}
+      {showQuotaModal && <QuotaExceededModal onClose={() => setShowQuotaModal(false)} />}
     </main>
   )
 }

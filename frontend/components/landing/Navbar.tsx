@@ -15,6 +15,7 @@ type NavCopy = {
   pricing: string
   login: string
   getStarted: string
+  usage?: string
   logout?: string
 }
 
@@ -91,6 +92,12 @@ export default function Navbar({ copy, anchorPrefix = '', auth }: NavbarProps) {
           {auth ? (
             <>
               <span className="text-sm text-[var(--text-secondary)]">{auth.email}</span>
+              <Link
+                className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
+                href="/usage"
+              >
+                {copy.usage || 'Usage'}
+              </Link>
               <button
                 className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
                 onClick={auth.onLogout}
@@ -166,6 +173,13 @@ export default function Navbar({ copy, anchorPrefix = '', auth }: NavbarProps) {
             {auth ? (
               <>
                 <span className="px-3 text-sm text-[var(--text-secondary)]">{auth.email}</span>
+                <Link
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
+                  href="/usage"
+                  onClick={() => setOpen(false)}
+                >
+                  {copy.usage || 'Usage'}
+                </Link>
                 <button
                   className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-bold)] hover:text-[var(--text-primary)]"
                   onClick={() => { auth.onLogout(); setOpen(false) }}

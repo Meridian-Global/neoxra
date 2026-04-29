@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import { GlobalNav } from '../../components/GlobalNav'
+import { QuotaWarning, QuotaExceededModal, isQuotaExceededError } from '../../components/QuotaWarning'
 import { useLanguage } from '../../components/LanguageProvider'
 import { PipelineProgress, type PipelineStep, type PipelineStepStatus } from '../../components/PipelineProgress'
 import { PlatformTabs, type PlatformErrors, type PlatformResults, type PlatformStatuses } from '../../components/PlatformTabs'
@@ -306,6 +307,7 @@ export default function GeneratePage() {
   const abortRef = useRef<AbortController | null>(null)
   const runSlugRef = useRef<string>('')
   const exportSlideRefs = useRef<HTMLDivElement[]>([])
+  const [showQuotaModal, setShowQuotaModal] = useState(false)
   const isGenerating = pageStatus === 'loading' || pageStatus === 'streaming'
   const hasAnyResult = Boolean(results.instagram || results.seo || results.threads || results.facebook)
 
@@ -478,6 +480,11 @@ export default function GeneratePage() {
       }
     } catch (error) {
       if (!abort.signal.aborted) {
+        if (isQuotaExceededError(error)) {
+          setShowQuotaModal(true)
+          setPageStatus('error')
+          return
+        }
         setPageStatus('error')
         setPageError(friendlyError(error, copy))
         setPlannerStatus((current) => (current === 'complete' ? current : 'error'))
@@ -489,6 +496,7 @@ export default function GeneratePage() {
     <main className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 pb-16 pt-8 sm:px-6 lg:px-8">
         <GlobalNav />
+        <QuotaWarning />
 
         <section className="grid gap-6 lg:grid-cols-[minmax(300px,0.34fr)_minmax(0,0.66fr)]">
           <aside className="space-y-6 rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-[var(--shadow-md)] lg:sticky lg:top-24 lg:self-start">
@@ -671,6 +679,7 @@ export default function GeneratePage() {
       {results.instagram ? (
         <HiddenInstagramSlides slides={results.instagram.carousel_outline} slideRefs={exportSlideRefs} />
       ) : null}
+      {showQuotaModal && <QuotaExceededModal onClose={() => setShowQuotaModal(false)} />}
     </main>
   )
 }
