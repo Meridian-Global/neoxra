@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import logging
 import os
 from dataclasses import dataclass
 
@@ -10,6 +11,8 @@ from fastapi import HTTPException, Request
 from .abuse_monitor import ABUSE_MONITOR
 from .growth_context import get_session_id, get_visitor_id
 from .rate_limits import get_rate_limit_store, reset_rate_limit_store
+
+logger = logging.getLogger(__name__)
 
 
 CORE_ROUTE_KEY = "core"
@@ -113,12 +116,32 @@ def get_concurrency_limit(route_key: str) -> int:
     return 1
 
 
+def _is_plan_authenticated(request: Request) -> bool:
+    """Return True if the request comes from an authenticated user with an org."""
+    auth = getattr(request.state, "auth", None)
+    return (
+        getattr(auth, "is_authenticated", False)
+        and getattr(auth, "organization_id", None) is not None
+    )
+
+
 def _quota_limit_for_request(request: Request, route_key: str) -> tuple[int | None, str | None]:
     if route_key not in {CORE_ROUTE_KEY, INSTAGRAM_ROUTE_KEY}:
         return (None, None)
 
     auth = getattr(request.state, "auth", None)
     if getattr(auth, "is_authenticated", False) and getattr(auth, "user_id", None):
+        # For authenticated users with an org, try the DB-based plan quota.
+        # If the lookup fails, fall back to the env var.
+        if getattr(auth, "organization_id", None) is not None:
+            try:
+                from ..services.subscriptions import get_quota_for_organization
+
+                quota = get_quota_for_organization(auth.organization_id)
+                if quota is not None:
+                    return (quota["generations_limit"], "user")
+            except Exception:
+                logger.debug("plan quota lookup failed, falling back to env var", exc_info=True)
         return (_env_int("AUTHENTICATED_GENERATION_QUOTA_PER_DAY", 200), "user")
 
     demo_token = request.headers.get("X-Neoxra-Demo-Token", "").strip()
@@ -208,40 +231,80 @@ async def enforce_generation_limits(request: Request, route_key: str) -> Concurr
 
     quota_limit, quota_scope = _quota_limit_for_request(request, route_key)
     if quota_limit is not None and quota_scope is not None:
-        _, quota_subject = _quota_subject(request)
-        quota_allowed, quota_retry_after, quota_count = await GENERATION_GUARDS.check_limit(
-            f"quota:{route_key}:{quota_scope}",
-            quota_subject,
-            limit=quota_limit,
-            window_seconds=_quota_window_seconds(),
-        )
-        if not quota_allowed:
-            _quota_scope_labels: dict[str, str] = {
-                "user": "for this user",
-                "demo": "for this demo token",
-                "session": "for this session",
-                "visitor": "for this visitor",
-                "ip": "for this IP",
+        if _is_plan_authenticated(request):
+            # Authenticated users: check DB-based plan quota (monthly counter).
+            auth = getattr(request.state, "auth", None)
+            org_id = auth.organization_id
+            try:
+                from ..services.subscriptions import get_quota_for_organization
+
+                quota = get_quota_for_organization(org_id)
+                if quota is not None and quota["generations_remaining"] <= 0:
+                    raise HTTPException(
+                        status_code=429,
+                        detail={
+                            "detail": "Monthly generation quota reached for your plan. Please upgrade or wait for the next billing period.",
+                            "error_code": "PLAN_QUOTA_EXCEEDED",
+                        },
+                        headers={"Retry-After": "3600"},
+                    )
+                if quota is not None:
+                    request.state.quota_headers = {
+                        "X-Neoxra-Quota-Limit": str(quota["generations_limit"]),
+                        "X-Neoxra-Quota-Remaining": str(quota["generations_remaining"]),
+                        "X-Neoxra-Quota-Scope": "plan",
+                        "X-Neoxra-Quota-Period-End": quota["period_end"],
+                    }
+                else:
+                    # DB lookup failed — skip quota enforcement, set basic headers.
+                    request.state.quota_headers = {
+                        "X-Neoxra-Quota-Limit": str(quota_limit),
+                        "X-Neoxra-Quota-Scope": "user",
+                    }
+            except HTTPException:
+                raise
+            except Exception:
+                logger.debug("plan quota check failed, skipping enforcement", exc_info=True)
+                request.state.quota_headers = {
+                    "X-Neoxra-Quota-Limit": str(quota_limit),
+                    "X-Neoxra-Quota-Scope": "user",
+                }
+        else:
+            # Non-authenticated users: in-memory rolling 24h window.
+            _, quota_subject = _quota_subject(request)
+            quota_allowed, quota_retry_after, quota_count = await GENERATION_GUARDS.check_limit(
+                f"quota:{route_key}:{quota_scope}",
+                quota_subject,
+                limit=quota_limit,
+                window_seconds=_quota_window_seconds(),
+            )
+            if not quota_allowed:
+                _quota_scope_labels: dict[str, str] = {
+                    "user": "for this user",
+                    "demo": "for this demo token",
+                    "session": "for this session",
+                    "visitor": "for this visitor",
+                    "ip": "for this IP",
+                }
+                _scope_label = _quota_scope_labels.get(quota_scope)
+                quota_detail = (
+                    f"Generation quota reached {_scope_label}. Please try again later."
+                    if _scope_label is not None
+                    else "Generation quota reached. Please try again later."
+                )
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "detail": quota_detail,
+                        "error_code": "SOFT_QUOTA_EXCEEDED",
+                    },
+                    headers={"Retry-After": str(quota_retry_after)},
+                )
+            request.state.quota_headers = {
+                "X-Neoxra-Quota-Limit": str(quota_limit),
+                "X-Neoxra-Quota-Remaining": str(max(0, quota_limit - quota_count)),
+                "X-Neoxra-Quota-Scope": quota_scope,
             }
-            _scope_label = _quota_scope_labels.get(quota_scope)
-            quota_detail = (
-                f"Generation quota reached {_scope_label}. Please try again later."
-                if _scope_label is not None
-                else "Generation quota reached. Please try again later."
-            )
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "detail": quota_detail,
-                    "error_code": "SOFT_QUOTA_EXCEEDED",
-                },
-                headers={"Retry-After": str(quota_retry_after)},
-            )
-        request.state.quota_headers = {
-            "X-Neoxra-Quota-Limit": str(quota_limit),
-            "X-Neoxra-Quota-Remaining": str(max(0, quota_limit - quota_count)),
-            "X-Neoxra-Quota-Scope": quota_scope,
-        }
 
     acquired = await GENERATION_GUARDS.acquire_concurrency(
         f"concurrency:{route_key}",
