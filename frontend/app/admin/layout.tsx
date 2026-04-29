@@ -15,6 +15,8 @@ const COPY: Record<Language, Record<string, string>> = {
     users: 'Users',
     organizations: 'Organizations',
     plans: 'Plans',
+    activity: 'Activity',
+    system: 'System',
     backToApp: 'Back to App',
   },
   'zh-TW': {
@@ -23,6 +25,8 @@ const COPY: Record<Language, Record<string, string>> = {
     users: '使用者',
     organizations: '組織',
     plans: '方案',
+    activity: '活動紀錄',
+    system: '系統',
     backToApp: '返回應用',
   },
 }
@@ -32,6 +36,8 @@ const NAV_ITEMS = [
   { key: 'users', href: '/admin/users' },
   { key: 'organizations', href: '/admin/orgs' },
   { key: 'plans', href: '/admin/plans' },
+  { key: 'activity', href: '/admin/activity' },
+  { key: 'system', href: '/admin/system' },
 ] as const
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

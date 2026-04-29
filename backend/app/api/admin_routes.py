@@ -10,6 +10,10 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from ..core.abuse_monitor import ABUSE_MONITOR
+from ..core.generation_metrics import get_generation_metrics_snapshot
+from ..core.neoxra_core_diagnostics import get_neoxra_core_diagnostics
+from ..core.rate_limits import get_rate_limit_backend_name
 from ..db import (
     AuthSession,
     DemoRun,
@@ -20,6 +24,7 @@ from ..db import (
     UsageCounter,
     UsageEvent,
     User,
+    check_database_connection,
     create_session,
     is_database_enabled,
 )
@@ -683,6 +688,51 @@ async def admin_assign_subscription(payload: AssignSubscriptionRequest, request:
 # 8. GET /api/admin/subscriptions
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# GET /api/admin/system/health
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/system/health")
+async def admin_system_health(request: Request) -> dict:
+    """Combined system health for the admin dashboard."""
+
+    # Database
+    db_status: dict = {"status": "disabled", "database_enabled": False}
+    if is_database_enabled():
+        try:
+            check_database_connection()
+            db_status = {"status": "ok", "database_enabled": True}
+        except Exception:
+            logger.exception("admin health: database check failed")
+            db_status = {"status": "degraded", "database_enabled": True}
+
+    # Core library
+    diagnostics = get_neoxra_core_diagnostics()
+    import_ok = bool(diagnostics.get("import_ok"))
+    core_status = {
+        "status": "ok" if import_ok else "degraded",
+        "import_ok": import_ok,
+        "distribution_installed": diagnostics.get("distribution_installed", False),
+        "distribution_version": diagnostics.get("distribution_version", "unknown"),
+    }
+
+    # Generation metrics
+    generation_metrics = get_generation_metrics_snapshot()
+
+    # Guardrails
+    guardrails = {
+        "rate_limit_backend": get_rate_limit_backend_name(),
+        "abuse_monitor": await ABUSE_MONITOR.snapshot(),
+    }
+
+    return {
+        "database": db_status,
+        "core_library": core_status,
+        "generation_metrics": generation_metrics,
+        "guardrails": guardrails,
+    }
+
+
 @router.get("/api/admin/subscriptions")
 async def admin_list_subscriptions(
     request: Request,
@@ -759,5 +809,71 @@ async def admin_list_subscriptions(
     except SQLAlchemyError:
         logger.exception("failed to list admin subscriptions")
         raise HTTPException(status_code=500, detail="Failed to query subscriptions.")
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/admin/activity
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/activity")
+async def admin_activity_log(
+    request: Request,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=100),
+    route: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+) -> dict:
+    _require_db()
+
+    session = create_session()
+    try:
+        q = session.query(DemoRun)
+
+        if route:
+            q = q.filter(DemoRun.route == route)
+        if status:
+            q = q.filter(DemoRun.status == status)
+
+        total = q.count()
+
+        runs = (
+            q.order_by(DemoRun.created_at.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+            .all()
+        )
+
+        result = []
+        for run in runs:
+            user_email: str | None = None
+            if run.user_id:
+                user = session.get(User, run.user_id)
+                if user:
+                    user_email = user.email
+
+            org_name: str | None = None
+            if run.organization_id:
+                org = session.get(Organization, run.organization_id)
+                if org:
+                    org_name = org.name
+
+            result.append({
+                "id": run.id,
+                "route": run.route,
+                "pipeline": run.pipeline,
+                "status": run.status,
+                "duration_ms": run.duration_ms,
+                "user_id": run.user_id,
+                "user_email": user_email,
+                "org_name": org_name,
+                "created_at": run.created_at.isoformat() if run.created_at else None,
+            })
+
+        return {"activities": result, "pagination": _pagination(total, page, per_page)}
+    except SQLAlchemyError:
+        logger.exception("failed to list admin activity")
+        raise HTTPException(status_code=500, detail="Failed to query activity log.")
     finally:
         session.close()
