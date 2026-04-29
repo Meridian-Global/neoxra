@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from .api.routes import router
+from .api.admin_routes import router as admin_router
 from .api.admin_usage_routes import router as admin_usage_router
 from .api.analytics_routes import router as analytics_router
 from .api.auth_routes import router as auth_router
@@ -89,6 +90,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(admin_router)
 app.include_router(admin_usage_router)
 app.include_router(analytics_router)
 app.include_router(auth_router)

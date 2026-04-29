@@ -17,7 +17,7 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("users") as batch_op:
-        batch_op.add_column(sa.Column("is_admin", sa.Boolean(), nullable=False, server_default=sa.text("0")))
+        batch_op.add_column(sa.Column("is_admin", sa.Boolean(), nullable=False, server_default=sa.text("false")))
         batch_op.create_index("ix_users_is_admin", ["is_admin"])
 
 
