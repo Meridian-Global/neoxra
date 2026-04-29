@@ -25,6 +25,7 @@ from ..core.request_guards import (
     get_max_voice_profile_length,
 )
 from ..services import create_demo_run, mark_demo_run_completed, record_usage_event
+from ..services.subscriptions import increment_usage
 from .access_groups import build_gated_demo_router
 
 router = build_gated_demo_router()
@@ -451,6 +452,8 @@ async def run_pipeline(req: RunRequest, request: Request):
                             metadata={"voice_profile": req.voice_profile},
                             demo_run_handle=demo_run_handle,
                         )
+                        if getattr(auth, "is_authenticated", False) and getattr(auth, "organization_id", None):
+                            increment_usage(auth.organization_id)
                         await ABUSE_MONITOR.record_completion(
                             route_key=CORE_ROUTE_KEY,
                             client_id=client_id,

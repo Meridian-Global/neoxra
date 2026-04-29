@@ -39,6 +39,7 @@ from ..core_client import (
     get_core_client,
 )
 from ..services import create_demo_run, mark_demo_run_completed, record_usage_event
+from ..services.subscriptions import increment_usage
 from .access_groups import build_gated_demo_router
 
 VALID_GOALS = ("engagement", "authority", "conversion", "save", "share")
@@ -908,6 +909,8 @@ async def instagram_generate(req: InstagramGenerateRequest, request: Request):
                     metadata={"goal": generation_request.goal},
                     demo_run_handle=demo_run_handle,
                 )
+                if getattr(auth, "is_authenticated", False) and getattr(auth, "organization_id", None):
+                    increment_usage(auth.organization_id)
                 await ABUSE_MONITOR.record_completion(
                     route_key=INSTAGRAM_ROUTE_KEY,
                     client_id=client_id,
