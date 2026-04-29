@@ -170,11 +170,15 @@ async def auth_google_callback(payload: GoogleCallbackRequest) -> dict[str, obje
     if not email:
         raise HTTPException(status_code=400, detail="Google account has no email.")
 
-    return create_authenticated_session(
-        email=email,
-        full_name=claims.get("name"),
-        auth_method="google",
-    )
+    try:
+        return create_authenticated_session(
+            email=email,
+            full_name=claims.get("name"),
+            auth_method="google",
+        )
+    except Exception:
+        logger.exception("Failed to create authenticated session for %s", email)
+        raise HTTPException(status_code=500, detail="Sign-in failed. Please try again.")
 
 
 # ---------------------------------------------------------------------------

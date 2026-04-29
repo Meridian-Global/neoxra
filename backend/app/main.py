@@ -165,6 +165,27 @@ async def safe_validation_exception_handler(request: Request, exc: RequestValida
     )
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    logger.exception(
+        "unhandled exception %s",
+        format_log_fields(
+            {
+                "method": request.method,
+                "path": request.url.path,
+                "client": getattr(request.state, "client_ip", "-"),
+            }
+        ),
+    )
+    return json_error_response(
+        status_code=500,
+        detail="Internal server error.",
+        error_code="INTERNAL_SERVER_ERROR",
+        request_id=request_id,
+    )
+
+
 @app.middleware("http")
 async def add_request_context(request: Request, call_next) -> Response:
     request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]

@@ -46,9 +46,10 @@ function GoogleCallbackContent() {
         const redirectPath = isSafeRedirectPath(rawRedirect) ? rawRedirect : '/generate'
         router.push(redirectPath)
       })
-      .catch(() => {
-        setError('Sign-in failed. Redirecting to login...')
-        window.setTimeout(() => router.push('/login'), 2000)
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        setError(`Sign-in failed: ${msg}`)
+        window.setTimeout(() => router.push('/login'), 3000)
       })
   }, [searchParams, router, auth])
 

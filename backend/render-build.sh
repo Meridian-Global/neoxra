@@ -45,3 +45,12 @@ python scripts/check_neoxra_core.py
 # Verify neoxra-renderer (Pillow-based, no browser install needed)
 python -c "import neoxra_renderer; print(f'neoxra_renderer_import=ok path={neoxra_renderer.__file__}')"
 python -c "from neoxra_renderer.fonts import get_font; f = get_font(32); print(f'font_check=ok path={f.path if hasattr(f, \"path\") else \"DEFAULT_NO_CJK\"}')"
+
+# Run database migrations (safe to run repeatedly — only applies pending migrations)
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  echo "== Running Alembic migrations =="
+  python -m alembic upgrade head
+  echo "== Alembic migrations complete =="
+else
+  echo "== DATABASE_URL not set, skipping migrations =="
+fi
