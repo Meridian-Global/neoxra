@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from .api.routes import router
+from .api.admin_usage_routes import router as admin_usage_router
 from .api.analytics_routes import router as analytics_router
 from .api.auth_routes import router as auth_router
 from .api.demo_config_routes import router as demo_config_router
@@ -38,6 +39,7 @@ from .api.seo_routes import router as seo_router
 from .api.template_routes import router as template_router
 from .api.threads_routes import router as threads_router
 from .api.unified_routes import router as unified_router
+from .api.usage_routes import router as usage_router
 from .core.demo_access import get_runtime_mode
 from .core.auth import attach_auth_context
 from .core.error_handling import json_error_response
@@ -87,6 +89,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(admin_usage_router)
 app.include_router(analytics_router)
 app.include_router(auth_router)
 app.include_router(demo_config_router)
@@ -101,6 +104,7 @@ app.include_router(seo_router)
 app.include_router(template_router)
 app.include_router(threads_router)
 app.include_router(unified_router)
+app.include_router(usage_router)
 
 
 def _default_error_code_for_status(status_code: int) -> str:
