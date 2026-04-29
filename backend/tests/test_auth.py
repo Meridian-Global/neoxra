@@ -13,7 +13,6 @@ def _setup_sqlite_db(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path}")
     reset_database_state()
     Base.metadata.create_all(get_engine())
-    return db_path
 
 
 def _teardown_sqlite_db():
@@ -47,8 +46,8 @@ def test_google_url_returns_url_when_configured(monkeypatch):
     data = response.json()
     assert "url" in data
     assert isinstance(data["url"], str)
-    assert "accounts.google.com" in data["url"]
-    assert "test-client-id.apps.googleusercontent.com" in data["url"]
+    assert data["url"].startswith("https://accounts.google.com/")
+    assert "client_id=test-client-id.apps.googleusercontent.com" in data["url"]
 
 
 # ---------------------------------------------------------------------------
@@ -72,9 +71,10 @@ def test_google_callback_rejects_expired_state(monkeypatch):
 
     import app.api.auth_routes as auth_routes
 
-    # Manually insert a state that expired long ago
+    # Manually insert a state that expired long ago (past the module's own TTL)
     stale_state = "stale-state-value-xyz"
-    monkeypatch.setitem(auth_routes._google_oauth_states, stale_state, time.time() - 700)
+    expired_at = time.time() - (auth_routes._GOOGLE_STATE_TTL_SECONDS + 60)
+    monkeypatch.setitem(auth_routes._google_oauth_states, stale_state, expired_at)
 
     client = TestClient(app, raise_server_exceptions=False)
     response = client.post(

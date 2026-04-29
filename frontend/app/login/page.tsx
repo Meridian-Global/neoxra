@@ -101,7 +101,7 @@ function LoginPageContent() {
     try {
       const redirect = searchParams.get('redirect')
       try {
-        if (redirect && redirect.startsWith('/') && !redirect.startsWith('//') && !redirect.includes('://')) {
+        if (redirect && redirect.startsWith('/') && !redirect.startsWith('//') && !redirect.includes('://') && !redirect.includes('//')) {
           window.localStorage.setItem(GOOGLE_AUTH_REDIRECT_KEY, redirect)
         } else {
           window.localStorage.removeItem(GOOGLE_AUTH_REDIRECT_KEY)

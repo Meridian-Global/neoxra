@@ -10,7 +10,8 @@ function isSafeRedirectPath(path: string): boolean {
     typeof path === 'string' &&
     path.startsWith('/') &&
     !path.startsWith('//') &&
-    !path.includes('://')
+    !path.includes('://') &&
+    !path.includes('//')
   )
 }
 
