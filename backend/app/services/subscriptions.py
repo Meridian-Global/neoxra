@@ -18,7 +18,7 @@ def _db_disabled() -> bool:
     return not is_database_enabled()
 
 
-def _period_bounds_utc() -> tuple[datetime, datetime]:
+def period_bounds_utc() -> tuple[datetime, datetime]:
     """Return (start, end) for the current calendar-month billing period in UTC."""
     now = datetime.now(timezone.utc)
     start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -91,7 +91,7 @@ def get_or_create_subscription(
         logger.error("plan slug=%s not found, cannot create subscription", plan_slug)
         return None
 
-    period_start, period_end = _period_bounds_utc()
+    period_start, period_end = period_bounds_utc()
 
     session = create_session()
     try:
@@ -133,7 +133,7 @@ def get_usage_counter(organization_id: str) -> UsageCounter | None:
     if _db_disabled():
         return None
 
-    period_start, period_end = _period_bounds_utc()
+    period_start, period_end = period_bounds_utc()
 
     session = create_session()
     try:
@@ -190,7 +190,7 @@ def increment_usage(organization_id: str) -> UsageCounter | None:
     if counter is None:
         return None
 
-    period_start, _ = _period_bounds_utc()
+    period_start, _ = period_bounds_utc()
 
     session = create_session()
     try:
@@ -226,7 +226,7 @@ def increment_usage(organization_id: str) -> UsageCounter | None:
 # ---------------------------------------------------------------------------
 
 def get_quota_for_organization(organization_id: str) -> dict:
-    period_start, period_end = _period_bounds_utc()
+    period_start, period_end = period_bounds_utc()
 
     # Defaults for when DB is down or no subscription exists.
     plan_slug = _FREE_PLAN_SLUG
@@ -236,7 +236,7 @@ def get_quota_for_organization(organization_id: str) -> dict:
     if not _db_disabled():
         sub = get_active_subscription(organization_id)
         if sub is not None:
-            plan = _get_plan_by_id(sub.plan_id)
+            plan = get_plan_by_id(sub.plan_id)
             if plan is not None:
                 plan_slug = plan.slug
                 generations_limit = plan.generations_per_month
@@ -261,7 +261,7 @@ def get_quota_for_organization(organization_id: str) -> dict:
 # internal helper
 # ---------------------------------------------------------------------------
 
-def _get_plan_by_id(plan_id: str) -> Plan | None:
+def get_plan_by_id(plan_id: str) -> Plan | None:
     """Look up a plan by primary key."""
     if _db_disabled():
         return None
