@@ -6,13 +6,14 @@ from enum import Enum
 
 from fastapi import HTTPException, Request
 
-from .auth import require_authenticated_user
+from .auth import AuthContext, require_authenticated_user
 
 
 class RouteAccessLevel(str, Enum):
     PUBLIC = "public"
     GATED_DEMO = "gated-demo"
     AUTHENTICATED = "authenticated"
+    ADMIN = "admin"
     INTERNAL = "internal"
 
 
@@ -37,6 +38,20 @@ def require_authenticated_route_access(request: Request) -> RouteAccessLevel:
     mark_route_access_level(request, RouteAccessLevel.AUTHENTICATED)
     require_authenticated_user(request)
     return RouteAccessLevel.AUTHENTICATED
+
+
+def require_admin_user(request: Request) -> AuthContext:
+    mark_route_access_level(request, RouteAccessLevel.ADMIN)
+    auth = require_authenticated_user(request)
+    if not auth.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "detail": "Admin access required.",
+                "error_code": "ADMIN_REQUIRED",
+            },
+        )
+    return auth
 
 
 def require_internal_route_access(request: Request) -> RouteAccessLevel:
