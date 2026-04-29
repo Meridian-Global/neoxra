@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../../../contexts/AuthContext'
-import { handleGoogleCallback } from '../../../../lib/auth'
+import { handleGoogleCallback, GOOGLE_AUTH_REDIRECT_KEY } from '../../../../lib/auth'
 
 function isSafeRedirectPath(path: string): boolean {
   return (
@@ -37,7 +37,11 @@ function GoogleCallbackContent() {
     void handleGoogleCallback(code, state)
       .then(async (result) => {
         await auth.login(result.session_token)
-        const rawRedirect = searchParams.get('redirect') || '/generate'
+        let rawRedirect = '/generate'
+        try {
+          rawRedirect = window.localStorage.getItem(GOOGLE_AUTH_REDIRECT_KEY) || '/generate'
+          window.localStorage.removeItem(GOOGLE_AUTH_REDIRECT_KEY)
+        } catch {}
         const redirectPath = isSafeRedirectPath(rawRedirect) ? rawRedirect : '/generate'
         router.push(redirectPath)
       })

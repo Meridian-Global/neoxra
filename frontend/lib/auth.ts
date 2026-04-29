@@ -5,6 +5,8 @@ import { AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME } from './auth-constants'
 
 const SESSION_TOKEN_KEY = 'neoxra-session-token'
 
+export const GOOGLE_AUTH_REDIRECT_KEY = 'neoxra-google-auth-redirect'
+
 export interface AuthIdentity {
   user: {
     id: string
@@ -50,7 +52,10 @@ export async function getGoogleAuthUrl(): Promise<string> {
   if (!response.ok) {
     throw new Error(typeof payload?.detail === 'string' ? payload.detail : 'Failed to get Google auth URL.')
   }
-  return payload.url as string
+  if (typeof payload.url !== 'string' || payload.url.length === 0) {
+    throw new Error('Failed to get Google auth URL.')
+  }
+  return payload.url
 }
 
 export async function handleGoogleCallback(code: string, state: string): Promise<{ session_token: string }> {

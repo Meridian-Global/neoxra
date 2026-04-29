@@ -7,7 +7,7 @@ import { Suspense, useMemo, useState } from 'react'
 import { GlobalNav } from '../../components/GlobalNav'
 import { useLanguage } from '../../components/LanguageProvider'
 import { useAuth } from '../../contexts/AuthContext'
-import { getGoogleAuthUrl } from '../../lib/auth'
+import { getGoogleAuthUrl, GOOGLE_AUTH_REDIRECT_KEY } from '../../lib/auth'
 
 function createCopy(language: 'en' | 'zh-TW') {
   if (language === 'zh-TW') {
@@ -99,6 +99,14 @@ function LoginPageContent() {
     setError(null)
     setIsRedirecting(true)
     try {
+      const redirect = searchParams.get('redirect')
+      try {
+        if (redirect && redirect.startsWith('/') && !redirect.startsWith('//') && !redirect.includes('://')) {
+          window.localStorage.setItem(GOOGLE_AUTH_REDIRECT_KEY, redirect)
+        } else {
+          window.localStorage.removeItem(GOOGLE_AUTH_REDIRECT_KEY)
+        }
+      } catch {}
       const url = await getGoogleAuthUrl()
       window.location.href = url
     } catch {
